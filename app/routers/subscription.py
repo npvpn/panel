@@ -1,5 +1,8 @@
 import re
+from datetime import datetime, timezone
+import math
 from distutils.version import LooseVersion
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, Path, Request, Response
 from fastapi.responses import HTMLResponse
@@ -35,6 +38,27 @@ client_config = {
 router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
 
 
+def get_user_note(user: UserResponse) -> str:
+    """Return user's note from explicit note field or empty string."""
+    note = str(getattr(user, "note", "") or "")
+    if not note:
+        return ""
+    expire_ts = int(user.expire or 0)
+    if expire_ts <= 0:
+        return note.replace("<days_left>", "0")
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    seconds_left = max(0, expire_ts - now_ts)
+    days_left = math.ceil(seconds_left / 86400)
+    note = note.replace("<days_left>", str(days_left))
+    return note
+
+def build_content_disposition(username: str) -> str:
+    """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
+    fallback = re.sub(r'[^A-Za-z0-9._-]+', '_', username or 'profile')
+    utf8_quoted = quote(username or 'profile', safe='')
+    return f'attachment; filename="{fallback}"; filename*=UTF-8''{utf8_quoted}'
+
+
 def get_subscription_user_info(user: UserResponse) -> dict:
     """Retrieve user subscription information including upload, download, total data, and expiry."""
     return {
@@ -66,11 +90,14 @@ def user_subscription(
         )
 
     crud.update_user_sub(db, dbuser, user_agent)
+    announce_text = get_user_note(user) or ""
     response_headers = {
-        "content-disposition": f'attachment; filename="{user.username}"',
+        "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
         "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "announce": encode_title(announce_text),
+        "announce-url": SUB_SUPPORT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
@@ -173,11 +200,14 @@ def user_subscription_with_client_type(
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     user: UserResponse = UserResponse.model_validate(dbuser)
 
+    announce_text = get_user_note(user) or ""
     response_headers = {
-        "content-disposition": f'attachment; filename="{user.username}"',
+        "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
         "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "announce": encode_title(announce_text),
+        "announce-url": SUB_SUPPORT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
