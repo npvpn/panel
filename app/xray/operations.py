@@ -226,14 +226,17 @@ def connect_node(node_id, config=None):
         logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
 
     except Exception as e:
+        logger.error(f"[connect_node] Exception on node {node_id}: {e}", exc_info=True)
         _change_node_status(node_id, NodeStatus.error, message=str(e))
         logger.info(f"Unable to connect to \"{dbnode.name}\" node")
 
     finally:
-        try:
-            del _connecting_nodes[node_id]
-        except KeyError:
-            pass
+        if node_id in _connecting_nodes:
+            try:
+                del _connecting_nodes[node_id]
+            except KeyError:
+                pass
+            logger.debug(f"[connect_node] Node {node_id} removed from _connecting_nodes")
 
 
 @threaded_function
