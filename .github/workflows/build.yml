@@ -55,7 +55,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            gozargah/marzban:latest
-            gozargah/marzban:${{github.ref_name}}
-            ghcr.io/gozargah/marzban:latest
-            ghcr.io/gozargah/marzban:${{github.ref_name}}
+            npvpn/panel:latest
+            npvpn/panel:${{github.ref_name}}
+            ghcr.io/${{ github.repository_owner }}/panel:latest
+            ghcr.io/${{ github.repository_owner }}/panel:${{github.ref_name}}
