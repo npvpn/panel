@@ -27,13 +27,12 @@ RUN python3 -m pip install --upgrade pip setuptools \
 FROM python:${PYTHON_VERSION}-slim
 ENV PYTHONUNBUFFERED=1
 ARG PYTHON_VERSION
-ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION%.*}/site-packages
+ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages
 WORKDIR /code
 
 RUN rm -rf $PYTHON_LIB_PATH/*
 
 COPY --from=build $PYTHON_LIB_PATH $PYTHON_LIB_PATH
-COPY --from=build /usr/local/bin/xray /usr/local/bin/xray
 # COPY --from=build /usr/local/share/xray /usr/local/share/xray
 RUN mkdir -p /usr/local/share/xray
 COPY --from=build /usr/local/bin/xray /usr/local/bin/
