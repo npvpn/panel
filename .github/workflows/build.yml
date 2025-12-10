@@ -55,7 +55,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            npvpn/panel:latest
-            npvpn/panel:${{github.ref_name}}
+            ${{ secrets.DOCKERHUB_USERNAME }}/panel:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/panel:${{github.ref_name}}
             ghcr.io/${{ github.repository_owner }}/panel:latest
             ghcr.io/${{ github.repository_owner }}/panel:${{github.ref_name}}
