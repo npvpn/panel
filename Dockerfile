@@ -48,7 +48,7 @@
 FROM python:3.10-slim AS build
 ARG PYTHON_VERSION=3.12
 
-FROM python:$PYTHON_VERSION-slim AS build
+FROM python:${PYTHON_VERSION}-slim AS build
 
 ENV PYTHONUNBUFFERED=1
 
