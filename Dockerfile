@@ -33,6 +33,9 @@ RUN mkdir -p /usr/local/share/xray
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /usr/local/share/xray /usr/local/share/xray
 COPY . /code
+COPY ./app/dashboard/build/statics/main.css /code/app/dashboard/build/statics/main.css
+COPY ./app/dashboard/build/statics/main.js  /code/app/dashboard/build/statics/main.js
+COPY ./app/dashboard/build/statics/vendor/  /code/app/dashboard/build/statics/vendor/
 
 RUN ln -sf /code/marzban-cli.py /usr/bin/marzban-cli || true \
     && chmod +x /usr/bin/marzban-cli || true \
