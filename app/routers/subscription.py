@@ -13,6 +13,7 @@ from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from config import (
+    SUB_CLIENT_NOTE,
     SUB_PROFILE_TITLE,
     SUB_SUPPORT_URL,
     SUB_UPDATE_INTERVAL,
@@ -39,18 +40,18 @@ router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
 
 
 def get_user_note(user: UserResponse) -> str:
-    """Return user's note from explicit note field or empty string."""
-    note = str(getattr(user, "note", "") or "")
-    if not note:
+    """Return note from marzban env CLIENT_NOTE with <days_left> placeholder support."""
+    note_template = SUB_CLIENT_NOTE
+    if not note_template:
         return ""
     expire_ts = int(user.expire or 0)
     if expire_ts <= 0:
-        return note.replace("<days_left>", "0")
+        return note_template.replace("<days_left>", "0")
     now_ts = int(datetime.now(timezone.utc).timestamp())
     seconds_left = max(0, expire_ts - now_ts)
     days_left = math.ceil(seconds_left / 86400)
-    note = note.replace("<days_left>", str(days_left))
-    return note
+    note_template = note_template.replace("<days_left>", str(days_left))
+    return note_template
 
 def build_content_disposition(username: str) -> str:
     """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
