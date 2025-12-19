@@ -47,6 +47,7 @@ type DashboardStateType = {
   isEditingNodes: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
+  isSyncingInbounds: boolean;
   resetUsageUser: User | null;
   revokeSubscriptionUser: User | null;
   isEditingCore: boolean;
@@ -56,6 +57,7 @@ type DashboardStateType = {
   onResetAllUsage: (isResetingAllUsage: boolean) => void;
   refetchUsers: () => void;
   resetAllUsage: () => Promise<void>;
+  syncInbounds: () => Promise<void>;
   onFilterChange: (filters: Partial<FilterType>) => void;
   deleteUser: (user: User) => Promise<void>;
   createUser: (user: UserCreate) => Promise<void>;
@@ -111,6 +113,7 @@ export const useDashboard = create(
     },
     loading: true,
     isResetingAllUsage: false,
+    isSyncingInbounds: false,
     isEditingHosts: false,
     isEditingNodes: false,
     isShowingNodesUsage: false,
@@ -131,6 +134,14 @@ export const useDashboard = create(
         get().onResetAllUsage(false);
         get().refetchUsers();
       });
+    },
+    syncInbounds: () => {
+      set({ isSyncingInbounds: true });
+      return fetch(`/users/sync-inbounds`, { method: "POST" })
+        .then(() => {
+          get().refetchUsers();
+        })
+        .finally(() => set({ isSyncingInbounds: false }));
     },
     onResetAllUsage: (isResetingAllUsage) => set({ isResetingAllUsage }),
     onCreateUser: (isCreatingNewUser) => set({ isCreatingNewUser }),

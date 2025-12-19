@@ -253,6 +253,54 @@ def reset_users_data_usage(
     return {"detail": "Users successfully reset."}
 
 
+@router.post("/users/sync-inbounds", responses={403: responses._403})
+def sync_users_inbounds(
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    """
+    Sync active users' inbounds with the global XRay configuration:
+    - Add any missing inbounds that exist globally (by clearing exclusions)
+    - Remove any stale exclusions for non-existent inbounds
+    """
+    users = crud.get_users(db=db, status=UserStatus.active)
+    users_updated = 0
+
+    for dbuser in users:
+        changed = False
+        for proxy in dbuser.proxies:
+            # Determine global inbound tags for this protocol
+            global_inbounds = xray.config.inbounds_by_protocol.get(proxy.type, [])
+            global_tags = {i["tag"] for i in global_inbounds}
+
+            # If there are any exclusions, clear exclusions to include all global inbounds
+            if proxy.excluded_inbounds:
+                # Also drop any stale exclusions that no longer exist globally
+                proxy.excluded_inbounds = [
+                    inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
+                ]
+                if proxy.excluded_inbounds:
+                    # We want users to have ALL global inbounds -> clear remaining exclusions
+                    proxy.excluded_inbounds = []
+                changed = True
+
+        if changed:
+            users_updated += 1
+            # Apply to running cores for active/on-hold users
+            if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
+                bg.add_task(xray.operations.update_user, dbuser=dbuser)
+
+    if users_updated:
+        db.commit()
+
+    return {
+        "detail": "Inbounds synchronized with global configuration.",
+        "users_processed": len(users),
+        "users_updated": users_updated,
+    }
+
+
 @router.get("/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404})
 def get_user_usage(
     dbuser: UserResponse = Depends(get_validated_user),

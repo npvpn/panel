@@ -44,8 +44,15 @@ const setSearchField = debounce((search: string) => {
 }, 300);
 
 export const Filters: FC<FilterProps> = ({ ...props }) => {
-  const { loading, filters, onFilterChange, refetchUsers, onCreateUser } =
-    useDashboard();
+  const {
+    loading,
+    filters,
+    onFilterChange,
+    refetchUsers,
+    onCreateUser,
+    syncInbounds,
+    isSyncingInbounds,
+  } = useDashboard();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +129,14 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
               })}
             />
           </IconButton>
+          <Button
+            size="sm"
+            variant="outline"
+            isLoading={isSyncingInbounds}
+            onClick={syncInbounds}
+          >
+            {t("syncInbounds")}
+          </Button>
           <Button
             colorScheme="primary"
             size="sm"

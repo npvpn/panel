@@ -131,6 +131,7 @@
   "revokeUserSub.success": "Подписка пользователя {{username}} успешно отозвана.",
   "revokeUserSub.title": "Отозвать подписку пользователя",
   "search": "Поиск",
+  "syncInbounds": "Обновить конфигурации",
   "status.active": "Active",
   "status.disabled": "Disabled",
   "status.expired": "Expired",

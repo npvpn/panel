@@ -131,6 +131,7 @@
   "revokeUserSub.success": "{{username}}'s subscription has revoked successfully.",
   "revokeUserSub.title": "Revoke User Subscription",
   "search": "Search",
+  "syncInbounds": "Sync configurations",
   "status.active": "Active",
   "status.disabled": "Disabled",
   "status.expired": "Expired",
