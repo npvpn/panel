@@ -264,6 +264,7 @@ def sync_users_inbounds(
     - Add any missing inbounds that exist globally (by clearing exclusions)
     - Remove any stale exclusions for non-existent inbounds
     """
+    logger.info("[sync-inbounds] started by %s", admin.username)
     users = crud.get_users(db=db, status=UserStatus.active)
     users_updated = 0
 
@@ -276,29 +277,47 @@ def sync_users_inbounds(
 
             # If there are any exclusions, clear exclusions to include all global inbounds
             if proxy.excluded_inbounds:
+                before_tags = [i.tag for i in proxy.excluded_inbounds]
+                before_count = len(before_tags)
                 # Also drop any stale exclusions that no longer exist globally
-                proxy.excluded_inbounds = [
+                filtered_exclusions = [
                     inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
                 ]
-                if proxy.excluded_inbounds:
+                cleared = bool(filtered_exclusions)
+                if filtered_exclusions:
                     # We want users to have ALL global inbounds -> clear remaining exclusions
                     proxy.excluded_inbounds = []
                 changed = True
+                logger.info(
+                    "[sync-inbounds] user=%s protocol=%s excl_before=%d global_tags=%d cleared=%s",
+                    dbuser.username,
+                    str(proxy.type),
+                    before_count,
+                    len(global_tags),
+                    str(cleared),
+                )
 
         if changed:
             users_updated += 1
             # Apply to running cores for active/on-hold users
             if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
                 bg.add_task(xray.operations.update_user, dbuser=dbuser)
+                logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
 
     if users_updated:
         db.commit()
 
-    return {
+    result = {
         "detail": "Inbounds synchronized with global configuration.",
         "users_processed": len(users),
         "users_updated": users_updated,
     }
+    logger.info(
+        "[sync-inbounds] finished users_processed=%d users_updated=%d",
+        result["users_processed"],
+        result["users_updated"],
+    )
+    return result
 
 
 @router.get("/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404})

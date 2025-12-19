@@ -137,9 +137,18 @@ export const useDashboard = create(
     },
     syncInbounds: () => {
       set({ isSyncingInbounds: true });
+      // eslint-disable-next-line no-console
+      console.debug("[syncInbounds] sending POST /users/sync-inbounds");
       return fetch(`/users/sync-inbounds`, { method: "POST" })
-        .then(() => {
+        .then((res) => {
+          // eslint-disable-next-line no-console
+          console.debug("[syncInbounds] success response", res);
           get().refetchUsers();
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.debug("[syncInbounds] error", err);
+          throw err;
         })
         .finally(() => set({ isSyncingInbounds: false }));
     },
