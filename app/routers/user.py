@@ -18,6 +18,15 @@ from app.models.user import (
     UserUsagesResponse,
 )
 from app.utils import report, responses
+from app.db.models import Proxy as DBProxy
+from app.models.proxy import (
+    ProxyTypes,
+    VMessSettings,
+    VLESSSettings,
+    TrojanSettings,
+    ShadowsocksSettings,
+    XTLSFlows,
+)
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
@@ -267,12 +276,41 @@ def sync_users_inbounds(
     logger.info("[sync-inbounds] started by %s", admin.username)
     users = crud.get_users(db=db, status=UserStatus.active)
     users_updated = 0
+    users_scheduled = 0
 
     for dbuser in users:
         changed = False
+        # 1) Ensure all globally-enabled protocols exist for the user
+        try:
+            existing_types = {p.type for p in dbuser.proxies}
+        except Exception:
+            existing_types = set()
+        global_protocols = [
+            ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds
+        ]
+        missing_protocols = [p for p in global_protocols if p not in existing_types]
+        for protocol in missing_protocols:
+            # Generate default settings per protocol
+            if protocol == ProxyTypes.VLESS:
+                settings = VLESSSettings(flow=XTLSFlows.VISION)  # prefer vision; will be sanitized if incompatible
+            elif protocol == ProxyTypes.VMess:
+                settings = VMessSettings()
+            elif protocol == ProxyTypes.Shadowsocks:
+                settings = ShadowsocksSettings()
+            elif protocol == ProxyTypes.Trojan:
+                settings = TrojanSettings()
+            else:
+                continue
+
+            dbuser.proxies.append(DBProxy(type=protocol, settings=settings.dict(no_obj=True)))
+            changed = True
+            logger.info('[sync-inbounds] added missing protocol=%s for user="%s"', protocol.value, dbuser.username)
+
         for proxy in dbuser.proxies:
             # Determine global inbound tags for this protocol
-            global_inbounds = xray.config.inbounds_by_protocol.get(proxy.type, [])
+            global_inbounds = xray.config.inbounds_by_protocol.get(
+                proxy.type if isinstance(proxy.type, str) else proxy.type.value, []
+            )
             global_tags = {i["tag"] for i in global_inbounds}
 
             # If there are any exclusions, clear exclusions to include all global inbounds
@@ -299,10 +337,12 @@ def sync_users_inbounds(
 
         if changed:
             users_updated += 1
-            # Apply to running cores for active/on-hold users
-            if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
-                bg.add_task(xray.operations.update_user, dbuser=dbuser)
-                logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
+        # Apply to running cores for active/on-hold users regardless of DB change,
+        # so newly added/removed global inbounds reflect in runtime.
+        if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
+            users_scheduled += 1
+            bg.add_task(xray.operations.update_user, dbuser=dbuser)
+            logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
 
     if users_updated:
         db.commit()
@@ -311,11 +351,13 @@ def sync_users_inbounds(
         "detail": "Inbounds synchronized with global configuration.",
         "users_processed": len(users),
         "users_updated": users_updated,
+        "users_scheduled": users_scheduled,
     }
     logger.info(
-        "[sync-inbounds] finished users_processed=%d users_updated=%d",
+        "[sync-inbounds] finished users_processed=%d users_updated=%d users_scheduled=%d",
         result["users_processed"],
         result["users_updated"],
+        result["users_scheduled"],
     )
     return result
 
