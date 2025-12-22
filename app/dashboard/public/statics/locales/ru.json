@@ -132,6 +132,8 @@
   "revokeUserSub.title": "Отозвать подписку пользователя",
   "search": "Поиск",
   "syncInbounds": "Обновить конфигурации",
+  "sync.progress": "Обновление {{done}}/{{total}}",
+  "sync.completed": "Обновлено {{done}}/{{total}}",
   "status.active": "Active",
   "status.disabled": "Disabled",
   "status.expired": "Expired",

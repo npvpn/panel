@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -29,6 +30,42 @@ from app.models.proxy import (
 )
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
+
+SYNC_PROGRESS = {}
+
+def _run_update_and_mark(user_id: int, op_id: str):
+    """
+    Background helper to update user and mark progress counters.
+    """
+    try:
+        from app.db import GetDB
+        with GetDB() as db:
+            dbuser = crud.get_user_by_id(db, user_id)
+            if not dbuser:
+                return
+            try:
+                xray.operations.update_user(dbuser)
+            finally:
+                try:
+                    st = SYNC_PROGRESS.get(op_id)
+                    if st:
+                        st["done"] = st.get("done", 0) + 1
+                        if st["done"] >= st.get("scheduled", 0):
+                            st["running"] = False
+                            st["finished_at"] = datetime.utcnow().isoformat()
+                except Exception:
+                    pass
+    except Exception:
+        # ignore any exceptions to not break background runner, but still count as done
+        try:
+            st = SYNC_PROGRESS.get(op_id)
+            if st:
+                st["done"] = st.get("done", 0) + 1
+                if st["done"] >= st.get("scheduled", 0):
+                    st["running"] = False
+                    st["finished_at"] = datetime.utcnow().isoformat()
+        except Exception:
+            pass
 
 
 @router.post("/user", response_model=UserResponse, responses={400: responses._400, 409: responses._409})
@@ -274,9 +311,20 @@ def sync_users_inbounds(
     - Remove any stale exclusions for non-existent inbounds
     """
     logger.info("[sync-inbounds] started by %s", admin.username)
+    op_id = uuid4().hex
     users = crud.get_users(db=db, status=UserStatus.active)
     users_updated = 0
     users_scheduled = 0
+    SYNC_PROGRESS[op_id] = {
+        "running": True,
+        "started_at": datetime.utcnow().isoformat(),
+        "users_processed": 0,
+        "users_updated": 0,
+        "scheduled": 0,
+        "done": 0,
+        "total": len(users),
+        "by": admin.username,
+    }
 
     for dbuser in users:
         changed = False
@@ -341,8 +389,10 @@ def sync_users_inbounds(
         # so newly added/removed global inbounds reflect in runtime.
         if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
             users_scheduled += 1
-            bg.add_task(xray.operations.update_user_by_id, user_id=dbuser.id)
-            logger.info('[sync-inbounds] queued update_user_by_id for user="%s"', dbuser.username)
+            SYNC_PROGRESS[op_id]["scheduled"] = users_scheduled
+            bg.add_task(_run_update_and_mark, user_id=dbuser.id, op_id=op_id)
+            logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
+        SYNC_PROGRESS[op_id]["users_processed"] += 1
 
     if users_updated:
         db.commit()
@@ -352,6 +402,7 @@ def sync_users_inbounds(
         "users_processed": len(users),
         "users_updated": users_updated,
         "users_scheduled": users_scheduled,
+        "op_id": op_id,
     }
     logger.info(
         "[sync-inbounds] finished users_processed=%d users_updated=%d users_scheduled=%d",
@@ -360,6 +411,30 @@ def sync_users_inbounds(
         result["users_scheduled"],
     )
     return result
+
+
+@router.get("/users/sync-inbounds/status")
+def get_sync_inbounds_status(op_id: str = None, admin: Admin = Depends(Admin.get_current)):
+    """
+    Returns status of a sync operation. If op_id is not provided, returns the latest one for this admin (if any).
+    """
+    if not SYNC_PROGRESS:
+        return {"detail": "no sync running"}
+    if not op_id:
+        # pick latest entry for this admin
+        latest = None
+        for k, v in SYNC_PROGRESS.items():
+            if v.get("by") != admin.username:
+                continue
+            if latest is None or v.get("started_at", "") > SYNC_PROGRESS[latest].get("started_at", ""):
+                latest = k
+        if not latest:
+            return {"detail": "no sync found for this admin"}
+        op_id = latest
+    st = SYNC_PROGRESS.get(op_id)
+    if not st:
+        return {"detail": "not found"}
+    return {"op_id": op_id, **st}
 
 
 @router.get("/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404})

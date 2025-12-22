@@ -52,6 +52,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
     onCreateUser,
     syncInbounds,
     isSyncingInbounds,
+    syncStatus,
   } = useDashboard();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
@@ -137,6 +138,28 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
           >
             {t("syncInbounds")}
           </Button>
+          {syncStatus && (
+            <HStack spacing={2}>
+              {syncStatus.running ? (
+                <>
+                  <Spinner size="xs" />
+                  <chakra.span fontSize="sm" color="gray.500">
+                    {t("sync.progress", {
+                      done: syncStatus.done,
+                      total: syncStatus.total || syncStatus.scheduled || 0,
+                    })}
+                  </chakra.span>
+                </>
+              ) : (
+                <chakra.span fontSize="sm" color="green.500">
+                  {t("sync.completed", {
+                    done: syncStatus.done,
+                    total: syncStatus.total || syncStatus.scheduled || 0,
+                  })}
+                </chakra.span>
+              )}
+            </HStack>
+          )}
           <Button
             colorScheme="primary"
             size="sm"
