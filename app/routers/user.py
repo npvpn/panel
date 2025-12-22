@@ -341,8 +341,8 @@ def sync_users_inbounds(
         # so newly added/removed global inbounds reflect in runtime.
         if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
             users_scheduled += 1
-            bg.add_task(xray.operations.update_user, dbuser=dbuser)
-            logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
+            bg.add_task(xray.operations.update_user_by_id, user_id=dbuser.id)
+            logger.info('[sync-inbounds] queued update_user_by_id for user="%s"', dbuser.username)
 
     if users_updated:
         db.commit()

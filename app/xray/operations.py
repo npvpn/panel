@@ -145,6 +145,22 @@ def update_user(dbuser: "DBUser"):
                 _remove_user_from_inbound(node.api, inbound_tag, email)
 
 
+def update_user_by_id(user_id: int):
+    """
+    Safe wrapper to update a user in background tasks by reloading a fresh DB-bound instance.
+    Prevents DetachedInstanceError when original dbuser is out of session.
+    """
+    with GetDB() as db:
+        try:
+            dbuser = crud.get_user_by_id(db, user_id)
+            if not dbuser:
+                return
+            update_user(dbuser)
+        except SQLAlchemyError:
+            db.rollback()
+            raise
+
+
 def remove_node(node_id: int):
     if node_id in xray.nodes:
         try:
@@ -275,6 +291,7 @@ def restart_node(node_id, config=None):
 __all__ = [
     "add_user",
     "remove_user",
+    "update_user_by_id",
     "add_node",
     "remove_node",
     "connect_node",
