@@ -246,10 +246,12 @@ def connect_node(node_id, config=None):
         logger.info(f"Unable to connect to \"{dbnode.name}\" node")
 
     finally:
-        try:
-            del _connecting_nodes[node_id]
-        except KeyError:
-            pass
+        if node_id in _connecting_nodes:
+            try:
+                del _connecting_nodes[node_id]
+            except KeyError:
+                pass
+            logger.debug(f"[connect_node] Node {node_id} removed from _connecting_nodes")
 
 
 @threaded_function
