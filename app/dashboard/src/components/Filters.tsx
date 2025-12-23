@@ -44,8 +44,16 @@ const setSearchField = debounce((search: string) => {
 }, 300);
 
 export const Filters: FC<FilterProps> = ({ ...props }) => {
-  const { loading, filters, onFilterChange, refetchUsers, onCreateUser } =
-    useDashboard();
+  const {
+    loading,
+    filters,
+    onFilterChange,
+    refetchUsers,
+    onCreateUser,
+    syncInbounds,
+    isSyncingInbounds,
+    syncStatus,
+  } = useDashboard();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +130,36 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
               })}
             />
           </IconButton>
+          <Button
+            size="sm"
+            variant="outline"
+            isLoading={isSyncingInbounds}
+            onClick={syncInbounds}
+          >
+            {t("syncInbounds")}
+          </Button>
+          {syncStatus && (
+            <HStack spacing={2}>
+              {syncStatus.running ? (
+                <>
+                  <Spinner size="xs" />
+                  <chakra.span fontSize="sm" color="gray.500">
+                    {t("sync.progress", {
+                      done: syncStatus.done,
+                      total: syncStatus.total || syncStatus.scheduled || 0,
+                    })}
+                  </chakra.span>
+                </>
+              ) : (
+                <chakra.span fontSize="sm" color="green.500">
+                  {t("sync.completed", {
+                    done: syncStatus.done,
+                    total: syncStatus.total || syncStatus.scheduled || 0,
+                  })}
+                </chakra.span>
+              )}
+            </HStack>
+          )}
           <Button
             colorScheme="primary"
             size="sm"

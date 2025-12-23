@@ -47,6 +47,13 @@ type DashboardStateType = {
   isEditingNodes: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
+  isSyncingInbounds: boolean;
+  syncStatus: {
+    running: boolean;
+    scheduled: number;
+    done: number;
+    total: number;
+  } | null;
   resetUsageUser: User | null;
   revokeSubscriptionUser: User | null;
   isEditingCore: boolean;
@@ -56,6 +63,8 @@ type DashboardStateType = {
   onResetAllUsage: (isResetingAllUsage: boolean) => void;
   refetchUsers: () => void;
   resetAllUsage: () => Promise<void>;
+  syncInbounds: () => Promise<void>;
+  pollSyncStatus: (opId: string) => void;
   onFilterChange: (filters: Partial<FilterType>) => void;
   deleteUser: (user: User) => Promise<void>;
   createUser: (user: UserCreate) => Promise<void>;
@@ -111,6 +120,8 @@ export const useDashboard = create(
     },
     loading: true,
     isResetingAllUsage: false,
+    isSyncingInbounds: false,
+    syncStatus: null,
     isEditingHosts: false,
     isEditingNodes: false,
     isShowingNodesUsage: false,
@@ -131,6 +142,61 @@ export const useDashboard = create(
         get().onResetAllUsage(false);
         get().refetchUsers();
       });
+    },
+    syncInbounds: () => {
+      set({ isSyncingInbounds: true });
+      // eslint-disable-next-line no-console
+      console.debug("[syncInbounds] sending POST /users/sync-inbounds");
+      return fetch(`/users/sync-inbounds`, { method: "POST" })
+        .then((res: any) => {
+          // eslint-disable-next-line no-console
+          console.debug("[syncInbounds] success response", res);
+          if (res?.op_id) {
+            set({
+              syncStatus: {
+                running: true,
+                scheduled: res.users_scheduled || 0,
+                done: 0,
+                total: res.users_processed || 0,
+              },
+            });
+            get().pollSyncStatus(res.op_id);
+          }
+          get().refetchUsers();
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.debug("[syncInbounds] error", err);
+          throw err;
+        })
+        .finally(() => set({ isSyncingInbounds: false }));
+    },
+    pollSyncStatus: (opId: string) => {
+      let stopped = false;
+      const tick = () => {
+        if (stopped) return;
+        fetch(`/users/sync-inbounds/status`, { method: "GET", query: { op_id: opId } })
+          .then((st: any) => {
+            if (!st || st.detail) return;
+            set({
+              syncStatus: {
+                running: !!st.running,
+                scheduled: st.scheduled || 0,
+                done: st.done || 0,
+                total: st.total || 0,
+              },
+            });
+            if (!st.running) {
+              stopped = true;
+              return;
+            }
+            setTimeout(tick, 1000);
+          })
+          .catch(() => {
+            setTimeout(tick, 1500);
+          });
+      };
+      setTimeout(tick, 500);
     },
     onResetAllUsage: (isResetingAllUsage) => set({ isResetingAllUsage }),
     onCreateUser: (isCreatingNewUser) => set({ isCreatingNewUser }),

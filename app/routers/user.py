@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -18,8 +19,53 @@ from app.models.user import (
     UserUsagesResponse,
 )
 from app.utils import report, responses
+from app.db.models import Proxy as DBProxy
+from app.models.proxy import (
+    ProxyTypes,
+    VMessSettings,
+    VLESSSettings,
+    TrojanSettings,
+    ShadowsocksSettings,
+    XTLSFlows,
+)
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
+
+SYNC_PROGRESS = {}
+
+def _run_update_and_mark(user_id: int, op_id: str):
+    """
+    Background helper to update user and mark progress counters.
+    """
+    try:
+        from app.db import GetDB
+        with GetDB() as db:
+            dbuser = crud.get_user_by_id(db, user_id)
+            if not dbuser:
+                return
+            try:
+                xray.operations.update_user(dbuser)
+            finally:
+                try:
+                    st = SYNC_PROGRESS.get(op_id)
+                    if st:
+                        st["done"] = st.get("done", 0) + 1
+                        if st["done"] >= st.get("scheduled", 0):
+                            st["running"] = False
+                            st["finished_at"] = datetime.utcnow().isoformat()
+                except Exception:
+                    pass
+    except Exception:
+        # ignore any exceptions to not break background runner, but still count as done
+        try:
+            st = SYNC_PROGRESS.get(op_id)
+            if st:
+                st["done"] = st.get("done", 0) + 1
+                if st["done"] >= st.get("scheduled", 0):
+                    st["running"] = False
+                    st["finished_at"] = datetime.utcnow().isoformat()
+        except Exception:
+            pass
 
 
 @router.post("/user", response_model=UserResponse, responses={400: responses._400, 409: responses._409})
@@ -251,6 +297,144 @@ def reset_users_data_usage(
         if node.connected:
             xray.operations.restart_node(node_id, startup_config)
     return {"detail": "Users successfully reset."}
+
+
+@router.post("/users/sync-inbounds", responses={403: responses._403})
+def sync_users_inbounds(
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    """
+    Sync active users' inbounds with the global XRay configuration:
+    - Add any missing inbounds that exist globally (by clearing exclusions)
+    - Remove any stale exclusions for non-existent inbounds
+    """
+    logger.info("[sync-inbounds] started by %s", admin.username)
+    op_id = uuid4().hex
+    users = crud.get_users(db=db, status=UserStatus.active)
+    users_updated = 0
+    users_scheduled = 0
+    SYNC_PROGRESS[op_id] = {
+        "running": True,
+        "started_at": datetime.utcnow().isoformat(),
+        "users_processed": 0,
+        "users_updated": 0,
+        "scheduled": 0,
+        "done": 0,
+        "total": len(users),
+        "by": admin.username,
+    }
+
+    for dbuser in users:
+        changed = False
+        # 1) Ensure all globally-enabled protocols exist for the user
+        try:
+            existing_types = {p.type for p in dbuser.proxies}
+        except Exception:
+            existing_types = set()
+        global_protocols = [
+            ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds
+        ]
+        missing_protocols = [p for p in global_protocols if p not in existing_types]
+        for protocol in missing_protocols:
+            # Generate default settings per protocol
+            if protocol == ProxyTypes.VLESS:
+                settings = VLESSSettings(flow=XTLSFlows.VISION)  # prefer vision; will be sanitized if incompatible
+            elif protocol == ProxyTypes.VMess:
+                settings = VMessSettings()
+            elif protocol == ProxyTypes.Shadowsocks:
+                settings = ShadowsocksSettings()
+            elif protocol == ProxyTypes.Trojan:
+                settings = TrojanSettings()
+            else:
+                continue
+
+            dbuser.proxies.append(DBProxy(type=protocol, settings=settings.dict(no_obj=True)))
+            changed = True
+            logger.info('[sync-inbounds] added missing protocol=%s for user="%s"', protocol.value, dbuser.username)
+
+        for proxy in dbuser.proxies:
+            # Determine global inbound tags for this protocol
+            global_inbounds = xray.config.inbounds_by_protocol.get(
+                proxy.type if isinstance(proxy.type, str) else proxy.type.value, []
+            )
+            global_tags = {i["tag"] for i in global_inbounds}
+
+            # If there are any exclusions, clear exclusions to include all global inbounds
+            if proxy.excluded_inbounds:
+                before_tags = [i.tag for i in proxy.excluded_inbounds]
+                before_count = len(before_tags)
+                # Also drop any stale exclusions that no longer exist globally
+                filtered_exclusions = [
+                    inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
+                ]
+                cleared = bool(filtered_exclusions)
+                if filtered_exclusions:
+                    # We want users to have ALL global inbounds -> clear remaining exclusions
+                    proxy.excluded_inbounds = []
+                changed = True
+                logger.info(
+                    "[sync-inbounds] user=%s protocol=%s excl_before=%d global_tags=%d cleared=%s",
+                    dbuser.username,
+                    str(proxy.type),
+                    before_count,
+                    len(global_tags),
+                    str(cleared),
+                )
+
+        if changed:
+            users_updated += 1
+        # Apply to running cores for active/on-hold users regardless of DB change,
+        # so newly added/removed global inbounds reflect in runtime.
+        if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
+            users_scheduled += 1
+            SYNC_PROGRESS[op_id]["scheduled"] = users_scheduled
+            bg.add_task(_run_update_and_mark, user_id=dbuser.id, op_id=op_id)
+            logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
+        SYNC_PROGRESS[op_id]["users_processed"] += 1
+
+    if users_updated:
+        db.commit()
+
+    result = {
+        "detail": "Inbounds synchronized with global configuration.",
+        "users_processed": len(users),
+        "users_updated": users_updated,
+        "users_scheduled": users_scheduled,
+        "op_id": op_id,
+    }
+    logger.info(
+        "[sync-inbounds] finished users_processed=%d users_updated=%d users_scheduled=%d",
+        result["users_processed"],
+        result["users_updated"],
+        result["users_scheduled"],
+    )
+    return result
+
+
+@router.get("/users/sync-inbounds/status")
+def get_sync_inbounds_status(op_id: str = None, admin: Admin = Depends(Admin.get_current)):
+    """
+    Returns status of a sync operation. If op_id is not provided, returns the latest one for this admin (if any).
+    """
+    if not SYNC_PROGRESS:
+        return {"detail": "no sync running"}
+    if not op_id:
+        # pick latest entry for this admin
+        latest = None
+        for k, v in SYNC_PROGRESS.items():
+            if v.get("by") != admin.username:
+                continue
+            if latest is None or v.get("started_at", "") > SYNC_PROGRESS[latest].get("started_at", ""):
+                latest = k
+        if not latest:
+            return {"detail": "no sync found for this admin"}
+        op_id = latest
+    st = SYNC_PROGRESS.get(op_id)
+    if not st:
+        return {"detail": "not found"}
+    return {"op_id": op_id, **st}
 
 
 @router.get("/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404})
