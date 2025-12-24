@@ -30,7 +30,7 @@ jobs:
 
       - name: Build project
         working-directory: ./app/dashboard
-        run: VITE_BASE_API=/api/ npm run build --outDir build --assetsDir statics
+        run: VITE_BASE_API=/api/ npm run build -- --outDir build --assetsDir statics
 
       - name: Create 404.html
         working-directory: ./app/dashboard
