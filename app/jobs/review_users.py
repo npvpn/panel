@@ -48,10 +48,14 @@ def reset_user_by_next_report(db: Session, user: "User"):
     user = reset_user_by_next(db, user, commit=False)
 
     # Даже если нода недоступна — не срываем джоб, просто логируем и продолжаем
+    _t0 = time.time()
     try:
         xray.operations.update_user(user)
     except Exception as e:
         logger.warning(f"Failed to update user on XRAY during reset_user_by_next for \"{user.username}\": {e}")
+    finally:
+        _dur = time.time() - _t0
+        logger.info(f"[review][next_plan] user=\"{user.username}\" xray_update_user took {_dur:.3f}s")
 
     report.user_data_reset_by_next(user=UserResponse.model_validate(user), user_admin=user.admin)
 
@@ -60,14 +64,25 @@ def review():
     now = datetime.utcnow()
     now_ts = now.timestamp()
     start_ts = time.time()
+    SLOW_USER_TOTAL_THRESHOLD = 1.0
+    SLOW_STEP_THRESHOLD = 0.3
     checked_active = 0
     applied_next = 0
     limited_count = 0
     expired_count = 0
     on_hold_activated = 0
     with GetDB() as db:
-        for user in get_users(db, status=UserStatus.active):
+        _fetch_t0 = time.time()
+        active_users = get_users(db, status=UserStatus.active)
+        _fetch_dur = time.time() - _fetch_t0
+        logger.info(f"[review] fetched {len(active_users)} active users in {_fetch_dur:.3f}s")
+
+        for user in active_users:
             checked_active += 1
+            _u_t0 = time.time()
+            _t_remove = 0.0
+            _t_update_status = 0.0
+            _t_notify = 0.0
 
             limited = user.data_limit and user.used_traffic >= user.data_limit
             expired = user.expire and user.expire <= now_ts
@@ -93,29 +108,54 @@ def review():
                 expired_count += 1
             else:
                 if WEBHOOK_ADDRESS:
+                    _tn0 = time.time()
                     add_notification_reminders(db, user, now)
+                    _t_notify = time.time() - _tn0
                 continue
 
             # При недоступности XRAY-нод не допускаем падения задачи: статус все равно обновляем
+            _tr0 = time.time()
             try:
                 xray.operations.remove_user(user)
             except Exception as e:
                 logger.warning(f"Failed to remove user \"{user.username}\" from XRAY: {e}")
+            finally:
+                _t_remove = time.time() - _tr0
+
+            _ts0 = time.time()
             update_user_status(db, user, status, commit=False)
+            _t_update_status = time.time() - _ts0
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
+            _u_dur = time.time() - _u_t0
+            if _u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_remove >= SLOW_STEP_THRESHOLD or _t_update_status >= SLOW_STEP_THRESHOLD or _t_notify >= SLOW_STEP_THRESHOLD:
+                logger.info(
+                    f"[review][active][slow] user=\"{user.username}\" total={_u_dur:.3f}s "
+                    f"remove_user={_t_remove:.3f}s update_status={_t_update_status:.3f}s notify={_t_notify:.3f}s"
+                )
 
         # Коммитим все изменения статусов/next-планов за один раз
+        _commit_t0 = time.time()
         try:
             db.commit()
         except Exception as e:
             logger.error(f"Failed to commit batched review changes: {e}")
             raise
+        finally:
+            _commit_dur = time.time() - _commit_t0
+            logger.info(f"[review] commit of active users took {_commit_dur:.3f}s")
 
-        for user in get_users(db, status=UserStatus.on_hold):
+        _fetch_hold_t0 = time.time()
+        on_hold_users = get_users(db, status=UserStatus.on_hold)
+        _fetch_hold_dur = time.time() - _fetch_hold_t0
+        logger.info(f"[review] fetched {len(on_hold_users)} on_hold users in {_fetch_hold_dur:.3f}s")
+        for user in on_hold_users:
+            _hold_u_t0 = time.time()
+            _t_update_status_hold = 0.0
+            _t_start_expire = 0.0
 
             if user.edit_at:
                 base_time = datetime.timestamp(user.edit_at)
@@ -133,14 +173,24 @@ def review():
             else:
                 continue
 
+            _ts0 = time.time()
             update_user_status(db, user, status)
+            _t_update_status_hold = time.time() - _ts0
+            _te0 = time.time()
             start_user_expire(db, user)
+            _t_start_expire = time.time() - _te0
             on_hold_activated += 1
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
+            _hold_u_dur = time.time() - _hold_u_t0
+            if _hold_u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_update_status_hold >= SLOW_STEP_THRESHOLD or _t_start_expire >= SLOW_STEP_THRESHOLD:
+                logger.info(
+                    f"[review][on_hold][slow] user=\"{user.username}\" total={_hold_u_dur:.3f}s "
+                    f"update_status={_t_update_status_hold:.3f}s start_expire={_t_start_expire:.3f}s"
+                )
 
     duration = time.time() - start_ts
     logger.info(
