@@ -564,13 +564,14 @@ def reset_user_data_usage(db: Session, dbuser: User) -> User:
     return dbuser
 
 
-def reset_user_by_next(db: Session, dbuser: User) -> User:
+def reset_user_by_next(db: Session, dbuser: User, commit: bool = True) -> User:
     """
     Resets the data usage of a user based on next user.
 
     Args:
         db (Session): Database session.
         dbuser (User): The user object whose data usage is to be reset.
+        commit (bool): Whether to commit the transaction immediately.
 
     Returns:
         User: The updated user object.
@@ -597,8 +598,9 @@ def reset_user_by_next(db: Session, dbuser: User) -> User:
     dbuser.next_plan = None
     db.add(dbuser)
 
-    db.commit()
-    db.refresh(dbuser)
+    if commit:
+        db.commit()
+        db.refresh(dbuser)
     return dbuser
 
 
@@ -805,7 +807,7 @@ def get_all_users_usages(
     return list(usages.values())
 
 
-def update_user_status(db: Session, dbuser: User, status: UserStatus) -> User:
+def update_user_status(db: Session, dbuser: User, status: UserStatus, commit: bool = True) -> User:
     """
     Updates a user's status and records the time of change.
 
@@ -813,14 +815,16 @@ def update_user_status(db: Session, dbuser: User, status: UserStatus) -> User:
         db (Session): Database session.
         dbuser (User): The user to update.
         status (UserStatus): The new status.
+        commit (bool): Whether to commit the transaction immediately.
 
     Returns:
         User: The updated user object.
     """
     dbuser.status = status
     dbuser.last_status_change = datetime.utcnow()
-    db.commit()
-    db.refresh(dbuser)
+    if commit:
+        db.commit()
+        db.refresh(dbuser)
     return dbuser
 
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
@@ -44,7 +45,7 @@ def add_notification_reminders(db: Session, user: "User", now: datetime = dateti
 
 
 def reset_user_by_next_report(db: Session, user: "User"):
-    user = reset_user_by_next(db, user)
+    user = reset_user_by_next(db, user, commit=False)
 
     # Даже если нода недоступна — не срываем джоб, просто логируем и продолжаем
     try:
@@ -58,8 +59,15 @@ def reset_user_by_next_report(db: Session, user: "User"):
 def review():
     now = datetime.utcnow()
     now_ts = now.timestamp()
+    start_ts = time.time()
+    checked_active = 0
+    applied_next = 0
+    limited_count = 0
+    expired_count = 0
+    on_hold_activated = 0
     with GetDB() as db:
         for user in get_users(db, status=UserStatus.active):
+            checked_active += 1
 
             limited = user.data_limit and user.used_traffic >= user.data_limit
             expired = user.expire and user.expire <= now_ts
@@ -69,16 +77,20 @@ def review():
 
                     if user.next_plan.fire_on_either:
                         reset_user_by_next_report(db, user)
+                        applied_next += 1
                         continue
                         
                     elif limited and expired:
                         reset_user_by_next_report(db, user)
+                        applied_next += 1
                         continue
 
             if limited:
                 status = UserStatus.limited
+                limited_count += 1
             elif expired:
                 status = UserStatus.expired
+                expired_count += 1
             else:
                 if WEBHOOK_ADDRESS:
                     add_notification_reminders(db, user, now)
@@ -89,12 +101,19 @@ def review():
                 xray.operations.remove_user(user)
             except Exception as e:
                 logger.warning(f"Failed to remove user \"{user.username}\" from XRAY: {e}")
-            update_user_status(db, user, status)
+            update_user_status(db, user, status, commit=False)
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
+
+        # Коммитим все изменения статусов/next-планов за один раз
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit batched review changes: {e}")
+            raise
 
         for user in get_users(db, status=UserStatus.on_hold):
 
@@ -116,11 +135,19 @@ def review():
 
             update_user_status(db, user, status)
             start_user_expire(db, user)
+            on_hold_activated += 1
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
+
+    duration = time.time() - start_ts
+    logger.info(
+        f"review finished in {duration:.2f}s; "
+        f"active_checked={checked_active}, applied_next={applied_next}, "
+        f"limited={limited_count}, expired={expired_count}, on_hold_activated={on_hold_activated}"
+    )
 
 
 scheduler.add_job(review, 'interval',
