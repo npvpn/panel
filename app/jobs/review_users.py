@@ -66,6 +66,8 @@ def review():
     start_ts = time.time()
     SLOW_USER_TOTAL_THRESHOLD = 1.0
     SLOW_STEP_THRESHOLD = 0.3
+    BATCH_SIZE_ACTIVE = 500
+    BATCH_SIZE_ONHOLD = 500
     checked_active = 0
     applied_next = 0
     limited_count = 0
@@ -77,6 +79,13 @@ def review():
         _fetch_dur = time.time() - _fetch_t0
         logger.info(f"[review] fetched {len(active_users)} active users in {_fetch_dur:.3f}s")
 
+        # Process in deterministic order to reduce lock collisions
+        try:
+            active_users.sort(key=lambda u: u.id)
+        except Exception:
+            pass
+
+        changed_in_batch = 0
         for user in active_users:
             checked_active += 1
             _u_t0 = time.time()
@@ -131,6 +140,22 @@ def review():
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
             _u_dur = time.time() - _u_t0
+            changed_in_batch += 1
+
+            # Commit batch periodically to avoid long-held locks
+            if changed_in_batch >= BATCH_SIZE_ACTIVE:
+                _commit_t0 = time.time()
+                logger.warning(f"[review] starting commit for active batch size={changed_in_batch}")
+                try:
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to commit active batch: {e}")
+                    raise
+                finally:
+                    _commit_dur = time.time() - _commit_t0
+                    logger.info(f"[review] commit of active batch took {_commit_dur:.3f}s")
+                    changed_in_batch = 0
+
             if _u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_remove >= SLOW_STEP_THRESHOLD or _t_update_status >= SLOW_STEP_THRESHOLD or _t_notify >= SLOW_STEP_THRESHOLD:
                 logger.info(
                     f"[review][active][slow] user=\"{user.username}\" total={_u_dur:.3f}s "
@@ -139,6 +164,8 @@ def review():
 
         # Коммитим все изменения статусов/next-планов за один раз
         _commit_t0 = time.time()
+        if changed_in_batch > 0:
+            logger.warning(f"[review] starting final commit for remaining active size={changed_in_batch}")
         try:
             db.commit()
         except Exception as e:
@@ -152,6 +179,12 @@ def review():
         on_hold_users = get_users(db, status=UserStatus.on_hold)
         _fetch_hold_dur = time.time() - _fetch_hold_t0
         logger.info(f"[review] fetched {len(on_hold_users)} on_hold users in {_fetch_hold_dur:.3f}s")
+        # Deterministic order
+        try:
+            on_hold_users.sort(key=lambda u: u.id)
+        except Exception:
+            pass
+        changed_onhold_batch = 0
         for user in on_hold_users:
             _hold_u_t0 = time.time()
             _t_update_status_hold = 0.0
@@ -174,12 +207,26 @@ def review():
                 continue
 
             _ts0 = time.time()
-            update_user_status(db, user, status)
+            update_user_status(db, user, status, commit=False)
             _t_update_status_hold = time.time() - _ts0
             _te0 = time.time()
-            start_user_expire(db, user)
+            start_user_expire(db, user, commit=False)
             _t_start_expire = time.time() - _te0
             on_hold_activated += 1
+            changed_onhold_batch += 1
+
+            if changed_onhold_batch >= BATCH_SIZE_ONHOLD:
+                _commit_t0 = time.time()
+                logger.warning(f"[review] starting commit for on_hold batch size={changed_onhold_batch}")
+                try:
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to commit on_hold batch: {e}")
+                    raise
+                finally:
+                    _commit_dur = time.time() - _commit_t0
+                    logger.info(f"[review] commit of on_hold batch took {_commit_dur:.3f}s")
+                    changed_onhold_batch = 0
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
@@ -191,6 +238,18 @@ def review():
                     f"[review][on_hold][slow] user=\"{user.username}\" total={_hold_u_dur:.3f}s "
                     f"update_status={_t_update_status_hold:.3f}s start_expire={_t_start_expire:.3f}s"
                 )
+        # Final commit for on_hold group
+        _commit_t0 = time.time()
+        if changed_onhold_batch > 0:
+            logger.warning(f"[review] starting final commit for remaining on_hold size={changed_onhold_batch}")
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit remaining on_hold changes: {e}")
+            raise
+        finally:
+            _commit_dur = time.time() - _commit_t0
+            logger.info(f"[review] final commit of on_hold users took {_commit_dur:.3f}s")
 
     duration = time.time() - start_ts
     logger.info(

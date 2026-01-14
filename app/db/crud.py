@@ -846,13 +846,14 @@ def set_owner(db: Session, dbuser: User, admin: Admin) -> User:
     return dbuser
 
 
-def start_user_expire(db: Session, dbuser: User) -> User:
+def start_user_expire(db: Session, dbuser: User, commit: bool = True) -> User:
     """
     Starts the expiration timer for a user.
 
     Args:
         db (Session): Database session.
         dbuser (User): The user object whose expiration timer is to be started.
+        commit (bool): Whether to commit the transaction immediately.
 
     Returns:
         User: The updated user object.
@@ -861,8 +862,9 @@ def start_user_expire(db: Session, dbuser: User) -> User:
     dbuser.expire = expire
     dbuser.on_hold_expire_duration = None
     dbuser.on_hold_timeout = None
-    db.commit()
-    db.refresh(dbuser)
+    if commit:
+        db.commit()
+        db.refresh(dbuser)
     return dbuser
 
 
