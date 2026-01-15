@@ -104,6 +104,20 @@ def add_user(dbuser: "DBUser"):
 
 def remove_user(dbuser: "DBUser"):
     email = f"{dbuser.id}.{dbuser.username}"
+    user = UserResponse.model_validate(dbuser)
+
+    # Build set of factual inbounds for this user (actual protocol tags assigned)
+    target_inbounds = set()
+    try:
+        for _, inbound_tags in user.inbounds.items():
+            for inbound_tag in inbound_tags:
+                target_inbounds.add(inbound_tag)
+    except Exception:
+        target_inbounds = set()
+
+    # Fallback: if we could not determine factual inbounds, fallback to all configured
+    if not target_inbounds:
+        target_inbounds = set(xray.config.inbounds_by_tag.keys())
 
     try:
         total_inbounds = len(xray.config.inbounds_by_tag)
@@ -113,9 +127,9 @@ def remove_user(dbuser: "DBUser"):
         total_nodes = len(xray.nodes)
     except Exception:
         total_nodes = 0
-    logger.info(f"[xray.remove_user] start email={email} inbounds={total_inbounds} nodes={total_nodes}")
+    logger.info(f"[xray.remove_user] start email={email} target_inbounds={len(target_inbounds)} total_inbounds={total_inbounds} nodes={total_nodes}")
 
-    for inbound_tag in xray.config.inbounds_by_tag:
+    for inbound_tag in target_inbounds:
         submit_t0 = time.time()
         _remove_user_from_inbound(xray.api, inbound_tag, email)
         logger.info(f"[xray.remove_user.submit] core inbound={inbound_tag} email={email} submit_dt={(time.time() - submit_t0):.3f}s")
