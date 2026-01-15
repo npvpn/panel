@@ -1,5 +1,6 @@
 from datetime import datetime
 import time
+import threading
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
@@ -73,8 +74,41 @@ def review():
     limited_count = 0
     expired_count = 0
     on_hold_activated = 0
+    # Heartbeat shared state for watchdog
+    heartbeat = {
+        "stage": "starting",
+        "active_processed": 0,
+        "on_hold_processed": 0,
+        "batch_pending": 0,
+        "started_at": start_ts,
+        "stage_started_at": start_ts,
+        "done": False,
+    }
+
+    def _watchdog():
+        # Logs progress every 10s until done
+        try:
+            while not heartbeat.get("done"):
+                elapsed = time.time() - heartbeat.get("stage_started_at", start_ts)
+                total = time.time() - heartbeat.get("started_at", start_ts)
+                logger.warning(
+                    f"[review][heartbeat] stage={heartbeat.get('stage')} "
+                    f"active_processed={heartbeat.get('active_processed')} "
+                    f"on_hold_processed={heartbeat.get('on_hold_processed')} "
+                    f"batch_pending={heartbeat.get('batch_pending')} "
+                    f"stage_elapsed={elapsed:.1f}s total_elapsed={total:.1f}s"
+                )
+                time.sleep(10)
+        except Exception:
+            pass
     with GetDB() as db:
+        # Start watchdog
+        try:
+            threading.Thread(target=_watchdog, daemon=True).start()
+        except Exception:
+            pass
         _fetch_t0 = time.time()
+        heartbeat.update({"stage": "fetch_active", "stage_started_at": _fetch_t0})
         active_users = get_users(db, status=UserStatus.active)
         _fetch_dur = time.time() - _fetch_t0
         logger.info(f"[review] fetched {len(active_users)} active users in {_fetch_dur:.3f}s")
@@ -86,8 +120,10 @@ def review():
             pass
 
         changed_in_batch = 0
+        heartbeat.update({"stage": "process_active", "stage_started_at": time.time()})
         for user in active_users:
             checked_active += 1
+            heartbeat["active_processed"] = checked_active
             _u_t0 = time.time()
             _t_remove = 0.0
             _t_update_status = 0.0
@@ -146,6 +182,11 @@ def review():
             if changed_in_batch >= BATCH_SIZE_ACTIVE:
                 _commit_t0 = time.time()
                 logger.warning(f"[review] starting commit for active batch size={changed_in_batch}")
+                heartbeat.update({
+                    "stage": "commit_active_batch",
+                    "stage_started_at": _commit_t0,
+                    "batch_pending": changed_in_batch
+                })
                 try:
                     db.commit()
                 except Exception as e:
@@ -155,6 +196,11 @@ def review():
                     _commit_dur = time.time() - _commit_t0
                     logger.info(f"[review] commit of active batch took {_commit_dur:.3f}s")
                     changed_in_batch = 0
+                    heartbeat.update({
+                        "stage": "process_active",
+                        "stage_started_at": time.time(),
+                        "batch_pending": 0
+                    })
 
             if _u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_remove >= SLOW_STEP_THRESHOLD or _t_update_status >= SLOW_STEP_THRESHOLD or _t_notify >= SLOW_STEP_THRESHOLD:
                 logger.info(
@@ -166,6 +212,11 @@ def review():
         _commit_t0 = time.time()
         if changed_in_batch > 0:
             logger.warning(f"[review] starting final commit for remaining active size={changed_in_batch}")
+        heartbeat.update({
+            "stage": "commit_active_final",
+            "stage_started_at": _commit_t0,
+            "batch_pending": changed_in_batch
+        })
         try:
             db.commit()
         except Exception as e:
@@ -174,6 +225,11 @@ def review():
         finally:
             _commit_dur = time.time() - _commit_t0
             logger.info(f"[review] commit of active users took {_commit_dur:.3f}s")
+            heartbeat.update({
+                "stage": "fetch_on_hold",
+                "stage_started_at": time.time(),
+                "batch_pending": 0
+            })
 
         _fetch_hold_t0 = time.time()
         on_hold_users = get_users(db, status=UserStatus.on_hold)
@@ -185,6 +241,7 @@ def review():
         except Exception:
             pass
         changed_onhold_batch = 0
+        heartbeat.update({"stage": "process_on_hold", "stage_started_at": time.time()})
         for user in on_hold_users:
             _hold_u_t0 = time.time()
             _t_update_status_hold = 0.0
@@ -214,10 +271,16 @@ def review():
             _t_start_expire = time.time() - _te0
             on_hold_activated += 1
             changed_onhold_batch += 1
+            heartbeat["on_hold_processed"] = on_hold_activated
 
             if changed_onhold_batch >= BATCH_SIZE_ONHOLD:
                 _commit_t0 = time.time()
                 logger.warning(f"[review] starting commit for on_hold batch size={changed_onhold_batch}")
+                heartbeat.update({
+                    "stage": "commit_on_hold_batch",
+                    "stage_started_at": _commit_t0,
+                    "batch_pending": changed_onhold_batch
+                })
                 try:
                     db.commit()
                 except Exception as e:
@@ -227,6 +290,11 @@ def review():
                     _commit_dur = time.time() - _commit_t0
                     logger.info(f"[review] commit of on_hold batch took {_commit_dur:.3f}s")
                     changed_onhold_batch = 0
+                    heartbeat.update({
+                        "stage": "process_on_hold",
+                        "stage_started_at": time.time(),
+                        "batch_pending": 0
+                    })
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
@@ -242,6 +310,11 @@ def review():
         _commit_t0 = time.time()
         if changed_onhold_batch > 0:
             logger.warning(f"[review] starting final commit for remaining on_hold size={changed_onhold_batch}")
+        heartbeat.update({
+            "stage": "commit_on_hold_final",
+            "stage_started_at": _commit_t0,
+            "batch_pending": changed_onhold_batch
+        })
         try:
             db.commit()
         except Exception as e:
@@ -250,6 +323,12 @@ def review():
         finally:
             _commit_dur = time.time() - _commit_t0
             logger.info(f"[review] final commit of on_hold users took {_commit_dur:.3f}s")
+            heartbeat.update({
+                "stage": "finished",
+                "stage_started_at": time.time(),
+                "batch_pending": 0,
+                "done": True
+            })
 
     duration = time.time() - start_ts
     logger.info(
