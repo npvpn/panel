@@ -98,7 +98,7 @@ def review():
                     f"batch_pending={heartbeat.get('batch_pending')} "
                     f"stage_elapsed={elapsed:.1f}s total_elapsed={total:.1f}s"
                 )
-                time.sleep(10)
+                time.sleep(30)
         except Exception:
             pass
     with GetDB() as db:
