@@ -1,4 +1,5 @@
 from functools import lru_cache
+import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,10 +39,17 @@ def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
 
 @threaded_function
 def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
+    start_time = time.time()
     try:
         api.remove_inbound_user(tag=inbound_tag, email=email, timeout=60)
-    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError):
-        pass
+        duration = time.time() - start_time
+        logger.info(f"[xray.remove_user.call] inbound={inbound_tag} email={email} took {duration:.3f}s")
+    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+        duration = time.time() - start_time
+        logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} took {duration:.3f}s error={type(e).__name__}: {e}")
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} took {duration:.3f}s error={type(e).__name__}: {e}")
 
 
 @threaded_function
@@ -97,15 +105,29 @@ def add_user(dbuser: "DBUser"):
 def remove_user(dbuser: "DBUser"):
     email = f"{dbuser.id}.{dbuser.username}"
 
+    try:
+        total_inbounds = len(xray.config.inbounds_by_tag)
+    except Exception:
+        total_inbounds = 0
+    try:
+        total_nodes = len(xray.nodes)
+    except Exception:
+        total_nodes = 0
+    logger.info(f"[xray.remove_user] start email={email} inbounds={total_inbounds} nodes={total_nodes}")
+
     for inbound_tag in xray.config.inbounds_by_tag:
+        submit_t0 = time.time()
         _remove_user_from_inbound(xray.api, inbound_tag, email)
+        logger.info(f"[xray.remove_user.submit] core inbound={inbound_tag} email={email} submit_dt={(time.time() - submit_t0):.3f}s")
         for node in list(xray.nodes.values()):
             # Не допускаем падения при недоступной ноде
             try:
                 if node.connected and node.started:
+                    n_submit_t0 = time.time()
                     _remove_user_from_inbound(node.api, inbound_tag, email)
+                    logger.info(f"[xray.remove_user.submit] node inbound={inbound_tag} email={email} submit_dt={(time.time() - n_submit_t0):.3f}s")
             except Exception as e:
-                logger.warning(f"XRAY node check/remove failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {e}")
+                logger.warning(f"XRAY node check/remove failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {type(e).__name__}: {e}")
 
 
 def update_user(dbuser: "DBUser"):
