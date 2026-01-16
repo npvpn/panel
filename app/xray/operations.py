@@ -1,4 +1,5 @@
 from functools import lru_cache
+import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -32,28 +33,36 @@ def get_tls():
 def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=60)
-    except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError):
-        pass
+    except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+        logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
 
 
 @threaded_function
 def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
     try:
-        api.remove_inbound_user(tag=inbound_tag, email=email, timeout=60)
-    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError):
-        pass
+        api.remove_inbound_user(tag=inbound_tag, email=email, timeout=10)
+    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+        logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
 
 
 @threaded_function
 def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     try:
         api.remove_inbound_user(tag=inbound_tag, email=account.email, timeout=60)
-    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError):
-        pass
+    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+        logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=60)
-    except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError):
-        pass
+    except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+        logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
 
 
 def add_user(dbuser: "DBUser"):
@@ -96,16 +105,63 @@ def add_user(dbuser: "DBUser"):
 
 def remove_user(dbuser: "DBUser"):
     email = f"{dbuser.id}.{dbuser.username}"
+    user = UserResponse.model_validate(dbuser)
 
-    for inbound_tag in xray.config.inbounds_by_tag:
+    # Build set of factual inbounds for this user (actual protocol tags assigned)
+    target_inbounds = set()
+    try:
+        for _, inbound_tags in user.inbounds.items():
+            for inbound_tag in inbound_tags:
+                target_inbounds.add(inbound_tag)
+    except Exception:
+        target_inbounds = set()
+
+    # Fallback: if we could not determine factual inbounds, fallback to all configured
+    if not target_inbounds:
+        target_inbounds = set(xray.config.inbounds_by_tag.keys())
+
+    try:
+        total_inbounds = len(xray.config.inbounds_by_tag)
+    except Exception:
+        total_inbounds = 0
+    try:
+        total_nodes = len(xray.nodes)
+    except Exception:
+        total_nodes = 0
+    logger.info(f"[xray.remove_user] start email={email} target_inbounds={len(target_inbounds)} total_inbounds={total_inbounds} nodes={total_nodes}")
+
+    # Precompute ready nodes once to avoid per-inbound status checks (expensive network calls)
+    nodes_list = list(xray.nodes.values())
+    ready_nodes = []
+    _nodes_check_t0 = time.time()
+    for node in nodes_list:
+        # Avoid network calls in properties; rely on cached flags where possible
+        is_started_cached = False
+        has_session = True
+        try:
+            # ReSTXRayNode uses _started and _session_id
+            if hasattr(node, "_started"):
+                is_started_cached = bool(getattr(node, "_started"))
+                has_session = bool(getattr(node, "_session_id", None))
+            # RPyCXRayNode uses 'started'
+            elif hasattr(node, "started"):
+                is_started_cached = bool(getattr(node, "started"))
+            else:
+                is_started_cached = False
+        except Exception:
+            is_started_cached = False
+        if is_started_cached and has_session:
+            ready_nodes.append(node)
+    logger.info(f"[xray.remove_user] nodes_ready={len(ready_nodes)} nodes_checked={len(nodes_list)}")
+
+    for inbound_tag in target_inbounds:
         _remove_user_from_inbound(xray.api, inbound_tag, email)
-        for node in list(xray.nodes.values()):
+        for node in ready_nodes:
             # Не допускаем падения при недоступной ноде
             try:
-                if node.connected and node.started:
-                    _remove_user_from_inbound(node.api, inbound_tag, email)
+                _remove_user_from_inbound(node.api, inbound_tag, email)
             except Exception as e:
-                logger.warning(f"XRAY node check/remove failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {e}")
+                logger.warning(f"XRAY node check/remove failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {type(e).__name__}: {e}")
 
 
 def update_user(dbuser: "DBUser"):
