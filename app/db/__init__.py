@@ -9,6 +9,17 @@ class GetDB:  # Context Manager
         self.db = SessionLocal()
 
     def __enter__(self):
+        # Apply per-session settings to reduce lock contention and long waits
+        try:
+            # Shorten lock wait to fail fast instead of hanging indefinitely
+            self.db.execute("SET SESSION innodb_lock_wait_timeout = 10")
+        except Exception:
+            pass
+        try:
+            # Lower isolation can reduce lock footprint for our scanning job
+            self.db.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+        except Exception:
+            pass
         return self.db
 
     def __exit__(self, exc_type, exc_value, traceback):
