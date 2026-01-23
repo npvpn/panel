@@ -155,12 +155,7 @@ def modify_user(
             )
 
     old_status = dbuser.status
-    try:
-        dbuser = crud.update_user(db, dbuser, modified_user)
-    except IntegrityError:
-        db.rollback()
-        # Возвращаем такой же семантический код, как при создании, если нарушено уникальное ограничение
-        raise HTTPException(status_code=409, detail="Proxy данного протокола у пользователя уже существует")
+    dbuser = crud.update_user(db, dbuser, modified_user)
     user = UserResponse.model_validate(dbuser)
 
     if user.status in [UserStatus.active, UserStatus.on_hold]:
