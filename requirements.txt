@@ -9,6 +9,7 @@ PyYAML==6.0.2
 SQLAlchemy==2.0.36
 alembic==1.14.0
 anyio==4.2.0
+argon2-cffi==23.1.0
 bcrypt==4.0.1
 certifi==2024.07.04
 cffi==1.17.1
