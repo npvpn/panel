@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.db import Session, crud, get_db
 from app.utils.jwt import get_admin_payload
@@ -96,12 +96,21 @@ class Admin(BaseModel):
 
 
 class AdminCreate(Admin):
-    password: str
+    password: Optional[str] = None
+    password_hash: Optional[str] = None
     telegram_id: Optional[int] = None
     discord_webhook: Optional[str] = None
 
+    @model_validator(mode="after")
+    def require_password_or_hash(self):
+        if not self.password and not self.password_hash:
+            raise ValueError("password or password_hash is required")
+        return self
+
     @property
     def hashed_password(self):
+        if self.password_hash:
+            return self.password_hash
         if _is_password_hash(self.password):
             return self.password
         return pwd_context.hash(self.password)
@@ -116,12 +125,15 @@ class AdminCreate(Admin):
 
 class AdminModify(BaseModel):
     password: Optional[str] = None
+    password_hash: Optional[str] = None
     is_sudo: bool
     telegram_id: Optional[int] = None
     discord_webhook: Optional[str] = None
 
     @property
     def hashed_password(self):
+        if self.password_hash:
+            return self.password_hash
         if self.password:
             if _is_password_hash(self.password):
                 return self.password
