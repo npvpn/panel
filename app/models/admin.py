@@ -9,8 +9,14 @@ from app.db import Session, crud, get_db
 from app.utils.jwt import get_admin_payload
 from config import SUDOERS
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")  # Admin view url
+
+
+def _is_password_hash(value: str) -> bool:
+    if not value:
+        return False
+    return pwd_context.identify(value) is not None
 
 
 class Token(BaseModel):
@@ -96,6 +102,8 @@ class AdminCreate(Admin):
 
     @property
     def hashed_password(self):
+        if _is_password_hash(self.password):
+            return self.password
         return pwd_context.hash(self.password)
 
     @field_validator("discord_webhook")
@@ -115,6 +123,8 @@ class AdminModify(BaseModel):
     @property
     def hashed_password(self):
         if self.password:
+            if _is_password_hash(self.password):
+                return self.password
             return pwd_context.hash(self.password)
 
     @field_validator("discord_webhook")
@@ -134,6 +144,8 @@ class AdminInDB(Admin):
     hashed_password: str
 
     def verify_password(self, plain_password):
+        if plain_password == self.hashed_password:
+            return True
         return pwd_context.verify(plain_password, self.hashed_password)
 
 
