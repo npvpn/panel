@@ -20,7 +20,7 @@ RUN python3 -m pip install --upgrade pip \
 FROM python:${PYTHON_VERSION}-slim
 ENV PYTHONUNBUFFERED=1
 ARG PYTHON_VERSION
-ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION%.*}/site-packages
+ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages
 WORKDIR /code
 
 RUN rm -rf $PYTHON_LIB_PATH/*
