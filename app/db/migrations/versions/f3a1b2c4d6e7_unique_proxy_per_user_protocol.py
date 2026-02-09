@@ -19,7 +19,7 @@ def upgrade() -> None:
     # Deduplicate existing proxies: keep the lowest id per (user_id, type)
     bind = op.get_bind()
     proxies = bind.execute(sa.text(
-        "SELECT id, user_id, CAST(type AS TEXT) AS type "
+        "SELECT id, user_id, type "
         "FROM proxies "
         "ORDER BY user_id, type, id"
     )).fetchall()
