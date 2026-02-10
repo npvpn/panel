@@ -148,7 +148,11 @@ class AdminModify(BaseModel):
 
 
 class AdminPartialModify(AdminModify):
-    __annotations__ = {k: Optional[v] for k, v in AdminModify.__annotations__.items()}
+    password: Optional[str] = None
+    password_hash: Optional[str] = None
+    is_sudo: Optional[bool] = None
+    telegram_id: Optional[int] = None
+    discord_webhook: Optional[str] = None
 
 
 class AdminInDB(Admin):
