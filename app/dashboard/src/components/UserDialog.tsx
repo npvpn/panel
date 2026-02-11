@@ -21,6 +21,7 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
+  SimpleGrid,
   Spinner,
   Switch,
   Table,
@@ -32,8 +33,6 @@ import {
   Textarea,
   Tr,
   Tooltip,
-  Wrap,
-  WrapItem,
   VStack,
   chakra,
   useColorMode,
@@ -872,87 +871,64 @@ export const UserDialog: FC<UserDialogProps> = () => {
                   </Alert>
                 )}
               </ModalBody>
-              <ModalFooter mt="3">
-                <Flex
-                  w="full"
-                  gap={3}
-                  flexDirection={{ base: "column", md: "row" }}
-                  justifyContent="space-between"
-                  alignItems={{ base: "stretch", md: "center" }}
-                >
-                  <Wrap
-                    spacing={2}
-                    justify={{ base: "flex-start", md: "flex-start" }}
-                    w={{ base: "full", md: "auto" }}
-                  >
+              <ModalFooter mt="3" flexDirection="column" gap={3}>
+                {isEditing && (
+                  <SimpleGrid columns={{ base: 2, md: 5 }} gap={2} w="full">
                     {isEditing && (
                       <>
                         <Tooltip label={t("delete")} placement="top">
-                          <WrapItem>
-                            <IconButton
-                              aria-label="Delete"
-                              size="sm"
-                              onClick={() => {
-                                onDeletingUser(editingUser);
-                                onClose();
-                              }}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </WrapItem>
+                          <IconButton
+                            aria-label="Delete"
+                            size="sm"
+                            onClick={() => {
+                              onDeletingUser(editingUser);
+                              onClose();
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
                         </Tooltip>
                         <Tooltip label={t("userDialog.usage")} placement="top">
-                          <WrapItem>
-                            <IconButton
-                              aria-label="usage"
-                              size="sm"
-                              onClick={handleUsageToggle}
-                            >
-                              <UserUsageIcon />
-                            </IconButton>
-                          </WrapItem>
+                          <IconButton
+                            aria-label="usage"
+                            size="sm"
+                            onClick={handleUsageToggle}
+                          >
+                            <UserUsageIcon />
+                          </IconButton>
                         </Tooltip>
-                        <WrapItem>
-                          <Button onClick={handleResetUsage} size="sm">
-                            {t("userDialog.resetUsage")}
-                          </Button>
-                        </WrapItem>
-                        <WrapItem>
-                          <Button onClick={handleRevokeSubscription} size="sm">
-                            {t("userDialog.revokeSubscription")}
-                          </Button>
-                        </WrapItem>
-                        <WrapItem>
-                          <Button onClick={openDevices} size="sm">
-                            {t("userDialog.devicesButton")}
-                          </Button>
-                        </WrapItem>
+                        <Button onClick={handleResetUsage} size="sm">
+                          {t("userDialog.resetUsage")}
+                        </Button>
+                        <Button onClick={handleRevokeSubscription} size="sm">
+                          {t("userDialog.revokeSubscription")}
+                        </Button>
+                        <Button onClick={openDevices} size="sm">
+                          {t("userDialog.devicesButton")}
+                        </Button>
                       </>
                     )}
-                  </Wrap>
-                  <HStack
-                    w={{ base: "full", md: "auto" }}
-                    justify={{ base: "stretch", md: "flex-end" }}
+                  </SimpleGrid>
+                )}
+                <HStack w="full" justify="flex-end">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    px="8"
+                    colorScheme="primary"
+                    leftIcon={loading ? <Spinner size="xs" /> : undefined}
+                    disabled={disabled}
                   >
-                    <Button
-                      type="submit"
-                      size="sm"
-                      px="8"
-                      colorScheme="primary"
-                      leftIcon={loading ? <Spinner size="xs" /> : undefined}
-                      disabled={disabled}
-                    >
-                      {isEditing ? t("userDialog.editUser") : t("createUser")}
-                    </Button>
-                  </HStack>
-                </Flex>
+                    {isEditing ? t("userDialog.editUser") : t("createUser")}
+                  </Button>
+                </HStack>
               </ModalFooter>
             </form>
           </ModalContent>
         </FormProvider>
       </Modal>
 
-      <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="4xl">
+      <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="6xl">
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
         <ModalContent mx="3">
           <ModalHeader pt={6}>
@@ -978,50 +954,50 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 <Spinner />
               </Flex>
             ) : devices.length ? (
-              <Box overflowX="auto">
-                <Table size="sm">
-                  <Thead>
-                    <Tr>
-                      <Th>HWID</Th>
-                      <Th>{t("userDialog.deviceOs")}</Th>
-                      <Th>{t("userDialog.deviceVerOs")}</Th>
-                      <Th>{t("userDialog.deviceModel")}</Th>
-                      <Th>User-Agent</Th>
-                      <Th>{t("userDialog.deviceFirstSeen")}</Th>
-                      <Th>{t("userDialog.deviceLastSeen")}</Th>
+              <Table size="sm">
+                <Thead>
+                  <Tr>
+                    <Th>HWID</Th>
+                    <Th>{t("userDialog.deviceOs")}</Th>
+                    <Th>{t("userDialog.deviceVerOs")}</Th>
+                    <Th>{t("userDialog.deviceModel")}</Th>
+                    <Th>User-Agent</Th>
+                    <Th>{t("userDialog.deviceFirstSeen")}</Th>
+                    <Th>{t("userDialog.deviceLastSeen")}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {devices.map((device) => (
+                    <Tr key={device.id}>
+                      <Td>{device.hwid}</Td>
+                      <Td>{device.device_os || "-"}</Td>
+                      <Td>{device.ver_os || "-"}</Td>
+                      <Td>{device.device_model || "-"}</Td>
+                      <Td>{device.user_agent || "-"}</Td>
+                      <Td>
+                        {device.first_seen
+                          ? dayjs(device.first_seen).format("YYYY-MM-DD HH:mm")
+                          : "-"}
+                      </Td>
+                      <Td>
+                        {device.last_seen
+                          ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
+                          : "-"}
+                      </Td>
                     </Tr>
-                  </Thead>
-                  <Tbody>
-                    {devices.map((device) => (
-                      <Tr key={device.id}>
-                        <Td>{device.hwid}</Td>
-                        <Td>{device.device_os || "-"}</Td>
-                        <Td>{device.ver_os || "-"}</Td>
-                        <Td>{device.device_model || "-"}</Td>
-                        <Td>{device.user_agent || "-"}</Td>
-                        <Td>
-                          {device.first_seen
-                            ? dayjs(device.first_seen).format("YYYY-MM-DD HH:mm")
-                            : "-"}
-                        </Td>
-                        <Td>
-                          {device.last_seen
-                            ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
-                            : "-"}
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
+                  ))}
+                </Tbody>
+              </Table>
             ) : (
               <Text color="gray.500">{t("userDialog.devicesEmpty")}</Text>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button onClick={() => setDevicesOpen(false)}>
-              {t("userDialog.devicesClose")}
-            </Button>
+            <HStack w="full" justify="flex-end">
+              <Button size="sm" onClick={loadDevices} isLoading={devicesLoading}>
+                {t("userDialog.devicesRefresh")}
+              </Button>
+            </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>
