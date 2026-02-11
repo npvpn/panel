@@ -23,8 +23,14 @@ import {
   Select,
   Spinner,
   Switch,
+  Table,
+  Tbody,
+  Td,
   Text,
+  Th,
+  Thead,
   Textarea,
+  Tr,
   Tooltip,
   VStack,
   chakra,
@@ -51,6 +57,8 @@ import {
   User,
   UserCreate,
   UserInbounds,
+  UserDevice,
+  UserDevicesResponse,
 } from "types/User";
 import { relativeExpiryDate } from "utils/dateFormatter";
 import { z } from "zod";
@@ -61,6 +69,7 @@ import { RadioGroup } from "./RadioGroup";
 import { UsageFilter, createUsageConfig } from "./UsageFilter";
 import { ReloadIcon } from "./Filters";
 import classNames from "classnames";
+import { fetch } from "service/http";
 
 const AddUserIcon = chakra(UserPlusIcon, {
   baseStyle: {
@@ -95,6 +104,7 @@ const formatUser = (user: User): FormType => {
     data_limit: user.data_limit
       ? Number((user.data_limit / 1073741824).toFixed(5))
       : user.data_limit,
+    device_limit: user.device_limit ?? null,
     on_hold_expire_duration: user.on_hold_expire_duration
       ? Number(user.on_hold_expire_duration / (24 * 60 * 60))
       : user.on_hold_expire_duration,
@@ -110,6 +120,7 @@ const getDefaultValues = (): FormType => {
   return {
     selected_proxies: Object.keys(defaultInbounds) as ProxyKeys,
     data_limit: null,
+    device_limit: null,
     expire: null,
     username: "",
     data_limit_reset_strategy: "no_reset",
@@ -173,6 +184,15 @@ const baseSchema = {
       if (str) return Number((parseFloat(String(str)) * 1073741824).toFixed(5));
       return 0;
     }),
+  device_limit: z
+    .string()
+    .min(0)
+    .or(z.number())
+    .nullable()
+    .transform((value) => {
+      if (value) return Math.max(0, Number(value));
+      return 0;
+    }),
   expire: z.number().nullable(),
   data_limit_reset_strategy: z.string(),
   inbounds: z.record(z.string(), z.array(z.string())).transform((ins) => {
@@ -228,6 +248,10 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const isOpen = isCreatingNewUser || isEditing;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>("");
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [devicesError, setDevicesError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<UserDevice[]>([]);
   const toast = useToast();
   const { t, i18n } = useTranslation();
 
@@ -348,8 +372,35 @@ export const UserDialog: FC<UserDialogProps> = () => {
     onCreateUser(false);
     onEditingUser(null);
     setError(null);
+    setDevicesOpen(false);
+    setDevices([]);
+    setDevicesError(null);
     setUsageVisible(false);
     setUsageFilter("1m");
+  };
+
+  const loadDevices = async () => {
+    if (!editingUser) return;
+    setDevicesLoading(true);
+    setDevicesError(null);
+    try {
+      const res = await fetch<UserDevicesResponse>(
+        `/user/${editingUser.username}/devices`,
+        { method: "GET" }
+      );
+      setDevices(res.devices || []);
+    } catch (err: any) {
+      setDevicesError(
+        err?.response?._data?.detail || t("userDialog.devicesLoadError")
+      );
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  const openDevices = () => {
+    setDevicesOpen(true);
+    loadDevices();
   };
 
   const handleResetUsage = () => {
@@ -380,43 +431,44 @@ export const UserDialog: FC<UserDialogProps> = () => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-      <FormProvider {...form}>
-        <ModalContent mx="3">
-          <form onSubmit={form.handleSubmit(submit)}>
-            <ModalHeader pt={6}>
-              <HStack gap={2}>
-                <Icon color="primary">
-                  {isEditing ? (
-                    <EditUserIcon color="white" />
-                  ) : (
-                    <AddUserIcon color="white" />
-                  )}
-                </Icon>
-                <Text fontWeight="semibold" fontSize="lg">
-                  {isEditing
-                    ? t("userDialog.editUserTitle")
-                    : t("createNewUser")}
-                </Text>
-              </HStack>
-            </ModalHeader>
-            <ModalCloseButton mt={3} disabled={disabled} />
-            <ModalBody>
-              <Grid
-                templateColumns={{
-                  base: "repeat(1, 1fr)",
-                  md: "repeat(2, 1fr)",
-                }}
-                gap={3}
-              >
-                <GridItem>
-                  <VStack justifyContent="space-between">
-                    <Flex
-                      flexDirection="column"
-                      gridAutoRows="min-content"
-                      w="full"
-                    >
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+        <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+        <FormProvider {...form}>
+          <ModalContent mx="3">
+            <form onSubmit={form.handleSubmit(submit)}>
+              <ModalHeader pt={6}>
+                <HStack gap={2}>
+                  <Icon color="primary">
+                    {isEditing ? (
+                      <EditUserIcon color="white" />
+                    ) : (
+                      <AddUserIcon color="white" />
+                    )}
+                  </Icon>
+                  <Text fontWeight="semibold" fontSize="lg">
+                    {isEditing
+                      ? t("userDialog.editUserTitle")
+                      : t("createNewUser")}
+                  </Text>
+                </HStack>
+              </ModalHeader>
+              <ModalCloseButton mt={3} disabled={disabled} />
+              <ModalBody>
+                <Grid
+                  templateColumns={{
+                    base: "repeat(1, 1fr)",
+                    md: "repeat(2, 1fr)",
+                  }}
+                  gap={3}
+                >
+                  <GridItem>
+                    <VStack justifyContent="space-between">
+                      <Flex
+                        flexDirection="column"
+                        gridAutoRows="min-content"
+                        w="full"
+                      >
                       <Flex flexDirection="row" w="full" gap={2}>
                         <FormControl mb={"10px"}>
                           <FormLabel>
@@ -532,6 +584,29 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                 disabled={disabled}
                                 error={
                                   form.formState.errors.data_limit?.message
+                                }
+                                value={field.value ? String(field.value) : ""}
+                              />
+                            );
+                          }}
+                        />
+                      </FormControl>
+                      <FormControl mb={"10px"}>
+                        <FormLabel>{t("userDialog.deviceLimit")}</FormLabel>
+                        <Controller
+                          control={form.control}
+                          name="device_limit"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                endAdornment={t("userDialog.devicesUnit")}
+                                type="number"
+                                size="sm"
+                                borderRadius="6px"
+                                onChange={field.onChange}
+                                disabled={disabled}
+                                error={
+                                  form.formState.errors.device_limit?.message
                                 }
                                 value={field.value ? String(field.value) : ""}
                               />
@@ -784,87 +859,163 @@ export const UserDialog: FC<UserDialogProps> = () => {
                   </GridItem>
                 )}
               </Grid>
-              {error && (
-                <Alert
-                  mt="3"
-                  status="error"
-                  display={{ base: "flex", md: "none" }}
-                >
-                  <AlertIcon />
-                  {error}
-                </Alert>
-              )}
-            </ModalBody>
-            <ModalFooter mt="3">
-              <HStack
-                justifyContent="space-between"
-                w="full"
-                gap={3}
-                flexDirection={{
-                  base: "column",
-                  sm: "row",
-                }}
-              >
+                {error && (
+                  <Alert
+                    mt="3"
+                    status="error"
+                    display={{ base: "flex", md: "none" }}
+                  >
+                    <AlertIcon />
+                    {error}
+                  </Alert>
+                )}
+              </ModalBody>
+              <ModalFooter mt="3">
                 <HStack
-                  justifyContent="flex-start"
-                  w={{
-                    base: "full",
-                    sm: "unset",
+                  justifyContent="space-between"
+                  w="full"
+                  gap={3}
+                  flexDirection={{
+                    base: "column",
+                    sm: "row",
                   }}
                 >
-                  {isEditing && (
-                    <>
-                      <Tooltip label={t("delete")} placement="top">
-                        <IconButton
-                          aria-label="Delete"
-                          size="sm"
-                          onClick={() => {
-                            onDeletingUser(editingUser);
-                            onClose();
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip label={t("userDialog.usage")} placement="top">
-                        <IconButton
-                          aria-label="usage"
-                          size="sm"
-                          onClick={handleUsageToggle}
-                        >
-                          <UserUsageIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Button onClick={handleResetUsage} size="sm">
-                        {t("userDialog.resetUsage")}
-                      </Button>
-                      <Button onClick={handleRevokeSubscription} size="sm">
-                        {t("userDialog.revokeSubscription")}
-                      </Button>
-                    </>
-                  )}
-                </HStack>
-                <HStack
-                  w="full"
-                  maxW={{ md: "50%", base: "full" }}
-                  justify="end"
-                >
-                  <Button
-                    type="submit"
-                    size="sm"
-                    px="8"
-                    colorScheme="primary"
-                    leftIcon={loading ? <Spinner size="xs" /> : undefined}
-                    disabled={disabled}
+                  <HStack
+                    justifyContent="flex-start"
+                    w={{
+                      base: "full",
+                      sm: "unset",
+                    }}
                   >
-                    {isEditing ? t("userDialog.editUser") : t("createUser")}
-                  </Button>
+                    {isEditing && (
+                      <>
+                        <Tooltip label={t("delete")} placement="top">
+                          <IconButton
+                            aria-label="Delete"
+                            size="sm"
+                            onClick={() => {
+                              onDeletingUser(editingUser);
+                              onClose();
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip label={t("userDialog.usage")} placement="top">
+                          <IconButton
+                            aria-label="usage"
+                            size="sm"
+                            onClick={handleUsageToggle}
+                          >
+                            <UserUsageIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Button onClick={handleResetUsage} size="sm">
+                          {t("userDialog.resetUsage")}
+                        </Button>
+                        <Button onClick={handleRevokeSubscription} size="sm">
+                          {t("userDialog.revokeSubscription")}
+                        </Button>
+                        <Button onClick={openDevices} size="sm">
+                          {t("userDialog.devicesButton")}
+                        </Button>
+                      </>
+                    )}
+                  </HStack>
+                  <HStack
+                    w="full"
+                    maxW={{ md: "50%", base: "full" }}
+                    justify="end"
+                  >
+                    <Button
+                      type="submit"
+                      size="sm"
+                      px="8"
+                      colorScheme="primary"
+                      leftIcon={loading ? <Spinner size="xs" /> : undefined}
+                      disabled={disabled}
+                    >
+                      {isEditing ? t("userDialog.editUser") : t("createUser")}
+                    </Button>
+                  </HStack>
                 </HStack>
-              </HStack>
-            </ModalFooter>
-          </form>
+              </ModalFooter>
+            </form>
+          </ModalContent>
+        </FormProvider>
+      </Modal>
+
+      <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="4xl">
+        <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+        <ModalContent mx="3">
+          <ModalHeader pt={6}>
+            <HStack gap={2} justifyContent="space-between">
+              <Text fontWeight="semibold" fontSize="lg">
+                {t("userDialog.devicesTitle")}
+              </Text>
+              <Button size="sm" onClick={loadDevices} isLoading={devicesLoading}>
+                {t("userDialog.devicesRefresh")}
+              </Button>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton mt={3} />
+          <ModalBody>
+            {devicesError && (
+              <Alert status="error" mb="3">
+                <AlertIcon />
+                {devicesError}
+              </Alert>
+            )}
+            {devicesLoading ? (
+              <Flex justifyContent="center" py="6">
+                <Spinner />
+              </Flex>
+            ) : devices.length ? (
+              <Table size="sm">
+                <Thead>
+                  <Tr>
+                    <Th>HWID</Th>
+                    <Th>{t("userDialog.deviceOs")}</Th>
+                    <Th>{t("userDialog.deviceVerOs")}</Th>
+                    <Th>{t("userDialog.deviceModel")}</Th>
+                    <Th>User-Agent</Th>
+                    <Th>{t("userDialog.deviceFirstSeen")}</Th>
+                    <Th>{t("userDialog.deviceLastSeen")}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {devices.map((device) => (
+                    <Tr key={device.id}>
+                      <Td>{device.hwid}</Td>
+                      <Td>{device.device_os || "-"}</Td>
+                      <Td>{device.ver_os || "-"}</Td>
+                      <Td>{device.device_model || "-"}</Td>
+                      <Td>{device.user_agent || "-"}</Td>
+                      <Td>
+                        {device.first_seen
+                          ? dayjs(device.first_seen).format("YYYY-MM-DD HH:mm")
+                          : "-"}
+                      </Td>
+                      <Td>
+                        {device.last_seen
+                          ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
+                          : "-"}
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            ) : (
+              <Text color="gray.500">{t("userDialog.devicesEmpty")}</Text>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={() => setDevicesOpen(false)}>
+              {t("userDialog.devicesClose")}
+            </Button>
+          </ModalFooter>
         </ModalContent>
-      </FormProvider>
-    </Modal>
+      </Modal>
+    </>
   );
 };

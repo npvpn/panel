@@ -4,7 +4,7 @@ import math
 from distutils.version import LooseVersion
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, Path, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
@@ -76,7 +76,11 @@ def user_subscription(
     request: Request,
     db: Session = Depends(get_db),
     dbuser: UserResponse = Depends(get_validated_sub),
-    user_agent: str = Header(default="")
+    user_agent: str = Header(default=""),
+    x_hwid: str | None = Header(default=None),
+    x_device_os: str | None = Header(default=None),
+    x_ver_os: str | None = Header(default=None),
+    x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
     user: UserResponse = UserResponse.model_validate(dbuser)
@@ -89,6 +93,11 @@ def user_subscription(
                 {"user": user}
             )
         )
+
+    if not crud.register_user_device(
+        db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
+    ):
+        raise HTTPException(status_code=403, detail="Device limit reached")
 
     crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
@@ -196,10 +205,19 @@ def user_subscription_with_client_type(
     dbuser: UserResponse = Depends(get_validated_sub),
     client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
     db: Session = Depends(get_db),
-    user_agent: str = Header(default="")
+    user_agent: str = Header(default=""),
+    x_hwid: str | None = Header(default=None),
+    x_device_os: str | None = Header(default=None),
+    x_ver_os: str | None = Header(default=None),
+    x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     user: UserResponse = UserResponse.model_validate(dbuser)
+
+    if not crud.register_user_device(
+        db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
+    ):
+        raise HTTPException(status_code=403, detail="Device limit reached")
 
     announce_text = get_user_note(user) or ""
     response_headers = {

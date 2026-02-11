@@ -40,6 +40,7 @@ export type User = {
   expire: number | null;
   data_limit: number | null;
   data_limit_reset_strategy: DataLimitResetStrategy;
+  device_limit: number | null;
   on_hold_expire_duration: number | null;
   lifetime_used_traffic: number;
   username: string;
@@ -58,6 +59,7 @@ export type UserCreate = Pick<
   | "proxies"
   | "expire"
   | "data_limit"
+  | "device_limit"
   | "data_limit_reset_strategy"
   | "on_hold_expire_duration"
   | "username"
@@ -79,3 +81,18 @@ export type UseGetUserReturn = {
   getUserIsError: boolean;
   getUserError: Error | null;
 }
+
+export type UserDevice = {
+  id: number;
+  hwid: string;
+  device_os: string | null;
+  ver_os: string | null;
+  device_model: string | null;
+  user_agent: string | null;
+  first_seen: string;
+  last_seen: string;
+};
+
+export type UserDevicesResponse = {
+  devices: UserDevice[];
+};
