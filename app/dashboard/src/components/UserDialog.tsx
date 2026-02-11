@@ -32,6 +32,8 @@ import {
   Textarea,
   Tr,
   Tooltip,
+  Wrap,
+  WrapItem,
   VStack,
   chakra,
   useColorMode,
@@ -871,61 +873,66 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 )}
               </ModalBody>
               <ModalFooter mt="3">
-                <HStack
-                  justifyContent="space-between"
+                <Flex
                   w="full"
                   gap={3}
-                  flexDirection={{
-                    base: "column",
-                    sm: "row",
-                  }}
+                  flexDirection={{ base: "column", md: "row" }}
+                  justifyContent="space-between"
+                  alignItems={{ base: "stretch", md: "center" }}
                 >
-                  <HStack
-                    justifyContent="flex-start"
-                    w={{
-                      base: "full",
-                      sm: "unset",
-                    }}
+                  <Wrap
+                    spacing={2}
+                    justify={{ base: "flex-start", md: "flex-start" }}
+                    w={{ base: "full", md: "auto" }}
                   >
                     {isEditing && (
                       <>
                         <Tooltip label={t("delete")} placement="top">
-                          <IconButton
-                            aria-label="Delete"
-                            size="sm"
-                            onClick={() => {
-                              onDeletingUser(editingUser);
-                              onClose();
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <WrapItem>
+                            <IconButton
+                              aria-label="Delete"
+                              size="sm"
+                              onClick={() => {
+                                onDeletingUser(editingUser);
+                                onClose();
+                              }}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </WrapItem>
                         </Tooltip>
                         <Tooltip label={t("userDialog.usage")} placement="top">
-                          <IconButton
-                            aria-label="usage"
-                            size="sm"
-                            onClick={handleUsageToggle}
-                          >
-                            <UserUsageIcon />
-                          </IconButton>
+                          <WrapItem>
+                            <IconButton
+                              aria-label="usage"
+                              size="sm"
+                              onClick={handleUsageToggle}
+                            >
+                              <UserUsageIcon />
+                            </IconButton>
+                          </WrapItem>
                         </Tooltip>
-                        <Button onClick={handleResetUsage} size="sm">
-                          {t("userDialog.resetUsage")}
-                        </Button>
-                        <Button onClick={handleRevokeSubscription} size="sm">
-                          {t("userDialog.revokeSubscription")}
-                        </Button>
-                        <Button onClick={openDevices} size="sm">
-                          {t("userDialog.devicesButton")}
-                        </Button>
+                        <WrapItem>
+                          <Button onClick={handleResetUsage} size="sm">
+                            {t("userDialog.resetUsage")}
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button onClick={handleRevokeSubscription} size="sm">
+                            {t("userDialog.revokeSubscription")}
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button onClick={openDevices} size="sm">
+                            {t("userDialog.devicesButton")}
+                          </Button>
+                        </WrapItem>
                       </>
                     )}
-                  </HStack>
+                  </Wrap>
                   <HStack
-                    w="full"
-                    maxW={{ md: "50%", base: "full" }}
-                    justify="end"
+                    w={{ base: "full", md: "auto" }}
+                    justify={{ base: "stretch", md: "flex-end" }}
                   >
                     <Button
                       type="submit"
@@ -938,7 +945,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                       {isEditing ? t("userDialog.editUser") : t("createUser")}
                     </Button>
                   </HStack>
-                </HStack>
+                </Flex>
               </ModalFooter>
             </form>
           </ModalContent>
@@ -971,40 +978,42 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 <Spinner />
               </Flex>
             ) : devices.length ? (
-              <Table size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>HWID</Th>
-                    <Th>{t("userDialog.deviceOs")}</Th>
-                    <Th>{t("userDialog.deviceVerOs")}</Th>
-                    <Th>{t("userDialog.deviceModel")}</Th>
-                    <Th>User-Agent</Th>
-                    <Th>{t("userDialog.deviceFirstSeen")}</Th>
-                    <Th>{t("userDialog.deviceLastSeen")}</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {devices.map((device) => (
-                    <Tr key={device.id}>
-                      <Td>{device.hwid}</Td>
-                      <Td>{device.device_os || "-"}</Td>
-                      <Td>{device.ver_os || "-"}</Td>
-                      <Td>{device.device_model || "-"}</Td>
-                      <Td>{device.user_agent || "-"}</Td>
-                      <Td>
-                        {device.first_seen
-                          ? dayjs(device.first_seen).format("YYYY-MM-DD HH:mm")
-                          : "-"}
-                      </Td>
-                      <Td>
-                        {device.last_seen
-                          ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
-                          : "-"}
-                      </Td>
+              <Box overflowX="auto">
+                <Table size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>HWID</Th>
+                      <Th>{t("userDialog.deviceOs")}</Th>
+                      <Th>{t("userDialog.deviceVerOs")}</Th>
+                      <Th>{t("userDialog.deviceModel")}</Th>
+                      <Th>User-Agent</Th>
+                      <Th>{t("userDialog.deviceFirstSeen")}</Th>
+                      <Th>{t("userDialog.deviceLastSeen")}</Th>
                     </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+                  </Thead>
+                  <Tbody>
+                    {devices.map((device) => (
+                      <Tr key={device.id}>
+                        <Td>{device.hwid}</Td>
+                        <Td>{device.device_os || "-"}</Td>
+                        <Td>{device.ver_os || "-"}</Td>
+                        <Td>{device.device_model || "-"}</Td>
+                        <Td>{device.user_agent || "-"}</Td>
+                        <Td>
+                          {device.first_seen
+                            ? dayjs(device.first_seen).format("YYYY-MM-DD HH:mm")
+                            : "-"}
+                        </Td>
+                        <Td>
+                          {device.last_seen
+                            ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
+                            : "-"}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
             ) : (
               <Text color="gray.500">{t("userDialog.devicesEmpty")}</Text>
             )}
