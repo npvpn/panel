@@ -21,7 +21,6 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
-  SimpleGrid,
   Spinner,
   Switch,
   Table,
@@ -873,42 +872,59 @@ export const UserDialog: FC<UserDialogProps> = () => {
               </ModalBody>
               <ModalFooter mt="3" flexDirection="column" gap={3}>
                 {isEditing && (
-                  <SimpleGrid columns={{ base: 2, md: 5 }} gap={2} w="full">
-                    {isEditing && (
-                      <>
-                        <Tooltip label={t("delete")} placement="top">
-                          <IconButton
-                            aria-label="Delete"
-                            size="sm"
-                            onClick={() => {
-                              onDeletingUser(editingUser);
-                              onClose();
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip label={t("userDialog.usage")} placement="top">
-                          <IconButton
-                            aria-label="usage"
-                            size="sm"
-                            onClick={handleUsageToggle}
-                          >
-                            <UserUsageIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Button onClick={handleResetUsage} size="sm">
-                          {t("userDialog.resetUsage")}
-                        </Button>
-                        <Button onClick={handleRevokeSubscription} size="sm">
-                          {t("userDialog.revokeSubscription")}
-                        </Button>
-                        <Button onClick={openDevices} size="sm">
-                          {t("userDialog.devicesButton")}
-                        </Button>
-                      </>
-                    )}
-                  </SimpleGrid>
+                  <Grid
+                    templateColumns={{
+                      base: "repeat(2, 1fr)",
+                      md: "40px 40px 1fr 1fr 1fr",
+                    }}
+                    gap={2}
+                    w="full"
+                  >
+                    <GridItem>
+                      <Tooltip label={t("delete")} placement="top">
+                        <IconButton
+                          aria-label="Delete"
+                          size="xs"
+                          w="36px"
+                          h="36px"
+                          onClick={() => {
+                            onDeletingUser(editingUser);
+                            onClose();
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </GridItem>
+                    <GridItem>
+                      <Tooltip label={t("userDialog.usage")} placement="top">
+                        <IconButton
+                          aria-label="usage"
+                          size="xs"
+                          w="36px"
+                          h="36px"
+                          onClick={handleUsageToggle}
+                        >
+                          <UserUsageIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </GridItem>
+                    <GridItem>
+                      <Button onClick={handleResetUsage} size="sm" w="full">
+                        {t("userDialog.resetUsage")}
+                      </Button>
+                    </GridItem>
+                    <GridItem>
+                      <Button onClick={handleRevokeSubscription} size="sm" w="full">
+                        {t("userDialog.revokeSubscription")}
+                      </Button>
+                    </GridItem>
+                    <GridItem>
+                      <Button onClick={openDevices} size="sm" w="full">
+                        {t("userDialog.devicesButton")}
+                      </Button>
+                    </GridItem>
+                  </Grid>
                 )}
                 <HStack w="full" justify="flex-end">
                   <Button
@@ -936,9 +952,6 @@ export const UserDialog: FC<UserDialogProps> = () => {
               <Text fontWeight="semibold" fontSize="lg">
                 {t("userDialog.devicesTitle")}
               </Text>
-              <Button size="sm" onClick={loadDevices} isLoading={devicesLoading}>
-                {t("userDialog.devicesRefresh")}
-              </Button>
             </HStack>
           </ModalHeader>
           <ModalCloseButton mt={3} />
