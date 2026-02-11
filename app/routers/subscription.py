@@ -70,6 +70,10 @@ def get_subscription_user_info(user: UserResponse) -> dict:
     }
 
 
+def get_empty_subscription_user(user: UserResponse) -> UserResponse:
+    return user.model_copy(update={"proxies": {}, "inbounds": {}})
+
+
 @router.get("/{token}/")
 @router.get("/{token}", include_in_schema=False)
 def user_subscription(
@@ -94,10 +98,11 @@ def user_subscription(
             )
         )
 
-    if not crud.register_user_device(
+    registered = crud.register_user_device(
         db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
-    ):
-        raise HTTPException(status_code=403, detail="Device limit reached")
+    )
+    if not registered or crud.is_device_limit_exceeded(db, dbuser):
+        user = get_empty_subscription_user(user)
 
     crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
@@ -214,10 +219,11 @@ def user_subscription_with_client_type(
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     user: UserResponse = UserResponse.model_validate(dbuser)
 
-    if not crud.register_user_device(
+    registered = crud.register_user_device(
         db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
-    ):
-        raise HTTPException(status_code=403, detail="Device limit reached")
+    )
+    if not registered or crud.is_device_limit_exceeded(db, dbuser):
+        user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(user) or ""
     response_headers = {

@@ -556,6 +556,12 @@ def count_user_devices(db: Session, dbuser: User) -> int:
     return db.query(func.count(UserDevice.id)).filter(UserDevice.user_id == dbuser.id).scalar() or 0
 
 
+def is_device_limit_exceeded(db: Session, dbuser: User) -> bool:
+    if not dbuser.device_limit:
+        return False
+    return count_user_devices(db, dbuser) > dbuser.device_limit
+
+
 def create_user_device(db: Session, dbuser: User, device: UserDeviceCreate) -> UserDevice:
     dbdevice = UserDevice(
         user_id=dbuser.id,
