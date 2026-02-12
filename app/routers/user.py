@@ -120,9 +120,10 @@ def add_user(
 
 
 @router.get("/user/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
-def get_user(dbuser: UserResponse = Depends(get_validated_user)):
+def get_user(db: Session = Depends(get_db), dbuser: UserResponse = Depends(get_validated_user)):
     """Get user information"""
-    return dbuser
+    crud.ensure_subscription_token(db, dbuser)
+    return UserResponse.model_validate(dbuser)
 
 
 @router.get(
@@ -356,7 +357,9 @@ def get_users(
         admins=owner if admin.is_sudo else [admin.username],
         return_with_count=True,
     )
-
+    # Ensure tokens for legacy users to populate subscription_url in UI
+    for u in users:
+        crud.ensure_subscription_token(db, u)
     return {"users": users, "total": count}
 
 
