@@ -47,6 +47,7 @@ from app.models.user import (
 )
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
+from app.utils.jwt import create_subscription_token
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 
 
@@ -402,6 +403,8 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
             fire_on_either=user.next_plan.fire_on_either,
         ) if user.next_plan else None
     )
+    # Ensure stable subscription token exists from day one
+    dbuser.subscription_token = create_subscription_token(user.username)
     db.add(dbuser)
     db.commit()
     db.refresh(dbuser)
@@ -730,6 +733,8 @@ def revoke_user_sub(db: Session, dbuser: User) -> User:
         User: The updated user object.
     """
     dbuser.sub_revoked_at = datetime.utcnow()
+    # Clear stored subscription token to force regeneration on next request
+    dbuser.subscription_token = None
 
     user = UserResponse.model_validate(dbuser)
     for proxy_type, settings in user.proxies.copy().items():
@@ -756,9 +761,23 @@ def update_user_sub(db: Session, dbuser: User, user_agent: str) -> User:
     """
     dbuser.sub_updated_at = datetime.utcnow()
     dbuser.sub_last_user_agent = user_agent
+    # Backfill subscription_token for legacy users after migration
+    if dbuser.subscription_token is None:
+        dbuser.subscription_token = create_subscription_token(dbuser.username)
 
     db.commit()
     db.refresh(dbuser)
+    return dbuser
+
+def ensure_subscription_token(db: Session, dbuser: User) -> User:
+    """
+    Ensures the user has a persistent subscription token stored.
+    If missing, generates one and persists it.
+    """
+    if dbuser.subscription_token is None:
+        dbuser.subscription_token = create_subscription_token(dbuser.username)
+        db.commit()
+        db.refresh(dbuser)
     return dbuser
 
 

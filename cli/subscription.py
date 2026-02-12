@@ -4,6 +4,7 @@ from typing import Optional
 from rich.console import Console
 
 from app.db import GetDB
+from app.db import crud
 from app.models.user import UserResponse
 from app.subscription.share import generate_subscription
 
@@ -29,7 +30,9 @@ def get_link(
       in order to work correctly.
     """
     with GetDB() as db:
-        user: UserResponse = UserResponse.model_validate(utils.get_user(db, username))
+        dbuser = utils.get_user(db, username)
+        crud.ensure_subscription_token(db, dbuser)
+        user: UserResponse = UserResponse.model_validate(dbuser)
         print(user.subscription_url)
 
 

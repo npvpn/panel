@@ -1,5 +1,4 @@
 import re
-import secrets
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Union
@@ -10,7 +9,6 @@ from app import xray
 from app.models.admin import Admin
 from app.models.proxy import ProxySettings, ProxyTypes
 from app.subscription.share import generate_v2ray_links
-from app.utils.jwt import create_subscription_token
 from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
 
 USERNAME_REGEXP = re.compile(r"^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
@@ -300,6 +298,8 @@ class UserResponse(User):
     created_at: datetime
     links: List[str] = []
     subscription_url: str = ""
+    # Stored in DB, used only to assemble URL; excluded from API responses
+    subscription_token: str | None = Field(default=None, exclude=True)
     proxies: dict
     excluded_inbounds: Dict[ProxyTypes, List[str]] = {}
 
@@ -316,11 +316,10 @@ class UserResponse(User):
 
     @model_validator(mode="after")
     def validate_subscription_url(self):
-        if not self.subscription_url:
-            salt = secrets.token_hex(8)
-            url_prefix = (XRAY_SUBSCRIPTION_URL_PREFIX).replace('*', salt)
-            token = create_subscription_token(self.username)
-            self.subscription_url = f"{url_prefix}/{XRAY_SUBSCRIPTION_PATH}/{token}"
+        if not self.subscription_url and self.subscription_token:
+            url_prefix = (XRAY_SUBSCRIPTION_URL_PREFIX).strip("/")
+            path = f"/{XRAY_SUBSCRIPTION_PATH}/{self.subscription_token}"
+            self.subscription_url = f"{url_prefix}{path}" if url_prefix else path
         return self
 
     @field_validator("proxies", mode="before")

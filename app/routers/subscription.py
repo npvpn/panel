@@ -87,6 +87,7 @@ def user_subscription(
     x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
+    crud.ensure_subscription_token(db, dbuser)
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     accept_header = request.headers.get("Accept", "")
@@ -217,6 +218,7 @@ def user_subscription_with_client_type(
     x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
+    crud.ensure_subscription_token(db, dbuser)
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     registered = crud.register_user_device(
