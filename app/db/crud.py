@@ -613,9 +613,32 @@ def register_user_device(
     ver_os: Optional[str],
     device_model: Optional[str],
     user_agent: Optional[str],
-) -> bool:
+) -> tuple[bool, bool]:
+    unknown_hwid = "Неизвестное устройство"
+    unknown_value = "Неизвестно"
     if not hwid:
-        return True
+        dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
+        if dbdevice:
+            return False, True
+        if dbuser.device_limit:
+            current = count_user_devices(db, dbuser)
+            if current >= dbuser.device_limit:
+                return False, False
+        dbdevice = UserDevice(
+            user_id=dbuser.id,
+            hwid=unknown_hwid,
+            device_os=unknown_value,
+            ver_os=unknown_value,
+            device_model=unknown_value,
+            user_agent=unknown_value,
+        )
+        db.add(dbdevice)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return True, False
+        return True, False
 
     dbdevice = get_user_device_by_hwid(db, dbuser, hwid)
     if dbdevice:
@@ -625,12 +648,12 @@ def register_user_device(
         dbdevice.user_agent = user_agent or dbdevice.user_agent
         dbdevice.last_seen = datetime.utcnow()
         db.commit()
-        return True
+        return True, False
 
     if dbuser.device_limit:
         current = count_user_devices(db, dbuser)
         if current >= dbuser.device_limit:
-            return False
+            return False, False
 
     dbdevice = UserDevice(
         user_id=dbuser.id,
@@ -645,8 +668,8 @@ def register_user_device(
         db.commit()
     except IntegrityError:
         db.rollback()
-        return True
-    return True
+        return True, False
+    return True, False
 
 
 def reset_user_data_usage(db: Session, dbuser: User) -> User:

@@ -141,13 +141,14 @@ def user_subscription(
         )
 
     device_limited = False
+    unsupported_client = False
     registered = False
     if not is_revoked:
-        registered = crud.register_user_device(
+        registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered) or crud.is_device_limit_exceeded(db, dbuser)
-    if is_revoked or device_limited:
+        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+    if is_revoked or device_limited or unsupported_client:
         user = get_empty_subscription_user(user)
 
     if not is_revoked:
@@ -157,6 +158,8 @@ def user_subscription(
         announce_text = "Subscription revoked. Request a new link."
     elif device_limited:
         announce_text = "Device limit reached. Remove a device or increase the limit."
+    elif unsupported_client:
+        announce_text = "This application is not supported. Please install another one."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
@@ -178,7 +181,8 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
-            device_limited=device_limited
+            device_limited=device_limited,
+            unsupported_client=unsupported_client
         )
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
@@ -189,7 +193,8 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
-            device_limited=device_limited
+            device_limited=device_limited,
+            unsupported_client=unsupported_client
         )
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
@@ -200,7 +205,8 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
-            device_limited=device_limited
+            device_limited=device_limited,
+            unsupported_client=unsupported_client
         )
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
@@ -211,7 +217,8 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
-            device_limited=device_limited
+            device_limited=device_limited,
+            unsupported_client=unsupported_client
         )
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
@@ -224,7 +231,8 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -234,7 +242,8 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -247,7 +256,8 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         elif LooseVersion(version_str) >= LooseVersion("1.8.18"):
@@ -257,7 +267,8 @@ def user_subscription(
                 as_base64=False,
                 reverse=True,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -267,7 +278,8 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -279,7 +291,8 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -289,7 +302,8 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -302,7 +316,8 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
-                device_limited=device_limited
+                device_limited=device_limited,
+                unsupported_client=unsupported_client
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -325,7 +340,8 @@ def user_subscription(
             as_base64=True,
             reverse=False,
             revoked=is_revoked,
-            device_limited=device_limited
+            device_limited=device_limited,
+            unsupported_client=unsupported_client
         )
         return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -373,13 +389,14 @@ def user_subscription_with_client_type(
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     device_limited = False
+    unsupported_client = False
     registered = False
     if not is_revoked:
-        registered = crud.register_user_device(
+        registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered) or crud.is_device_limit_exceeded(db, dbuser)
-    if is_revoked or device_limited:
+        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+    if is_revoked or device_limited or unsupported_client:
         user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(user) or ""
@@ -387,6 +404,8 @@ def user_subscription_with_client_type(
         announce_text = "Subscription revoked. Request a new link."
     elif device_limited:
         announce_text = "Device limit reached. Remove a device or increase the limit."
+    elif unsupported_client:
+        announce_text = "This application is not supported. Please install another one."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
@@ -407,6 +426,7 @@ def user_subscription_with_client_type(
                                  as_base64=config["as_base64"],
                                  reverse=config["reverse"],
                                  revoked=is_revoked,
-                                 device_limited=device_limited)
+                                 device_limited=device_limited,
+                                 unsupported_client=unsupported_client)
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)

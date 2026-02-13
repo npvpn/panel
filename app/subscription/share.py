@@ -104,14 +104,18 @@ def generate_subscription(
         reverse: bool,
         revoked: bool = False,
         device_limited: bool = False,
+        unsupported_client: bool = False,
 ) -> str:
     # Special handling for inactive tokens: show two placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or device_limited):
+    if config_format == "v2ray" and (revoked or device_limited or unsupported_client):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
             remark1 = "Эта ссылка не активна"
             remark2 = "Обновите ссылку в боте"
+        elif unsupported_client:
+            remark1 = "Это приложение не поддерживается"
+            remark2 = "Установите другое"
         else:
             remark1 = "Достигнут лимит устройств"
             remark2 = "Удалите старое устройство"
