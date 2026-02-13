@@ -12,6 +12,7 @@ from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
+from app.utils.jwt import get_subscription_payload
 from config import (
     SUB_CLIENT_NOTE,
     SUB_PROFILE_TITLE,
@@ -52,6 +53,51 @@ def get_user_note(user: UserResponse) -> str:
     days_left = math.ceil(seconds_left / 86400)
     note_template = note_template.replace("<days_left>", str(days_left))
     return note_template
+def resolve_subscription_context(token: str, db: Session):
+    """
+    Returns tuple: (dbuser or None, is_revoked: bool, created_at)
+    - dbuser is None when token invalid/not found
+    - is_revoked True when token is valid but revoked
+    """
+    sub = get_subscription_payload(token)
+    if not sub:
+        return None, False, None
+    dbuser = crud.get_user(db, sub['username'])
+    if not dbuser:
+        return None, False, None
+    # If token created before user record (e.g., renamed/recreated), treat as invalid
+    if dbuser.created_at and sub.get('created_at') and dbuser.created_at > sub['created_at']:
+        return None, False, None
+    revoked = bool(dbuser.sub_revoked_at and sub.get('created_at') and dbuser.sub_revoked_at > sub['created_at'])
+    return dbuser, revoked, sub.get('created_at')
+
+
+REVOKED_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription revoked</title>
+  <style>
+    body{background:#0b1220;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .card{max-width:560px;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.4)}
+    h1{font-size:22px;margin:0 0 8px}
+    p{margin:8px 0 0;line-height:1.5;color:#9ca3af}
+    .badge{display:inline-block;background:#7f1d1d;color:#fecaca;border-radius:999px;padding:4px 10px;font-size:12px;margin-bottom:8px}
+  </style>
+  <meta http-equiv="refresh" content="60">
+</head>
+<body>
+  <div class="card">
+    <div class="badge">Revoked</div>
+    <h1>Эта подписка была отозвана</h1>
+    <p>Старая ссылка больше не работает. Пожалуйста, запросите новую ссылку у вашего провайдера или обновите её в личном кабинете.</p>
+  </div>
+</body>
+</html>
+"""
+
 
 def build_content_disposition(username: str) -> str:
     """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
@@ -78,8 +124,8 @@ def get_empty_subscription_user(user: UserResponse) -> UserResponse:
 @router.get("/{token}", include_in_schema=False)
 def user_subscription(
     request: Request,
+    token: str,
     db: Session = Depends(get_db),
-    dbuser: UserResponse = Depends(get_validated_sub),
     user_agent: str = Header(default=""),
     x_hwid: str | None = Header(default=None),
     x_device_os: str | None = Header(default=None),
@@ -87,11 +133,16 @@ def user_subscription(
     x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
+    dbuser, is_revoked, _ = resolve_subscription_context(token, db)
+    if not dbuser:
+        return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
+        if is_revoked:
+            return HTMLResponse(REVOKED_HTML)
         return HTMLResponse(
             render_template(
                 SUBSCRIPTION_PAGE_TEMPLATE,
@@ -99,14 +150,19 @@ def user_subscription(
             )
         )
 
-    registered = crud.register_user_device(
-        db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
-    )
-    if not registered or crud.is_device_limit_exceeded(db, dbuser):
+    registered = False
+    if not is_revoked:
+        registered = crud.register_user_device(
+            db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
+        )
+    if is_revoked or (not registered or crud.is_device_limit_exceeded(db, dbuser)):
         user = get_empty_subscription_user(user)
 
-    crud.update_user_sub(db, dbuser, user_agent)
+    if not is_revoked:
+        crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
+    if is_revoked:
+        announce_text = "Subscription revoked. Request a new link."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
@@ -122,48 +178,48 @@ def user_subscription(
     }
 
     if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
-        conf = generate_subscription(user=user, config_format="clash-meta", as_base64=False, reverse=False)
+        conf = generate_subscription(user=user, config_format="clash-meta", as_base64=False, reverse=False, revoked=is_revoked)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
     elif re.match(r'^([Cc]lash|[Ss]tash)', user_agent):
-        conf = generate_subscription(user=user, config_format="clash", as_base64=False, reverse=False)
+        conf = generate_subscription(user=user, config_format="clash", as_base64=False, reverse=False, revoked=is_revoked)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
     elif re.match(r'^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)', user_agent):
-        conf = generate_subscription(user=user, config_format="sing-box", as_base64=False, reverse=False)
+        conf = generate_subscription(user=user, config_format="sing-box", as_base64=False, reverse=False, revoked=is_revoked)
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
     elif re.match(r'^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)', user_agent):
-        conf = generate_subscription(user=user, config_format="outline", as_base64=False, reverse=False)
+        conf = generate_subscription(user=user, config_format="outline", as_base64=False, reverse=False, revoked=is_revoked)
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYN) and re.match(r'^v2rayN/(\d+\.\d+)', user_agent):
         version_str = re.match(r'^v2rayN/(\d+\.\d+)', user_agent).group(1)
         if LooseVersion(version_str) >= LooseVersion("6.40"):
-            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
-            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYNG) and re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent):
         version_str = re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent).group(1)
         if LooseVersion(version_str) >= LooseVersion("1.8.29"):
-            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         elif LooseVersion(version_str) >= LooseVersion("1.8.18"):
-            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=True)
+            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=True, revoked=is_revoked)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
-            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
     elif re.match(r'^[Ss]treisand', user_agent):
         if USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_STREISAND:
-            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
-            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
+            conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False, revoked=is_revoked)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent):
@@ -178,7 +234,7 @@ def user_subscription(
 
 
     else:
-        conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False)
+        conf = generate_subscription(user=user, config_format="v2ray", as_base64=True, reverse=False, revoked=is_revoked)
         return Response(content=conf, media_type="text/plain", headers=response_headers)
 
 
@@ -208,7 +264,7 @@ def user_get_usage(
 @router.get("/{token}/{client_type}")
 def user_subscription_with_client_type(
     request: Request,
-    dbuser: UserResponse = Depends(get_validated_sub),
+    token: str,
     client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
     db: Session = Depends(get_db),
     user_agent: str = Header(default=""),
@@ -218,16 +274,23 @@ def user_subscription_with_client_type(
     x_device_model: str | None = Header(default=None),
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
+    dbuser, is_revoked, _ = resolve_subscription_context(token, db)
+    if not dbuser:
+        return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
     user: UserResponse = UserResponse.model_validate(dbuser)
 
-    registered = crud.register_user_device(
-        db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
-    )
-    if not registered or crud.is_device_limit_exceeded(db, dbuser):
+    registered = False
+    if not is_revoked:
+        registered = crud.register_user_device(
+            db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
+        )
+    if is_revoked or (not registered or crud.is_device_limit_exceeded(db, dbuser)):
         user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(user) or ""
+    if is_revoked:
+        announce_text = "Subscription revoked. Request a new link."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
@@ -246,6 +309,7 @@ def user_subscription_with_client_type(
     conf = generate_subscription(user=user,
                                  config_format=config["config_format"],
                                  as_base64=config["as_base64"],
-                                 reverse=config["reverse"])
+                                 reverse=config["reverse"],
+                                 revoked=is_revoked)
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)

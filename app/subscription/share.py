@@ -102,7 +102,35 @@ def generate_subscription(
         config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json"],
         as_base64: bool,
         reverse: bool,
+        revoked: bool = False,
 ) -> str:
+    # Special handling for revoked tokens: show two placeholder nodes for V2Ray
+    if revoked and config_format == "v2ray":
+        from app.subscription.v2ray import V2rayShareLink
+        zero_id = "00000000-0000-0000-0000-000000000000"
+        link1 = V2rayShareLink.vless(
+            remark="Эта ссылка не активна",
+            address="0.0.0.0",
+            port=0,
+            id=zero_id,
+            net="ws",
+            tls="none",
+            path="",
+            host="",
+        )
+        link2 = V2rayShareLink.vless(
+            remark="Обновите ссылку в боте",
+            address="0.0.0.0",
+            port=0,
+            id=zero_id,
+            net="ws",
+            tls="none",
+            path="",
+            host="",
+        )
+        payload = f"{link1}\n{link2}"
+        return base64.b64encode(payload.encode()).decode()
+
     kwargs = {
         "proxies": user.proxies,
         "inbounds": user.inbounds,
