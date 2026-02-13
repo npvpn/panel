@@ -14,6 +14,7 @@ from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from app.utils.jwt import get_subscription_payload
 from config import (
+    BOT_URL,
     SUB_CLIENT_NOTE,
     SUB_PROFILE_TITLE,
     SUB_SUPPORT_URL,
@@ -72,59 +73,6 @@ def resolve_subscription_context(token: str, db: Session):
     return dbuser, revoked, sub.get('created_at')
 
 
-REVOKED_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Subscription revoked</title>
-  <style>
-    body{background:#0b1220;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .card{max-width:560px;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.4)}
-    h1{font-size:22px;margin:0 0 8px}
-    p{margin:8px 0 0;line-height:1.5;color:#9ca3af}
-    .badge{display:inline-block;background:#7f1d1d;color:#fecaca;border-radius:999px;padding:4px 10px;font-size:12px;margin-bottom:8px}
-  </style>
-  <meta http-equiv="refresh" content="60">
-</head>
-<body>
-  <div class="card">
-    <div class="badge">Revoked</div>
-    <h1>Эта подписка была отозвана</h1>
-    <p>Старая ссылка больше не работает. Пожалуйста, запросите новую ссылку у вашего провайдера или обновите её в личном кабинете.</p>
-  </div>
-</body>
-</html>
-"""
-
-DEVICE_LIMIT_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Device limit reached</title>
-  <style>
-    body{background:#0b1220;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .card{max-width:560px;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.4)}
-    h1{font-size:22px;margin:0 0 8px}
-    p{margin:8px 0 0;line-height:1.5;color:#9ca3af}
-    .badge{display:inline-block;background:#7c2d12;color:#fed7aa;border-radius:999px;padding:4px 10px;font-size:12px;margin-bottom:8px}
-  </style>
-  <meta http-equiv="refresh" content="60">
-</head>
-<body>
-  <div class="card">
-    <div class="badge">Device limit</div>
-    <h1>Достигнут лимит устройств</h1>
-    <p>Эта ссылка не активна для нового устройства. Удалите старое устройство или увеличьте лимит у провайдера.</p>
-  </div>
-</body>
-</html>
-"""
-
-
 def build_content_disposition(username: str) -> str:
     """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
     fallback = re.sub(r'[^A-Za-z0-9._-]+', '_', username or 'profile')
@@ -172,9 +120,19 @@ def user_subscription(
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
         if is_revoked:
-            return HTMLResponse(REVOKED_HTML)
+            return HTMLResponse(
+                render_template(
+                    "sub/revoked.html",
+                    {"bot_url": BOT_URL}
+                )
+            )
         if html_device_limited:
-            return HTMLResponse(DEVICE_LIMIT_HTML)
+            return HTMLResponse(
+                render_template(
+                    "sub/device_limit.html",
+                    {"bot_url": BOT_URL}
+                )
+            )
         return HTMLResponse(
             render_template(
                 SUBSCRIPTION_PAGE_TEMPLATE,
