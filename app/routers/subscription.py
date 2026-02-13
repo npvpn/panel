@@ -155,18 +155,18 @@ def user_subscription(
         crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
     if is_revoked:
-        announce_text = "Subscription revoked. Request a new link."
+        announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
     elif device_limited:
-        announce_text = "Device limit reached. Remove a device or increase the limit."
+        announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
-        announce_text = "This application is not supported. Please install another one."
+        announce_text = f"Это приложение не поддерживается. Установите другое."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
         "profile-title": encode_title(SUB_PROFILE_TITLE),
         "announce": encode_title(announce_text),
-        "announce-url": SUB_SUPPORT_URL,
+        "announce-url": BOT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
@@ -401,18 +401,18 @@ def user_subscription_with_client_type(
 
     announce_text = get_user_note(user) or ""
     if is_revoked:
-        announce_text = "Subscription revoked. Request a new link."
+        announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
     elif device_limited:
-        announce_text = "Device limit reached. Remove a device or increase the limit."
+        announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
-        announce_text = "This application is not supported. Please install another one."
+        announce_text = f"Это приложение не поддерживается. Установите другое."
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
         "support-url": SUB_SUPPORT_URL,
         "profile-title": encode_title(SUB_PROFILE_TITLE),
         "announce": encode_title(announce_text),
-        "announce-url": SUB_SUPPORT_URL,
+        "announce-url": BOT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
