@@ -103,13 +103,22 @@ def generate_subscription(
         as_base64: bool,
         reverse: bool,
         revoked: bool = False,
+        device_limited: bool = False,
 ) -> str:
-    # Special handling for revoked tokens: show two placeholder nodes for V2Ray
-    if revoked and config_format == "v2ray":
+    # Special handling for inactive tokens: show two placeholder nodes for V2Ray
+    if config_format == "v2ray" and (revoked or device_limited):
         from app.subscription.v2ray import V2rayShareLink
+
+        if revoked:
+            remark1 = "Эта ссылка не активна"
+            remark2 = "Обновите ссылку в боте"
+        else:
+            remark1 = "Достигнут лимит устройств"
+            remark2 = "Удалите старое устройство"
+
         zero_id = "00000000-0000-0000-0000-000000000000"
         link1 = V2rayShareLink.vless(
-            remark="Эта ссылка не активна",
+            remark=remark1,
             address="0.0.0.0",
             port=0,
             id=zero_id,
@@ -119,7 +128,7 @@ def generate_subscription(
             host="",
         )
         link2 = V2rayShareLink.vless(
-            remark="Обновите ссылку в боте",
+            remark=remark2,
             address="0.0.0.0",
             port=0,
             id=zero_id,
