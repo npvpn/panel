@@ -33,7 +33,10 @@ def get_tls():
 def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=60)
-    except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+    except xray.exc.EmailNotFoundError as e:
+        # User may be absent on this inbound/node; removal is idempotent.
+        logger.debug(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+    except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
     except Exception as e:
         logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
@@ -43,7 +46,10 @@ def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
 def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
     try:
         api.remove_inbound_user(tag=inbound_tag, email=email, timeout=10)
-    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+    except xray.exc.EmailNotFoundError as e:
+        # User may be absent on this inbound/node; removal is idempotent.
+        logger.debug(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+    except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
     except Exception as e:
         logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
@@ -53,7 +59,10 @@ def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
 def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     try:
         api.remove_inbound_user(tag=inbound_tag, email=account.email, timeout=60)
-    except (xray.exc.EmailNotFoundError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
+    except xray.exc.EmailNotFoundError as e:
+        # User may be absent on this inbound/node; removal is idempotent.
+        logger.debug(f"[xray.alter_user.call][skip] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+    except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
         logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
