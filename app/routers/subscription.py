@@ -1,3 +1,5 @@
+import base64
+import json
 import re
 from datetime import datetime, timezone
 import math
@@ -78,6 +80,19 @@ def build_content_disposition(username: str) -> str:
     fallback = re.sub(r'[^A-Za-z0-9._-]+', '_', username or 'profile')
     utf8_quoted = quote(username or 'profile', safe='')
     return f'attachment; filename="{fallback}"; filename*=UTF-8''{utf8_quoted}'
+
+
+def build_happ_routing_link(domains: list[str]) -> str:
+    routing_profile = {
+        "Name": "Split Tunneling",
+        "GlobalProxy": "false",
+        "ProxySites": [f"domain:{domain}" for domain in domains],
+        "DomainStrategy": "IPIfNonMatch",
+        "FakeDNS": "false",
+    }
+    payload = json.dumps(routing_profile, separators=(",", ":"), ensure_ascii=True).encode()
+    encoded = base64.b64encode(payload).decode()
+    return f"happ://routing/onadd/{encoded}"
 
 
 def get_subscription_user_info(user: UserResponse) -> dict:
@@ -173,6 +188,10 @@ def user_subscription(
             for key, val in get_subscription_user_info(user).items()
         )
     }
+    if re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent):
+        response_headers["routing"] = build_happ_routing_link(["youtube.com", "openai.com"])
+    if re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent):
+        response_headers["routing"] = build_happ_routing_link(["youtube.com", "openai.com"])
 
     if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
         conf = generate_subscription(
