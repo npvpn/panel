@@ -61,6 +61,8 @@ def on_startup():
 @app.on_event("shutdown")
 def on_shutdown():
     scheduler.shutdown()
+    from app.utils.concurrency import shutdown_xray_executor
+    shutdown_xray_executor(wait=True)
 
 
 @app.exception_handler(RequestValidationError)

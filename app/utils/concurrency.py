@@ -1,13 +1,33 @@
-from threading import Thread
+import logging
+from concurrent.futures import Future, ThreadPoolExecutor
 
 import anyio
 from fastapi import BackgroundTasks
 
+from config import XRAY_THREAD_POOL_SIZE
+
+logger = logging.getLogger("uvicorn.error")
+
+# Global thread pool for all xray operations (gRPC calls, node management, etc.)
+# Instead of spawning an unbounded number of threads, all work goes through this pool.
+_xray_executor = ThreadPoolExecutor(max_workers=XRAY_THREAD_POOL_SIZE, thread_name_prefix="xray-pool")
+
+
+def get_xray_executor() -> ThreadPoolExecutor:
+    return _xray_executor
+
+
+def shutdown_xray_executor(wait: bool = True):
+    logger.info("[concurrency] shutting down xray thread pool (wait=%s)", wait)
+    _xray_executor.shutdown(wait=wait)
+
 
 def threaded_function(func):
-    def wrapper(*args, **kwargs):
-        thread = Thread(target=func, args=args, daemon=True, kwargs=kwargs)
-        thread.start()
+    """Submit work to the global xray thread pool instead of spawning a new Thread per call.
+    Returns a Future (ignored by current callers, but available if needed)."""
+    def wrapper(*args, **kwargs) -> Future:
+        return _xray_executor.submit(func, *args, **kwargs)
+    wrapper.__wrapped__ = func
     return wrapper
 
 
@@ -23,7 +43,7 @@ class GetBG:
         return self.bg
 
     def __exit__(self, exc_type, exc_value, traceback):
-        Thread(target=anyio.run, args=(self.bg,), daemon=True).start()
+        _xray_executor.submit(anyio.run, self.bg)
 
     async def __aenter__(self):
         return self.bg
