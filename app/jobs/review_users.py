@@ -1,3 +1,4 @@
+from concurrent.futures import as_completed
 from datetime import datetime
 import time
 from typing import TYPE_CHECKING
@@ -9,6 +10,7 @@ from app.db import (GetDB, get_notification_reminder, get_users,
                     start_user_expire, update_user_status, reset_user_by_next)
 from app.models.user import ReminderType, UserResponse, UserStatus
 from app.utils import report
+from app.utils.concurrency import get_xray_executor
 from app.utils.helpers import (calculate_expiration_days,
                                calculate_usage_percent)
 from config import (JOB_REVIEW_USERS_INTERVAL, NOTIFY_DAYS_LEFT,
@@ -64,10 +66,9 @@ def review():
     now = datetime.utcnow()
     now_ts = now.timestamp()
     start_ts = time.time()
-    SLOW_USER_TOTAL_THRESHOLD = 1.0
-    SLOW_STEP_THRESHOLD = 0.3
     BATCH_SIZE_ACTIVE = 500
     BATCH_SIZE_ONHOLD = 500
+    REMOVE_BATCH_SIZE = 50
     checked_active = 0
     applied_next = 0
     limited_count = 0
@@ -86,11 +87,10 @@ def review():
             pass
 
         changed_in_batch = 0
+        # Collect users that need removal from xray for batch processing
+        users_to_remove = []
         for user in active_users:
             checked_active += 1
-            _u_t0 = time.time()
-            _t_remove = 0.0
-            _t_update_status = 0.0
 
             limited = user.data_limit and user.used_traffic >= user.data_limit
             expired = user.expire and user.expire <= now_ts
@@ -102,7 +102,7 @@ def review():
                         reset_user_by_next_report(db, user)
                         applied_next += 1
                         continue
-                        
+
                     elif limited and expired:
                         reset_user_by_next_report(db, user)
                         applied_next += 1
@@ -119,24 +119,13 @@ def review():
                     add_notification_reminders(db, user, now)
                 continue
 
-            # При недоступности XRAY-нод не допускаем падения задачи: статус все равно обновляем
-            _tr0 = time.time()
-            try:
-                xray.operations.remove_user(user)
-            except Exception as e:
-                logger.warning(f"Failed to remove user \"{user.username}\" from XRAY: {e}")
-            finally:
-                _t_remove = time.time() - _tr0
-
-            _ts0 = time.time()
+            users_to_remove.append(user)
             update_user_status(db, user, status, commit=False)
-            _t_update_status = time.time() - _ts0
 
             report.status_change(username=user.username, status=status,
                                  user=UserResponse.model_validate(user), user_admin=user.admin)
 
             logger.info(f"User \"{user.username}\" status changed to {status}")
-            _u_dur = time.time() - _u_t0
             changed_in_batch += 1
 
             # Commit batch periodically to avoid long-held locks
@@ -149,18 +138,28 @@ def review():
                 finally:
                     changed_in_batch = 0
 
-            if _u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_remove >= SLOW_STEP_THRESHOLD or _t_update_status >= SLOW_STEP_THRESHOLD:
-                logger.info(
-                    f"[review][active][slow] user=\"{user.username}\" total={_u_dur:.3f}s "
-                    f"remove_user={_t_remove:.3f}s update_status={_t_update_status:.3f}s"
-                )
-
-        # Коммитим все изменения статусов/next-планов за один раз
+        # Commit all status changes before removing from xray
         try:
             db.commit()
         except Exception as e:
             logger.error(f"Failed to commit batched review changes: {e}")
             raise
+
+        # Remove users from xray in batches through the thread pool
+        if users_to_remove:
+            executor = get_xray_executor()
+            _remove_t0 = time.time()
+            for batch_start in range(0, len(users_to_remove), REMOVE_BATCH_SIZE):
+                batch = users_to_remove[batch_start:batch_start + REMOVE_BATCH_SIZE]
+                futures = {executor.submit(xray.operations.remove_user, u): u for u in batch}
+                for future in as_completed(futures):
+                    u = futures[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logger.warning(f"Failed to remove user \"{u.username}\" from XRAY: {e}")
+            _remove_dur = time.time() - _remove_t0
+            logger.info(f"[review] removed {len(users_to_remove)} users from xray in {_remove_dur:.3f}s")
 
         _fetch_hold_t0 = time.time()
         on_hold_users = get_users(db, status=UserStatus.on_hold)
