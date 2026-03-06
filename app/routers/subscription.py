@@ -1,6 +1,7 @@
 import re
 from datetime import datetime, timezone
 import math
+from app.db.models import User
 from distutils.version import LooseVersion
 from urllib.parse import quote
 
@@ -63,7 +64,7 @@ def resolve_subscription_context(token: str, db: Session):
     sub = get_subscription_payload(token)
     if not sub:
         return None, False, None
-    dbuser = crud.get_user(db, sub['username'])
+    dbuser: User | None = crud.get_user(db, sub['username'])
     if not dbuser:
         return None, False, None
     # If token created before user record (e.g., renamed/recreated), treat as invalid
@@ -111,10 +112,11 @@ def user_subscription(
     if not dbuser:
         return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
+    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp()))
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     html_device_limited = False
-    if not is_revoked and dbuser.device_limit:
+    if not is_revoked and not is_expired and dbuser.device_limit:
         html_device_limited = crud.count_user_devices(db, dbuser) >= dbuser.device_limit
 
     accept_header = request.headers.get("Accept", "")
@@ -123,6 +125,13 @@ def user_subscription(
             return HTMLResponse(
                 render_template(
                     "sub/revoked.html",
+                    {"bot_url": BOT_URL}
+                )
+            )
+        if is_expired:
+            return HTMLResponse(
+                render_template(
+                    "sub/expired.html",
                     {"bot_url": BOT_URL}
                 )
             )
@@ -143,19 +152,21 @@ def user_subscription(
     device_limited = False
     unsupported_client = False
     registered = False
-    if not is_revoked:
+    if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
         device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
-    if is_revoked or device_limited or unsupported_client:
+    if is_revoked or is_expired or device_limited or unsupported_client:
         user = get_empty_subscription_user(user)
 
-    if not is_revoked:
+    if not is_revoked and not is_expired:
         crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
     if is_revoked:
         announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
+    elif is_expired:
+        announce_text = f"Подписка истекла. Продлите подписку в боте. {BOT_URL}"
     elif device_limited:
         announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
@@ -181,6 +192,7 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
+            expired=is_expired,
             device_limited=device_limited,
             unsupported_client=unsupported_client
         )
@@ -193,6 +205,7 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
+            expired=is_expired,
             device_limited=device_limited,
             unsupported_client=unsupported_client
         )
@@ -205,6 +218,7 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
+            expired=is_expired,
             device_limited=device_limited,
             unsupported_client=unsupported_client
         )
@@ -217,6 +231,7 @@ def user_subscription(
             as_base64=False,
             reverse=False,
             revoked=is_revoked,
+            expired=is_expired,
             device_limited=device_limited,
             unsupported_client=unsupported_client
         )
@@ -231,6 +246,7 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -242,6 +258,7 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -256,6 +273,7 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -267,6 +285,7 @@ def user_subscription(
                 as_base64=False,
                 reverse=True,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -278,6 +297,7 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -291,6 +311,7 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -302,6 +323,7 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -316,6 +338,7 @@ def user_subscription(
                 as_base64=False,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited,
                 unsupported_client=unsupported_client
             )
@@ -327,6 +350,7 @@ def user_subscription(
                 as_base64=True,
                 reverse=False,
                 revoked=is_revoked,
+            expired=is_expired,
                 device_limited=device_limited
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
@@ -340,6 +364,7 @@ def user_subscription(
             as_base64=True,
             reverse=False,
             revoked=is_revoked,
+            expired=is_expired,
             device_limited=device_limited,
             unsupported_client=unsupported_client
         )
@@ -386,22 +411,25 @@ def user_subscription_with_client_type(
     if not dbuser:
         return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
+    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp()))
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     device_limited = False
     unsupported_client = False
     registered = False
-    if not is_revoked:
+    if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
         device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
-    if is_revoked or device_limited or unsupported_client:
+    if is_revoked or is_expired or device_limited or unsupported_client:
         user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(user) or ""
     if is_revoked:
         announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
+    elif is_expired:
+        announce_text = f"Подписка истекла. Продлите подписку в боте. {BOT_URL}"
     elif device_limited:
         announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
@@ -426,6 +454,7 @@ def user_subscription_with_client_type(
                                  as_base64=config["as_base64"],
                                  reverse=config["reverse"],
                                  revoked=is_revoked,
+                                 expired=is_expired,
                                  device_limited=device_limited,
                                  unsupported_client=unsupported_client)
 

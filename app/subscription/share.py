@@ -103,16 +103,22 @@ def generate_subscription(
         as_base64: bool,
         reverse: bool,
         revoked: bool = False,
+        expired: bool = False,
         device_limited: bool = False,
         unsupported_client: bool = False,
 ) -> str:
+    from config import SUB_REVOKED_LINE1, SUB_REVOKED_LINE2, SUB_EXPIRED_LINE1, SUB_EXPIRED_LINE2
+
     # Special handling for inactive tokens: show two placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or device_limited or unsupported_client):
+    if config_format == "v2ray" and (revoked or expired or device_limited or unsupported_client):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
-            remark1 = "Эта ссылка не активна"
-            remark2 = "Обновите ссылку в боте"
+            remark1 = SUB_REVOKED_LINE1
+            remark2 = SUB_REVOKED_LINE2
+        elif expired:
+            remark1 = SUB_EXPIRED_LINE1
+            remark2 = SUB_EXPIRED_LINE2
         elif unsupported_client:
             remark1 = "Это приложение не поддерживается"
             remark2 = "Установите другое"
