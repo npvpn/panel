@@ -145,24 +145,25 @@ def _parse_server_text_list(v):
 
 SUB_REVOKED_SERVER_TEXT = config(
     "SUB_REVOKED_SERVER_TEXT",
-    default=["Эта ссылка не активна", "Обновите ссылку в боте"],
+    default="Эта ссылка не активна, Обновите ссылку в боте",
     cast=lambda v: _parse_server_text_list(v),
 )
 SUB_EXPIRED_SERVER_TEXT = config(
     "SUB_EXPIRED_SERVER_TEXT",
-    default=["Подписка истекла", "Продлите подписку в боте"],
+    default="Подписка истекла, Продлите подписку в боте",
     cast=lambda v: _parse_server_text_list(v),
 )
 SUB_DEVICE_LIMIT_SERVER_TEXT = config(
     "SUB_DEVICE_LIMIT_SERVER_TEXT",
-    default=["Достигнут лимит устройств", "Удалите старое устройство"],
+    default="Достигнут лимит устройств, Удалите старое устройство",
     cast=lambda v: _parse_server_text_list(v),
 )
 SUB_UNSUPPORTED_CLIENT_SERVER_TEXT = config(
     "SUB_UNSUPPORTED_CLIENT_SERVER_TEXT",
-    default=["Это приложение не поддерживается", "Установите другое"],
+    default="Это приложение не поддерживается, Установите другое",
     cast=lambda v: _parse_server_text_list(v),
 )
+
 
 # discord webhook log
 DISCORD_WEBHOOK_URL = config("DISCORD_WEBHOOK_URL", default="")
