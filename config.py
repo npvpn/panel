@@ -138,10 +138,32 @@ SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
 SUB_CLIENT_NOTE = config("SUB_CLIENT_NOTE", default="")
 BOT_URL = config("BOT_URL", default="")
 
-SUB_REVOKED_LINE1 = config("SUB_REVOKED_LINE1", default="Эта ссылка не активна")
-SUB_REVOKED_LINE2 = config("SUB_REVOKED_LINE2", default="Обновите ссылку в боте")
-SUB_EXPIRED_LINE1 = config("SUB_EXPIRED_LINE1", default="Подписка истекла")
-SUB_EXPIRED_LINE2 = config("SUB_EXPIRED_LINE2", default="Продлите подписку в боте")
+def _parse_server_text_list(v):
+    if v is None or v == "":
+        return []
+    return [s.strip() for s in str(v).split(",")]
+
+SUB_REVOKED_SERVER_TEXT = config(
+    "SUB_REVOKED_SERVER_TEXT",
+    default="Эта ссылка не активна, Обновите ссылку в боте",
+    cast=lambda v: _parse_server_text_list(v),
+)
+SUB_EXPIRED_SERVER_TEXT = config(
+    "SUB_EXPIRED_SERVER_TEXT",
+    default="Подписка истекла, Продлите подписку в боте",
+    cast=lambda v: _parse_server_text_list(v),
+)
+SUB_DEVICE_LIMIT_SERVER_TEXT = config(
+    "SUB_DEVICE_LIMIT_SERVER_TEXT",
+    default="Достигнут лимит устройств, Удалите старое устройство",
+    cast=lambda v: _parse_server_text_list(v),
+)
+SUB_UNSUPPORTED_CLIENT_SERVER_TEXT = config(
+    "SUB_UNSUPPORTED_CLIENT_SERVER_TEXT",
+    default="Это приложение не поддерживается, Установите другое",
+    cast=lambda v: _parse_server_text_list(v),
+)
+
 
 # discord webhook log
 DISCORD_WEBHOOK_URL = config("DISCORD_WEBHOOK_URL", default="")

@@ -107,47 +107,44 @@ def generate_subscription(
         device_limited: bool = False,
         unsupported_client: bool = False,
 ) -> str:
-    from config import SUB_REVOKED_LINE1, SUB_REVOKED_LINE2, SUB_EXPIRED_LINE1, SUB_EXPIRED_LINE2
+    from config import (
+        SUB_REVOKED_SERVER_TEXT,
+        SUB_EXPIRED_SERVER_TEXT,
+        SUB_DEVICE_LIMIT_SERVER_TEXT,
+        SUB_UNSUPPORTED_CLIENT_SERVER_TEXT,
+    )
 
-    # Special handling for inactive tokens: show two placeholder nodes for V2Ray
+    # Special handling for inactive tokens: placeholder nodes for V2Ray
     if config_format == "v2ray" and (revoked or expired or device_limited or unsupported_client):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
-            remark1 = SUB_REVOKED_LINE1
-            remark2 = SUB_REVOKED_LINE2
+            text_list = SUB_REVOKED_SERVER_TEXT
         elif expired:
-            remark1 = SUB_EXPIRED_LINE1
-            remark2 = SUB_EXPIRED_LINE2
+            text_list = SUB_EXPIRED_SERVER_TEXT
         elif unsupported_client:
-            remark1 = "Это приложение не поддерживается"
-            remark2 = "Установите другое"
+            text_list = SUB_UNSUPPORTED_CLIENT_SERVER_TEXT
         else:
-            remark1 = "Достигнут лимит устройств"
-            remark2 = "Удалите старое устройство"
+            text_list = SUB_DEVICE_LIMIT_SERVER_TEXT
+
+        if not text_list:
+            return base64.b64encode("".encode()).decode()
 
         zero_id = "00000000-0000-0000-0000-000000000000"
-        link1 = V2rayShareLink.vless(
-            remark=remark1,
-            address="0.0.0.0",
-            port=0,
-            id=zero_id,
-            net="ws",
-            tls="none",
-            path="",
-            host="",
-        )
-        link2 = V2rayShareLink.vless(
-            remark=remark2,
-            address="0.0.0.0",
-            port=0,
-            id=zero_id,
-            net="ws",
-            tls="none",
-            path="",
-            host="",
-        )
-        payload = f"{link1}\n{link2}"
+        links = [
+            V2rayShareLink.vless(
+                remark=remark,
+                address="0.0.0.0",
+                port=0,
+                id=zero_id,
+                net="ws",
+                tls="none",
+                path="",
+                host="",
+            )
+            for remark in text_list
+        ]
+        payload = "\n".join(links)
         return base64.b64encode(payload.encode()).decode()
 
     kwargs = {
