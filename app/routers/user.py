@@ -1,3 +1,4 @@
+from concurrent.futures import as_completed
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from typing import List, Optional, Union
@@ -8,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app import logger, xray
 from app.db import Session, crud, get_db
 from app.dependencies import get_expired_users_list, get_validated_user, validate_dates
+from app.utils.concurrency import get_xray_executor
 from app.models.admin import Admin
 from app.models.user import (
     UserCreate,
@@ -36,19 +38,35 @@ from app.models.proxy import (
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
 SYNC_PROGRESS = {}
+SYNC_BATCH_SIZE = 50
 
-def _run_update_and_mark(user_id: int, op_id: str):
-    """
-    Background helper to update user and mark progress counters.
-    """
-    try:
-        from app.db import GetDB
-        with GetDB() as db:
-            dbuser = crud.get_user_by_id(db, user_id)
-            if not dbuser:
-                return
+
+def _update_single_user(user_id: int) -> bool:
+    """Load user from DB and update on xray. Returns True on success."""
+    from app.db import GetDB
+    with GetDB() as db:
+        dbuser = crud.get_user_by_id(db, user_id)
+        if not dbuser:
+            return False
+        xray.operations.update_user(dbuser)
+        return True
+
+
+def _batch_sync_users(user_ids: list, op_id: str):
+    """Process user updates in batches through the global thread pool."""
+    executor = get_xray_executor()
+    total = len(user_ids)
+
+    for batch_start in range(0, total, SYNC_BATCH_SIZE):
+        batch = user_ids[batch_start:batch_start + SYNC_BATCH_SIZE]
+        futures = {executor.submit(_update_single_user, uid): uid for uid in batch}
+
+        for future in as_completed(futures):
+            uid = futures[future]
             try:
-                xray.operations.update_user(dbuser)
+                future.result()
+            except Exception as e:
+                logger.warning("[sync-inbounds] failed to update user_id=%d: %s", uid, e)
             finally:
                 try:
                     st = SYNC_PROGRESS.get(op_id)
@@ -59,17 +77,6 @@ def _run_update_and_mark(user_id: int, op_id: str):
                             st["finished_at"] = datetime.utcnow().isoformat()
                 except Exception:
                     pass
-    except Exception:
-        # ignore any exceptions to not break background runner, but still count as done
-        try:
-            st = SYNC_PROGRESS.get(op_id)
-            if st:
-                st["done"] = st.get("done", 0) + 1
-                if st["done"] >= st.get("scheduled", 0):
-                    st["running"] = False
-                    st["finished_at"] = datetime.utcnow().isoformat()
-        except Exception:
-            pass
 
 
 @router.post("/user", response_model=UserResponse, responses={400: responses._400, 409: responses._409})
@@ -393,7 +400,7 @@ def sync_users_inbounds(
     op_id = uuid4().hex
     users = crud.get_users(db=db, status=UserStatus.active)
     users_updated = 0
-    users_scheduled = 0
+    scheduled_user_ids = []
     SYNC_PROGRESS[op_id] = {
         "running": True,
         "started_at": datetime.utcnow().isoformat(),
@@ -467,14 +474,19 @@ def sync_users_inbounds(
         # Apply to running cores for active/on-hold users regardless of DB change,
         # so newly added/removed global inbounds reflect in runtime.
         if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
-            users_scheduled += 1
-            SYNC_PROGRESS[op_id]["scheduled"] = users_scheduled
-            bg.add_task(_run_update_and_mark, user_id=dbuser.id, op_id=op_id)
+            scheduled_user_ids.append(dbuser.id)
             logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
         SYNC_PROGRESS[op_id]["users_processed"] += 1
 
     if users_updated:
         db.commit()
+
+    users_scheduled = len(scheduled_user_ids)
+    SYNC_PROGRESS[op_id]["scheduled"] = users_scheduled
+
+    # Single background task handles all users in batches via the thread pool
+    if scheduled_user_ids:
+        bg.add_task(_batch_sync_users, user_ids=scheduled_user_ids, op_id=op_id)
 
     result = {
         "detail": "Inbounds synchronized with global configuration.",

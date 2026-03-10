@@ -1,5 +1,4 @@
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from operator import attrgetter
 from typing import Union
@@ -12,6 +11,7 @@ from sqlalchemy.sql.dml import Insert
 from app import scheduler, xray
 from app.db import GetDB
 from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
+from app.utils.concurrency import get_xray_executor
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
     JOB_RECORD_NODE_USAGES_INTERVAL,
@@ -136,8 +136,8 @@ def record_user_usages():
             api_instances[node_id] = node.api
             usage_coefficient[node_id] = node.usage_coefficient  # fetch the usage coefficient
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {node_id: executor.submit(get_users_stats, api) for node_id, api in api_instances.items()}
+    executor = get_xray_executor()
+    futures = {node_id: executor.submit(get_users_stats, api) for node_id, api in api_instances.items()}
     api_params = {node_id: future.result() for node_id, future in futures.items()}
 
     users_usage = defaultdict(int)
@@ -189,8 +189,8 @@ def record_node_usages():
         if node.connected and node.started:
             api_instances[node_id] = node.api
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {node_id: executor.submit(get_outbounds_stats, api) for node_id, api in api_instances.items()}
+    executor = get_xray_executor()
+    futures = {node_id: executor.submit(get_outbounds_stats, api) for node_id, api in api_instances.items()}
     api_params = {node_id: future.result() for node_id, future in futures.items()}
 
     total_up = 0

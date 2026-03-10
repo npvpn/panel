@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from app import logger, scheduler, xray
-from app.db import crud, GetDB, get_users
+from app.db import GetDB, crud, get_users
 from app.models.user import UserDataLimitResetStrategy, UserStatus
 
 reset_strategy_to_days = {
