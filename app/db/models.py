@@ -84,6 +84,8 @@ class User(Base):
     subscription_token = Column(String(256), nullable=True, default=None)
     created_at = Column(DateTime, default=datetime.utcnow)
     note = Column(String(500), nullable=True, default=None)
+    sub_support_url = Column(String(1024), nullable=True, default=None)
+    sub_profile_title = Column(String(256), nullable=True, default=None)
     online_at = Column(DateTime, nullable=True, default=None)
     on_hold_expire_duration = Column(BigInteger, nullable=True, default=None)
     on_hold_timeout = Column(DateTime, nullable=True, default=None)

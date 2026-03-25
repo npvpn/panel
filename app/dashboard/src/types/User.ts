@@ -50,6 +50,8 @@ export type User = {
   subscription_url: string;
   inbounds: UserInbounds;
   note: string;
+  sub_support_url?: string | null;
+  sub_profile_title?: string | null;
   online_at: string;
 };
 
@@ -65,6 +67,8 @@ export type UserCreate = Pick<
   | "username"
   | "status"
   | "note"
+  | "sub_support_url"
+  | "sub_profile_title"
 >;
 
 export type UserApi = {

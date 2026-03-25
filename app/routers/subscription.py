@@ -171,11 +171,13 @@ def user_subscription(
         announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
         announce_text = f"Это приложение не поддерживается. Установите другое."
+    support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
+    profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
-        "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "support-url": support_url,
+        "profile-title": encode_title(profile_title),
         "announce": encode_title(announce_text),
         "announce-url": BOT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,
@@ -434,11 +436,13 @@ def user_subscription_with_client_type(
         announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
     elif unsupported_client:
         announce_text = f"Это приложение не поддерживается. Установите другое."
+    support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
+    profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": str(request.url),
-        "support-url": SUB_SUPPORT_URL,
-        "profile-title": encode_title(SUB_PROFILE_TITLE),
+        "support-url": support_url,
+        "profile-title": encode_title(profile_title),
         "announce": encode_title(announce_text),
         "announce-url": BOT_URL,
         "profile-update-interval": SUB_UPDATE_INTERVAL,

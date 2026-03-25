@@ -393,6 +393,8 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
         admin=admin,
         data_limit_reset_strategy=user.data_limit_reset_strategy,
         note=user.note,
+        sub_support_url=user.sub_support_url or None,
+        sub_profile_title=user.sub_profile_title or None,
         on_hold_expire_duration=(user.on_hold_expire_duration or None),
         on_hold_timeout=(user.on_hold_timeout or None),
         auto_delete_in_days=user.auto_delete_in_days,
@@ -516,6 +518,12 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
 
     if modify.note is not None:
         dbuser.note = modify.note or None
+
+    if modify.sub_support_url is not None:
+        dbuser.sub_support_url = modify.sub_support_url or None
+
+    if modify.sub_profile_title is not None:
+        dbuser.sub_profile_title = modify.sub_profile_title or None
 
     if modify.data_limit_reset_strategy is not None:
         dbuser.data_limit_reset_strategy = modify.data_limit_reset_strategy.value

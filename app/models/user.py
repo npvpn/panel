@@ -68,6 +68,8 @@ class User(BaseModel):
     )
     inbounds: Dict[ProxyTypes, List[str]] = {}
     note: Optional[str] = Field(None, nullable=True)
+    sub_support_url: Optional[str] = Field(None, nullable=True)
+    sub_profile_title: Optional[str] = Field(None, nullable=True)
     sub_updated_at: Optional[datetime] = Field(None, nullable=True)
     sub_last_user_agent: Optional[str] = Field(None, nullable=True)
     online_at: Optional[datetime] = Field(None, nullable=True)
@@ -122,6 +124,20 @@ class User(BaseModel):
     def validate_note(cls, v):
         if v and len(v) > 500:
             raise ValueError("User's note can be a maximum of 500 character")
+        return v
+
+    @field_validator("sub_support_url", check_fields=False)
+    @classmethod
+    def validate_sub_support_url(cls, v):
+        if v and len(v) > 1024:
+            raise ValueError("sub_support_url can be a maximum of 1024 characters")
+        return v
+
+    @field_validator("sub_profile_title", check_fields=False)
+    @classmethod
+    def validate_sub_profile_title(cls, v):
+        if v and len(v) > 256:
+            raise ValueError("sub_profile_title can be a maximum of 256 characters")
         return v
 
     @field_validator("on_hold_expire_duration", "on_hold_timeout", mode="before")
