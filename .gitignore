@@ -160,3 +160,7 @@ xray-core
 *-dev.yml
 *-dev.yaml
 *-debug.*
+
+# Dashboard build artifacts
+app/dashboard/build/
+app/dashboard/node_modules/
