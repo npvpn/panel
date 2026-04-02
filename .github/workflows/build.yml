@@ -15,27 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Frontnd build
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 16.17.0
-          cache: "npm"
-          cache-dependency-path: ./app/dashboard/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./app/dashboard
-        run: npm ci
-
-      - name: Build project
-        working-directory: ./app/dashboard
-        run: VITE_BASE_API=/api/ npm run build -- --outDir build --assetsDir statics
-
-      - name: Create 404.html
-        working-directory: ./app/dashboard
-        run: cp ./build/index.html ./build/404.html
-
-      # Docker setup
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
