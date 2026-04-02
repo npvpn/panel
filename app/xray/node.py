@@ -555,26 +555,22 @@ class XRayNode:
                 ssl_key: str,
                 ssl_cert: str,
                 usage_coefficient: float = 1):
+        rest_node = ReSTXRayNode(
+            address=address,
+            port=port,
+            api_port=api_port,
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert,
+            usage_coefficient=usage_coefficient
+        )
 
-        # trying to detect what's the server of node
+        # Detect REST node via real HTTPS probe instead of raw HTTP bytes.
+        # Raw probe produced "Invalid HTTP request received" in TLS uvicorn logs.
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            s.connect((address, port))
-            s.send(b'HEAD / HTTP/1.0\r\n\r\n')
-            s.recv(1024)
-            s.close()
-            # it might be uvicorn
-            return ReSTXRayNode(
-                address=address,
-                port=port,
-                api_port=api_port,
-                ssl_key=ssl_key,
-                ssl_cert=ssl_cert,
-                usage_coefficient=usage_coefficient
-            )
+            rest_node.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
+            return rest_node
         except Exception:
-            # if might be rpyc
+            # fallback for legacy rpyc nodes
             return RPyCXRayNode(
                 address=address,
                 port=port,
