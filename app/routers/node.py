@@ -180,7 +180,7 @@ def reconnect_node(
     _: Admin = Depends(Admin.check_sudo_admin),
 ):
     """Trigger a reconnection for the specified node. Only accessible to sudo admins."""
-    bg.add_task(xray.operations.connect_node, node_id=dbnode.id)
+    bg.add_task(xray.operations.connect_node, node_id=dbnode.id, force=True)
     return {"detail": "Reconnection task scheduled"}
 
 
