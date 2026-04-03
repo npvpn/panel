@@ -46,6 +46,11 @@ TELEGRAM_LOGGER_CHANNEL_ID = config("TELEGRAM_LOGGER_CHANNEL_ID", cast=int, defa
 TELEGRAM_DEFAULT_VLESS_FLOW = config("TELEGRAM_DEFAULT_VLESS_FLOW", default="")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
+SUBSCRIPTION_LEGACY_SECRET_KEYS = config(
+    "SUBSCRIPTION_LEGACY_SECRET_KEYS",
+    default="",
+    cast=lambda v: [key.strip() for key in v.split(",") if key.strip()],
+)
 
 CUSTOM_TEMPLATES_DIRECTORY = config("CUSTOM_TEMPLATES_DIRECTORY", default=None)
 SUBSCRIPTION_PAGE_TEMPLATE = config("SUBSCRIPTION_PAGE_TEMPLATE", default="subscription/index.html")
