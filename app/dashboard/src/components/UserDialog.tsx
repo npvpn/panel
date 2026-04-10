@@ -1018,7 +1018,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
 
       <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="6xl">
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-        <ModalContent mx="3" maxW="calc(100vw - 2rem)">
+        <ModalContent mx="3" w="fit-content" maxW="calc(100vw - 2rem)">
           <ModalHeader pt={6}>
             <HStack gap={2} justifyContent="space-between">
               <Text fontWeight="semibold" fontSize="lg">
@@ -1027,7 +1027,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
             </HStack>
           </ModalHeader>
           <ModalCloseButton mt={3} />
-          <ModalBody overflowX="hidden">
+          <ModalBody overflowX="auto">
             {devicesError && (
               <Alert status="error" mb="3">
                 <AlertIcon />
@@ -1039,16 +1039,15 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 <Spinner />
               </Flex>
             ) : devices.length ? (
-              <Box w="full" overflowX="auto">
+              <Box w="max-content" maxW="full" overflowX="auto">
                 <Table
                   size="sm"
-                  w="full"
+                  w="auto"
                   sx={{
-                    tableLayout: "fixed",
-                    th: { whiteSpace: "normal", px: 2 },
+                    tableLayout: "auto",
+                    th: { whiteSpace: "nowrap", px: 2 },
                     td: {
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
+                      whiteSpace: "nowrap",
                       px: 2,
                       verticalAlign: "top",
                     },
