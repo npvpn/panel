@@ -1043,8 +1043,8 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 <Table
                   size="sm"
                   w="full"
-                  tableLayout="fixed"
                   sx={{
+                    tableLayout: "fixed",
                     th: { whiteSpace: "normal", px: 2 },
                     td: {
                       whiteSpace: "normal",
