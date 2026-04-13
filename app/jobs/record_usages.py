@@ -14,6 +14,7 @@ from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
 from app.utils.concurrency import get_xray_executor
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
+    DISABLE_RECORDING_NODE_USER_USAGE,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
 )
@@ -150,7 +151,12 @@ def record_user_usages():
         return
 
     with GetDB() as db:
-        user_admin_map = dict(db.query(User.id, User.admin_id).all())
+        user_ids = [int(u["uid"]) for u in users_usage]
+        user_admin_map = dict(
+            db.query(User.id, User.admin_id)
+            .filter(User.id.in_(user_ids))
+            .all()
+        )
 
     admin_usage = defaultdict(int)
     for user_usage in users_usage:
@@ -176,7 +182,7 @@ def record_user_usages():
                 values(users_usage=Admin.users_usage + bindparam('value'))
             safe_execute(db, admin_update_stmt, admin_data)
 
-    if DISABLE_RECORDING_NODE_USAGE:
+    if DISABLE_RECORDING_NODE_USER_USAGE:
         return
 
     for node_id, params in api_params.items():

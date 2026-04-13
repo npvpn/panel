@@ -7,6 +7,7 @@ load_dotenv()
 SQLALCHEMY_DATABASE_URL = config("SQLALCHEMY_DATABASE_URL", default="sqlite:///db.sqlite3")
 SQLALCHEMY_POOL_SIZE = config("SQLALCHEMY_POOL_SIZE", cast=int, default=10)
 SQLIALCHEMY_MAX_OVERFLOW = config("SQLIALCHEMY_MAX_OVERFLOW", cast=int, default=30)
+SQLALCHEMY_POOL_TIMEOUT = config("SQLALCHEMY_POOL_TIMEOUT", cast=int, default=30)
 
 UVICORN_HOST = config("UVICORN_HOST", default="0.0.0.0")
 UVICORN_PORT = config("UVICORN_PORT", cast=int, default=8000)
@@ -136,6 +137,7 @@ NOTIFY_DAYS_LEFT = config(
 )
 
 DISABLE_RECORDING_NODE_USAGE = config("DISABLE_RECORDING_NODE_USAGE", cast=bool, default=False)
+DISABLE_RECORDING_NODE_USER_USAGE = config("DISABLE_RECORDING_NODE_USER_USAGE", cast=bool, default=False)
 
 # headers: profile-update-interval, support-url, profile-title
 SUB_UPDATE_INTERVAL = config("SUB_UPDATE_INTERVAL", default="12")
