@@ -153,6 +153,8 @@
   "userDialog.devicesEmpty": "Устройства не найдены",
   "userDialog.devicesClose": "Закрыть",
   "userDialog.devicesLoadError": "Не удалось загрузить устройства",
+  "userDialog.deviceDeleted": "Устройство успешно удалено",
+  "userDialog.deviceDeleteError": "Не удалось удалить устройство",
   "userDialog.deviceOs": "ОС",
   "userDialog.deviceVerOs": "Версия ОС",
   "userDialog.deviceModel": "Модель",

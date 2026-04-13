@@ -153,6 +153,8 @@
   "userDialog.devicesEmpty": "No devices found",
   "userDialog.devicesClose": "Close",
   "userDialog.devicesLoadError": "Failed to load devices",
+  "userDialog.deviceDeleted": "Device deleted successfully",
+  "userDialog.deviceDeleteError": "Failed to delete device",
   "userDialog.deviceOs": "OS",
   "userDialog.deviceVerOs": "OS version",
   "userDialog.deviceModel": "Device model",

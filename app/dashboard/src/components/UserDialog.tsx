@@ -40,6 +40,7 @@ import {
 import {
   ChartPieIcon,
   PencilIcon,
+  TrashIcon,
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -89,6 +90,13 @@ const UserUsageIcon = chakra(ChartPieIcon, {
   baseStyle: {
     w: 5,
     h: 5,
+  },
+});
+
+const DeleteDeviceIcon = chakra(TrashIcon, {
+  baseStyle: {
+    w: 4,
+    h: 4,
   },
 });
 
@@ -256,6 +264,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const [error, setError] = useState<string | null>("");
   const [devicesOpen, setDevicesOpen] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
+  const [deletingDeviceId, setDeletingDeviceId] = useState<number | null>(null);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [devices, setDevices] = useState<UserDevice[]>([]);
   const toast = useToast();
@@ -407,6 +416,31 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const openDevices = () => {
     setDevicesOpen(true);
     loadDevices();
+  };
+
+  const deleteDevice = async (deviceId: number) => {
+    if (!editingUser) return;
+    setDeletingDeviceId(deviceId);
+    setDevicesError(null);
+    try {
+      await fetch(`/user/${editingUser.username}/devices/${deviceId}`, {
+        method: "DELETE",
+      });
+      setDevices((prev) => prev.filter((device) => device.id !== deviceId));
+      toast({
+        title: t("userDialog.deviceDeleted"),
+        status: "success",
+        isClosable: true,
+        position: "top",
+        duration: 3000,
+      });
+    } catch (err: any) {
+      setDevicesError(
+        err?.response?._data?.detail || t("userDialog.deviceDeleteError")
+      );
+    } finally {
+      setDeletingDeviceId(null);
+    }
   };
 
   const handleResetUsage = () => {
@@ -984,7 +1018,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
 
       <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="6xl">
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-        <ModalContent mx="3">
+        <ModalContent mx="3" w="fit-content" maxW="calc(100vw - 2rem)">
           <ModalHeader pt={6}>
             <HStack gap={2} justifyContent="space-between">
               <Text fontWeight="semibold" fontSize="lg">
@@ -993,7 +1027,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
             </HStack>
           </ModalHeader>
           <ModalCloseButton mt={3} />
-          <ModalBody>
+          <ModalBody overflowX="auto">
             {devicesError && (
               <Alert status="error" mb="3">
                 <AlertIcon />
@@ -1005,7 +1039,20 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 <Spinner />
               </Flex>
             ) : devices.length ? (
-              <Table size="sm">
+              <Box w="max-content" maxW="full" overflowX="auto">
+                <Table
+                  size="sm"
+                  w="auto"
+                  sx={{
+                    tableLayout: "auto",
+                    th: { whiteSpace: "nowrap", px: 2 },
+                    td: {
+                      whiteSpace: "nowrap",
+                      px: 2,
+                      verticalAlign: "top",
+                    },
+                  }}
+                >
                 <Thead>
                   <Tr>
                     <Th>HWID</Th>
@@ -1015,6 +1062,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                     <Th>User-Agent</Th>
                     <Th>{t("userDialog.deviceFirstSeen")}</Th>
                     <Th>{t("userDialog.deviceLastSeen")}</Th>
+                    <Th w="72px" textAlign="center" />
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -1035,10 +1083,24 @@ export const UserDialog: FC<UserDialogProps> = () => {
                           ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
                           : "-"}
                       </Td>
+                      <Td textAlign="center">
+                        <Tooltip label={t("delete")} placement="top">
+                          <IconButton
+                            aria-label={t("delete")}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="red"
+                            icon={<DeleteDeviceIcon />}
+                            isLoading={deletingDeviceId === device.id}
+                            onClick={() => deleteDevice(device.id)}
+                          />
+                        </Tooltip>
+                      </Td>
                     </Tr>
                   ))}
                 </Tbody>
-              </Table>
+                </Table>
+              </Box>
             ) : (
               <Text color="gray.500">{t("userDialog.devicesEmpty")}</Text>
             )}

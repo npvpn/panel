@@ -150,6 +150,8 @@
   "userDialog.devicesEmpty": "未找到设备",
   "userDialog.devicesClose": "关闭",
   "userDialog.devicesLoadError": "加载设备失败",
+  "userDialog.deviceDeleted": "设备删除成功",
+  "userDialog.deviceDeleteError": "删除设备失败",
   "userDialog.deviceOs": "系统",
   "userDialog.deviceVerOs": "系统版本",
   "userDialog.deviceModel": "设备型号",

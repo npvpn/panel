@@ -156,6 +156,8 @@
   "userDialog.devicesEmpty": "هیچ دستگاهی یافت نشد",
   "userDialog.devicesClose": "بستن",
   "userDialog.devicesLoadError": "بارگذاری دستگاه‌ها ناموفق بود",
+  "userDialog.deviceDeleted": "دستگاه با موفقیت حذف شد",
+  "userDialog.deviceDeleteError": "حذف دستگاه ناموفق بود",
   "userDialog.deviceOs": "سیستم‌عامل",
   "userDialog.deviceVerOs": "نسخه سیستم‌عامل",
   "userDialog.deviceModel": "مدل دستگاه",
