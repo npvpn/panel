@@ -1,22 +1,25 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from operator import attrgetter
 from typing import Union
 
 from pymysql.err import OperationalError
-from sqlalchemy import and_, bindparam, insert, select, update
+from sqlalchemy import and_, bindparam, insert, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
-from app import scheduler, xray
+from app import logger, scheduler, xray
 from app.db import GetDB
 from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
 from app.utils.concurrency import get_xray_executor
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
     DISABLE_RECORDING_NODE_USER_USAGE,
+    JOB_CLEANUP_NODE_USER_USAGE_INTERVAL,
     JOB_RECORD_NODE_USAGES_INTERVAL,
     JOB_RECORD_USER_USAGES_INTERVAL,
+    NODE_USER_USAGE_CLEANUP_BATCH_SIZE,
+    NODE_USER_USAGE_RETENTION_DAYS,
 )
 from xray_api import XRay as XRayAPI
 from xray_api import exc as xray_exc
@@ -223,9 +226,34 @@ def record_node_usages():
         record_node_stats(params, node_id)
 
 
+def cleanup_node_user_usages():
+    if NODE_USER_USAGE_RETENTION_DAYS <= 0:
+        return
+    cutoff = datetime.utcnow() - timedelta(days=NODE_USER_USAGE_RETENTION_DAYS)
+    with GetDB() as db:
+        if db.bind.name == 'mysql':
+            result = db.execute(
+                text("DELETE FROM node_user_usages WHERE created_at < :cutoff LIMIT :batch_size"),
+                {"cutoff": cutoff, "batch_size": NODE_USER_USAGE_CLEANUP_BATCH_SIZE}
+            )
+        else:
+            result = db.execute(
+                text("DELETE FROM node_user_usages WHERE id IN "
+                     "(SELECT id FROM node_user_usages WHERE created_at < :cutoff LIMIT :batch_size)"),
+                {"cutoff": cutoff, "batch_size": NODE_USER_USAGE_CLEANUP_BATCH_SIZE}
+            )
+        db.commit()
+        deleted = result.rowcount
+    if deleted > 0:
+        logger.info(f"[cleanup] deleted {deleted} rows from node_user_usages (cutoff={cutoff})")
+
+
 scheduler.add_job(record_user_usages, 'interval',
                   seconds=JOB_RECORD_USER_USAGES_INTERVAL,
                   coalesce=True, max_instances=1)
 scheduler.add_job(record_node_usages, 'interval',
                   seconds=JOB_RECORD_NODE_USAGES_INTERVAL,
+                  coalesce=True, max_instances=1)
+scheduler.add_job(cleanup_node_user_usages, 'interval',
+                  seconds=JOB_CLEANUP_NODE_USER_USAGE_INTERVAL,
                   coalesce=True, max_instances=1)
