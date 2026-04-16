@@ -147,6 +147,10 @@ SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
 SUB_CLIENT_NOTE = config("SUB_CLIENT_NOTE", default="")
 SUB_PROFILE_URL = config("SUB_PROFILE_URL", default="")
 BOT_URL = config("BOT_URL", default="")
+SUB_REVOKED_ANNOUNCE_TEXT = config("SUB_REVOKED_ANNOUNCE_TEXT", default="")
+SUB_EXPIRED_ANNOUNCE_TEXT = config("SUB_EXPIRED_ANNOUNCE_TEXT", default="")
+SUB_DEVICE_LIMIT_ANNOUNCE_TEXT = config("SUB_DEVICE_LIMIT_ANNOUNCE_TEXT", default="")
+SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT = config("SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT", default="")
 
 def _parse_server_text_list(v):
     if v is None or v == "":

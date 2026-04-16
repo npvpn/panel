@@ -17,9 +17,13 @@ from app.utils.jwt import get_subscription_payload
 from config import (
     BOT_URL,
     SUB_CLIENT_NOTE,
+    SUB_DEVICE_LIMIT_ANNOUNCE_TEXT,
+    SUB_EXPIRED_ANNOUNCE_TEXT,
     SUB_PROFILE_TITLE,
     SUB_PROFILE_URL,
+    SUB_REVOKED_ANNOUNCE_TEXT,
     SUB_SUPPORT_URL,
+    SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT,
     SUB_UPDATE_INTERVAL,
     SUBSCRIPTION_PAGE_TEMPLATE,
     USE_CUSTOM_JSON_DEFAULT,
@@ -168,14 +172,14 @@ def user_subscription(
     if not is_revoked and not is_expired:
         crud.update_user_sub(db, dbuser, user_agent)
     announce_text = get_user_note(user) or ""
-    if is_revoked:
-        announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
-    elif is_expired:
-        announce_text = f"Подписка истекла. Продлите подписку в боте. {BOT_URL}"
-    elif device_limited:
-        announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
-    elif unsupported_blocks:
-        announce_text = f"Это приложение не поддерживается. Установите другое."
+    if is_revoked and SUB_REVOKED_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_REVOKED_ANNOUNCE_TEXT
+    elif is_expired and SUB_EXPIRED_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_EXPIRED_ANNOUNCE_TEXT
+    elif device_limited and SUB_DEVICE_LIMIT_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_DEVICE_LIMIT_ANNOUNCE_TEXT
+    elif unsupported_blocks and SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT
     support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
     profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
@@ -433,15 +437,15 @@ def user_subscription_with_client_type(
     if is_revoked or is_expired or device_limited or unsupported_blocks:
         user = get_empty_subscription_user(user)
 
-    announce_text = get_user_note(user) or ""
-    if is_revoked:
-        announce_text = f"Подписка отозвана. Запросите новую ссылку в боте. {BOT_URL}"
-    elif is_expired:
-        announce_text = f"Подписка истекла. Продлите подписку в боте. {BOT_URL}"
-    elif device_limited:
-        announce_text = f"Достигнут лимит устройств. Удалите старое устройство или увеличьте лимит в боте. {BOT_URL}"
-    elif unsupported_blocks:
-        announce_text = f"Это приложение не поддерживается. Установите другое."
+    announce_text = get_user_note(usтer) or ""
+    if is_revoked and SUB_REVOKED_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_REVOKED_ANNOUNCE_TEXT
+    elif is_expired and SUB_EXPIRED_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_EXPIRED_ANNOUNCE_TEXT
+    elif device_limited and SUB_DEVICE_LIMIT_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_DEVICE_LIMIT_ANNOUNCE_TEXT
+    elif unsupported_blocks and SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT.strip():
+        announce_text = SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT
     support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
     profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
