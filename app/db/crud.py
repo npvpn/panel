@@ -581,6 +581,7 @@ def create_user_device(db: Session, dbuser: User, device: UserDeviceCreate) -> U
         ver_os=device.ver_os,
         device_model=device.device_model,
         user_agent=device.user_agent,
+        status="active",
     )
     db.add(dbdevice)
     try:
@@ -627,6 +628,10 @@ def register_user_device(
     if not hwid:
         dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
         if dbdevice:
+            if dbdevice.status == "revoked":
+                dbdevice.status = "active"
+                dbdevice.last_seen = datetime.utcnow()
+                db.commit()
             return False, True
         if dbuser.device_limit:
             current = count_user_devices(db, dbuser)
@@ -639,6 +644,7 @@ def register_user_device(
             ver_os=unknown_value,
             device_model=unknown_value,
             user_agent=unknown_value,
+            status="active",
         )
         db.add(dbdevice)
         try:
@@ -654,6 +660,8 @@ def register_user_device(
         dbdevice.ver_os = ver_os or dbdevice.ver_os
         dbdevice.device_model = device_model or dbdevice.device_model
         dbdevice.user_agent = user_agent or dbdevice.user_agent
+        if dbdevice.status == "revoked":
+            dbdevice.status = "active"
         dbdevice.last_seen = datetime.utcnow()
         db.commit()
         return True, False
@@ -670,6 +678,7 @@ def register_user_device(
         ver_os=ver_os,
         device_model=device_model,
         user_agent=user_agent,
+        status="active",
     )
     db.add(dbdevice)
     try:
@@ -766,6 +775,10 @@ def revoke_user_sub(db: Session, dbuser: User) -> User:
     dbuser.sub_revoked_at = datetime.utcnow()
     # Clear stored subscription token to force regeneration on next request
     dbuser.subscription_token = None
+    db.query(UserDevice).filter(UserDevice.user_id == dbuser.id).update(
+        {UserDevice.status: "revoked"},
+        synchronize_session=False,
+    )
 
     user = UserResponse.model_validate(dbuser)
     for proxy_type, settings in user.proxies.copy().items():
