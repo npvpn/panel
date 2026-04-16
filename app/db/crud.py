@@ -564,7 +564,15 @@ def get_user_device_by_hwid(db: Session, dbuser: User, hwid: str) -> Optional[Us
 
 
 def count_user_devices(db: Session, dbuser: User) -> int:
-    return db.query(func.count(UserDevice.id)).filter(UserDevice.user_id == dbuser.id).scalar() or 0
+    return (
+        db.query(func.count(UserDevice.id))
+        .filter(
+            UserDevice.user_id == dbuser.id,
+            or_(UserDevice.status.is_(None), UserDevice.status != "revoked"),
+        )
+        .scalar()
+        or 0
+    )
 
 
 def is_device_limit_exceeded(db: Session, dbuser: User) -> bool:

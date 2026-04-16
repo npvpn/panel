@@ -1084,7 +1084,20 @@ export const UserDialog: FC<UserDialogProps> = () => {
                           ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
                           : "-"}
                       </Td>
-                      <Td>{device.status || "active"}</Td>
+                      <Td>
+                        <Text
+                          color={
+                            (device.status || "active").toLowerCase() === "active"
+                              ? "green.500"
+                              : (device.status || "").toLowerCase() === "revoked"
+                                ? "red.500"
+                                : "gray.500"
+                          }
+                          fontWeight="medium"
+                        >
+                          {device.status || "active"}
+                        </Text>
+                      </Td>
                       <Td textAlign="center">
                         <Tooltip label={t("delete")} placement="top">
                           <IconButton
