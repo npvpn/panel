@@ -79,6 +79,16 @@ async def log_exceptions_middleware(request: Request, call_next):
         raise
 
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
+Instrumentator(
+    should_group_status_codes=False,
+    should_ignore_untemplated=True,
+    excluded_handlers=["/metrics"],
+    inprogress_name="http_requests_in_progress",
+    inprogress_labels=True,
+).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
 
