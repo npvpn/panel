@@ -375,6 +375,7 @@ class UserDeviceBase(BaseModel):
     ver_os: Optional[str] = None
     device_model: Optional[str] = None
     user_agent: Optional[str] = None
+    status: str = "active"
 
 
 class UserDeviceCreate(UserDeviceBase):

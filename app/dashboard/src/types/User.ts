@@ -93,6 +93,7 @@ export type UserDevice = {
   ver_os: string | null;
   device_model: string | null;
   user_agent: string | null;
+  status: string;
   first_seen: string;
   last_seen: string;
 };

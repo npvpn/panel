@@ -164,6 +164,7 @@ class UserDevice(Base):
     ver_os = Column(String(64), nullable=True)
     device_model = Column(String(128), nullable=True)
     user_agent = Column(String(512), nullable=True)
+    status = Column(String(16), nullable=False, default="active", server_default="active")
     first_seen = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_seen = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

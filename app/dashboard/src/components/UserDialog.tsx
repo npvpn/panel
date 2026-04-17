@@ -1062,6 +1062,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                     <Th>User-Agent</Th>
                     <Th>{t("userDialog.deviceFirstSeen")}</Th>
                     <Th>{t("userDialog.deviceLastSeen")}</Th>
+                    <Th>Status</Th>
                     <Th w="72px" textAlign="center" />
                   </Tr>
                 </Thead>
@@ -1082,6 +1083,20 @@ export const UserDialog: FC<UserDialogProps> = () => {
                         {device.last_seen
                           ? dayjs(device.last_seen).format("YYYY-MM-DD HH:mm")
                           : "-"}
+                      </Td>
+                      <Td>
+                        <Text
+                          color={
+                            (device.status || "active").toLowerCase() === "active"
+                              ? "green.500"
+                              : (device.status || "").toLowerCase() === "revoked"
+                                ? "red.500"
+                                : "gray.500"
+                          }
+                          fontWeight="medium"
+                        >
+                          {device.status || "active"}
+                        </Text>
                       </Td>
                       <Td textAlign="center">
                         <Tooltip label={t("delete")} placement="top">
