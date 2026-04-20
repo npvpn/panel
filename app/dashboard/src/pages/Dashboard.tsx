@@ -9,6 +9,7 @@ import { NodesDialog } from "components/NodesModal";
 import { NodesUsage } from "components/NodesUsage";
 import { QRCodeDialog } from "components/QRCodeDialog";
 import { ResetAllUsageModal } from "components/ResetAllUsageModal";
+import { SyncInboundsModal } from "components/SyncInboundsModal";
 import { ResetUserUsageModal } from "components/ResetUserUsageModal";
 import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
 import { UserDialog } from "components/UserDialog";
@@ -38,6 +39,7 @@ export const Dashboard: FC = () => {
         <NodesDialog />
         <NodesUsage />
         <ResetAllUsageModal />
+        <SyncInboundsModal />
         <CoreSettingsModal />
       </Box>
       <Footer />

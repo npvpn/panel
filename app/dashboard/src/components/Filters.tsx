@@ -50,7 +50,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
     onFilterChange,
     refetchUsers,
     onCreateUser,
-    syncInbounds,
+    onConfirmingSyncInbounds,
     isSyncingInbounds,
     syncStatus,
   } = useDashboard();
@@ -134,7 +134,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
             size="sm"
             variant="outline"
             isLoading={isSyncingInbounds}
-            onClick={syncInbounds}
+            onClick={() => onConfirmingSyncInbounds(true)}
           >
             {t("syncInbounds")}
           </Button>

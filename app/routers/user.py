@@ -1,16 +1,19 @@
-from concurrent.futures import as_completed
+import threading
+from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from app import logger, xray
 from app.db import Session, crud, get_db
+from app.db.models import User as DBUser
 from app.dependencies import get_expired_users_list, get_validated_user, validate_dates
-from app.utils.concurrency import get_xray_executor
 from app.models.admin import Admin
+from config import SYNC_INBOUNDS_DB_CHUNK_SIZE, SYNC_INBOUNDS_MAX_CONCURRENCY
 from app.models.user import (
     UserCreate,
     UserDeviceCreate,
@@ -38,45 +41,106 @@ from app.models.proxy import (
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
 SYNC_PROGRESS = {}
-SYNC_BATCH_SIZE = 50
+
+# Dedicated executor for sync-inbounds workers. We intentionally do NOT reuse
+# the shared xray thread pool: at scale we would queue thousands of sync
+# tasks there and starve every other xray operation (user CRUD, node restarts,
+# periodic update_user_by_id) of worker threads. With its own pool, sync's
+# concurrency is hard-bounded and independent.
+_SYNC_EXECUTOR: Optional[ThreadPoolExecutor] = None
+_SYNC_EXECUTOR_LOCK = threading.Lock()
+
+
+def _get_sync_executor() -> ThreadPoolExecutor:
+    global _SYNC_EXECUTOR
+    if _SYNC_EXECUTOR is None:
+        with _SYNC_EXECUTOR_LOCK:
+            if _SYNC_EXECUTOR is None:
+                _SYNC_EXECUTOR = ThreadPoolExecutor(
+                    max_workers=max(1, SYNC_INBOUNDS_MAX_CONCURRENCY),
+                    thread_name_prefix="sync-inbounds",
+                )
+    return _SYNC_EXECUTOR
 
 
 def _update_single_user(user_id: int) -> bool:
-    """Load user from DB and update on xray. Returns True on success."""
+    """Refresh a user on running xray cores.
+
+    DB session is opened only long enough to load and detach the user graph
+    (proxies + excluded_inbounds), then closed before any gRPC calls. This
+    keeps DB connections out of the pool for the full duration of potentially
+    slow node round-trips.
+    """
     from app.db import GetDB
     with GetDB() as db:
-        dbuser = crud.get_user_by_id(db, user_id)
+        dbuser = (
+            db.query(DBUser)
+            .options(
+                selectinload(DBUser.proxies).selectinload(DBProxy.excluded_inbounds),
+            )
+            .filter(DBUser.id == user_id)
+            .first()
+        )
         if not dbuser:
             return False
-        xray.operations.update_user(dbuser)
-        return True
+        db.expunge(dbuser)
+    xray.operations.update_user(dbuser)
+    return True
+
+
+def _bump_progress(op_id: str, field: str, delta: int = 1):
+    st = SYNC_PROGRESS.get(op_id)
+    if not st:
+        return
+    st[field] = st.get(field, 0) + delta
+
+
+def _mark_finished(op_id: str):
+    st = SYNC_PROGRESS.get(op_id)
+    if not st:
+        return
+    st["running"] = False
+    st["finished_at"] = datetime.utcnow().isoformat()
 
 
 def _batch_sync_users(user_ids: list, op_id: str):
-    """Process user updates in batches through the global thread pool."""
-    executor = get_xray_executor()
+    """Process user updates via the dedicated sync executor.
+
+    Submits a bounded sliding window so we never queue thousands of pending
+    tasks; each in-flight task maps 1:1 to a DB connection + gRPC round-trip.
+    """
+    executor = _get_sync_executor()
     total = len(user_ids)
+    window = max(1, SYNC_INBOUNDS_MAX_CONCURRENCY) * 2
 
-    for batch_start in range(0, total, SYNC_BATCH_SIZE):
-        batch = user_ids[batch_start:batch_start + SYNC_BATCH_SIZE]
-        futures = {executor.submit(_update_single_user, uid): uid for uid in batch}
+    pending: dict = {}
+    idx = 0
 
-        for future in as_completed(futures):
-            uid = futures[future]
+    def _on_done(uid: int, fut):
+        try:
+            fut.result()
+        except Exception as e:
+            logger.warning("[sync-inbounds] failed to update user_id=%d: %s", uid, e)
+        finally:
             try:
-                future.result()
-            except Exception as e:
-                logger.warning("[sync-inbounds] failed to update user_id=%d: %s", uid, e)
-            finally:
-                try:
-                    st = SYNC_PROGRESS.get(op_id)
-                    if st:
-                        st["done"] = st.get("done", 0) + 1
-                        if st["done"] >= st.get("scheduled", 0):
-                            st["running"] = False
-                            st["finished_at"] = datetime.utcnow().isoformat()
-                except Exception:
-                    pass
+                st = SYNC_PROGRESS.get(op_id)
+                if st:
+                    st["done"] = st.get("done", 0) + 1
+                    if st["done"] >= st.get("scheduled", 0):
+                        _mark_finished(op_id)
+            except Exception:
+                pass
+
+    while idx < total or pending:
+        while idx < total and len(pending) < window:
+            uid = user_ids[idx]
+            pending[executor.submit(_update_single_user, uid)] = uid
+            idx += 1
+
+        for future in as_completed(list(pending.keys())):
+            uid = pending.pop(future)
+            _on_done(uid, future)
+            break  # refill window immediately
 
 
 @router.post("/user", response_model=UserResponse, responses={400: responses._400, 409: responses._409})
@@ -385,22 +449,141 @@ def reset_users_data_usage(
     return {"detail": "Users successfully reset."}
 
 
+def _reconcile_user_inbounds(dbuser) -> bool:
+    """Apply global-config reconciliation to a single user in-place.
+
+    Returns True when the user was modified (needs DB flush)."""
+    changed = False
+
+    try:
+        existing_types = {p.type for p in dbuser.proxies}
+    except Exception:
+        existing_types = set()
+    global_protocols = [
+        ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds
+    ]
+    missing_protocols = [p for p in global_protocols if p not in existing_types]
+    for protocol in missing_protocols:
+        if protocol == ProxyTypes.VLESS:
+            settings = VLESSSettings(flow=XTLSFlows.VISION)
+        elif protocol == ProxyTypes.VMess:
+            settings = VMessSettings()
+        elif protocol == ProxyTypes.Shadowsocks:
+            settings = ShadowsocksSettings()
+        elif protocol == ProxyTypes.Trojan:
+            settings = TrojanSettings()
+        else:
+            continue
+
+        dbuser.proxies.append(DBProxy(type=protocol, settings=settings.dict(no_obj=True)))
+        changed = True
+        logger.info('[sync-inbounds] added missing protocol=%s for user="%s"', protocol.value, dbuser.username)
+
+    for proxy in dbuser.proxies:
+        global_inbounds = xray.config.inbounds_by_protocol.get(
+            proxy.type if isinstance(proxy.type, str) else proxy.type.value, []
+        )
+        global_tags = {i["tag"] for i in global_inbounds}
+
+        if proxy.excluded_inbounds:
+            before_count = len(proxy.excluded_inbounds)
+            filtered_exclusions = [
+                inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
+            ]
+            cleared = bool(filtered_exclusions)
+            if filtered_exclusions:
+                proxy.excluded_inbounds = []
+            changed = True
+            logger.info(
+                "[sync-inbounds] user=%s protocol=%s excl_before=%d global_tags=%d cleared=%s",
+                dbuser.username,
+                str(proxy.type),
+                before_count,
+                len(global_tags),
+                str(cleared),
+            )
+
+    return changed
+
+
+def _run_sync_inbounds(op_id: str):
+    """Full sync driver: runs in BG so the HTTP request returns immediately.
+
+    Iterates active users in chunks, each chunk uses its own short-lived DB
+    session so no single connection is held for the whole sweep. Runtime
+    updates are then scheduled through the xray thread pool, where
+    _update_single_user releases DB connections before doing gRPC.
+    """
+    from app.db import GetDB
+
+    try:
+        with GetDB() as db:
+            active_user_ids = [
+                uid for (uid,) in db.query(DBUser.id).filter(DBUser.status == UserStatus.active).all()
+            ]
+        total = len(active_user_ids)
+        st = SYNC_PROGRESS.get(op_id)
+        if st is not None:
+            st["total"] = total
+        logger.info("[sync-inbounds] op_id=%s active_users=%d", op_id, total)
+
+        users_updated = 0
+        scheduled_user_ids: list[int] = []
+
+        for chunk_start in range(0, total, SYNC_INBOUNDS_DB_CHUNK_SIZE):
+            chunk_ids = active_user_ids[chunk_start:chunk_start + SYNC_INBOUNDS_DB_CHUNK_SIZE]
+            with GetDB() as db:
+                chunk_users = (
+                    db.query(DBUser)
+                    .options(selectinload(DBUser.proxies).selectinload(DBProxy.excluded_inbounds))
+                    .filter(DBUser.id.in_(chunk_ids))
+                    .all()
+                )
+                chunk_changed = 0
+                for dbuser in chunk_users:
+                    if _reconcile_user_inbounds(dbuser):
+                        chunk_changed += 1
+                    if dbuser.status in (UserStatus.active, UserStatus.on_hold):
+                        scheduled_user_ids.append(dbuser.id)
+                    _bump_progress(op_id, "users_processed", 1)
+                if chunk_changed:
+                    db.commit()
+                    users_updated += chunk_changed
+
+        users_scheduled = len(scheduled_user_ids)
+        st = SYNC_PROGRESS.get(op_id)
+        if st is not None:
+            st["users_updated"] = users_updated
+            st["scheduled"] = users_scheduled
+
+        logger.info(
+            "[sync-inbounds] op_id=%s db_phase_done updated=%d scheduled=%d",
+            op_id, users_updated, users_scheduled,
+        )
+
+        if scheduled_user_ids:
+            _batch_sync_users(scheduled_user_ids, op_id)
+        else:
+            _mark_finished(op_id)
+    except Exception as e:
+        logger.exception("[sync-inbounds] op_id=%s failed: %s", op_id, e)
+        st = SYNC_PROGRESS.get(op_id)
+        if st is not None:
+            st["error"] = str(e)
+        _mark_finished(op_id)
+
+
 @router.post("/users/sync-inbounds", responses={403: responses._403})
 def sync_users_inbounds(
     bg: BackgroundTasks,
-    db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.check_sudo_admin),
 ):
     """
-    Sync active users' inbounds with the global XRay configuration:
-    - Add any missing inbounds that exist globally (by clearing exclusions)
-    - Remove any stale exclusions for non-existent inbounds
+    Sync active users' inbounds with the global XRay configuration.
+    Returns immediately; progress is tracked via `/users/sync-inbounds/status`.
     """
     logger.info("[sync-inbounds] started by %s", admin.username)
     op_id = uuid4().hex
-    users = crud.get_users(db=db, status=UserStatus.active)
-    users_updated = 0
-    scheduled_user_ids = []
     SYNC_PROGRESS[op_id] = {
         "running": True,
         "started_at": datetime.utcnow().isoformat(),
@@ -408,100 +591,19 @@ def sync_users_inbounds(
         "users_updated": 0,
         "scheduled": 0,
         "done": 0,
-        "total": len(users),
+        "total": 0,
         "by": admin.username,
     }
 
-    for dbuser in users:
-        changed = False
-        # 1) Ensure all globally-enabled protocols exist for the user
-        try:
-            existing_types = {p.type for p in dbuser.proxies}
-        except Exception:
-            existing_types = set()
-        global_protocols = [
-            ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds
-        ]
-        missing_protocols = [p for p in global_protocols if p not in existing_types]
-        for protocol in missing_protocols:
-            # Generate default settings per protocol
-            if protocol == ProxyTypes.VLESS:
-                settings = VLESSSettings(flow=XTLSFlows.VISION)  # prefer vision; will be sanitized if incompatible
-            elif protocol == ProxyTypes.VMess:
-                settings = VMessSettings()
-            elif protocol == ProxyTypes.Shadowsocks:
-                settings = ShadowsocksSettings()
-            elif protocol == ProxyTypes.Trojan:
-                settings = TrojanSettings()
-            else:
-                continue
+    # Offload the entire sweep (DB reconciliation + gRPC fan-out) so this
+    # HTTP handler does not keep any DB connection for the duration of the
+    # operation. Subscription endpoints keep serving normally.
+    bg.add_task(_run_sync_inbounds, op_id=op_id)
 
-            dbuser.proxies.append(DBProxy(type=protocol, settings=settings.dict(no_obj=True)))
-            changed = True
-            logger.info('[sync-inbounds] added missing protocol=%s for user="%s"', protocol.value, dbuser.username)
-
-        for proxy in dbuser.proxies:
-            # Determine global inbound tags for this protocol
-            global_inbounds = xray.config.inbounds_by_protocol.get(
-                proxy.type if isinstance(proxy.type, str) else proxy.type.value, []
-            )
-            global_tags = {i["tag"] for i in global_inbounds}
-
-            # If there are any exclusions, clear exclusions to include all global inbounds
-            if proxy.excluded_inbounds:
-                before_tags = [i.tag for i in proxy.excluded_inbounds]
-                before_count = len(before_tags)
-                # Also drop any stale exclusions that no longer exist globally
-                filtered_exclusions = [
-                    inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
-                ]
-                cleared = bool(filtered_exclusions)
-                if filtered_exclusions:
-                    # We want users to have ALL global inbounds -> clear remaining exclusions
-                    proxy.excluded_inbounds = []
-                changed = True
-                logger.info(
-                    "[sync-inbounds] user=%s protocol=%s excl_before=%d global_tags=%d cleared=%s",
-                    dbuser.username,
-                    str(proxy.type),
-                    before_count,
-                    len(global_tags),
-                    str(cleared),
-                )
-
-        if changed:
-            users_updated += 1
-        # Apply to running cores for active/on-hold users regardless of DB change,
-        # so newly added/removed global inbounds reflect in runtime.
-        if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
-            scheduled_user_ids.append(dbuser.id)
-            logger.info('[sync-inbounds] queued update_user for user="%s"', dbuser.username)
-        SYNC_PROGRESS[op_id]["users_processed"] += 1
-
-    if users_updated:
-        db.commit()
-
-    users_scheduled = len(scheduled_user_ids)
-    SYNC_PROGRESS[op_id]["scheduled"] = users_scheduled
-
-    # Single background task handles all users in batches via the thread pool
-    if scheduled_user_ids:
-        bg.add_task(_batch_sync_users, user_ids=scheduled_user_ids, op_id=op_id)
-
-    result = {
-        "detail": "Inbounds synchronized with global configuration.",
-        "users_processed": len(users),
-        "users_updated": users_updated,
-        "users_scheduled": users_scheduled,
+    return {
+        "detail": "Sync scheduled.",
         "op_id": op_id,
     }
-    logger.info(
-        "[sync-inbounds] finished users_processed=%d users_updated=%d users_scheduled=%d",
-        result["users_processed"],
-        result["users_updated"],
-        result["users_scheduled"],
-    )
-    return result
 
 
 @router.get("/users/sync-inbounds/status")

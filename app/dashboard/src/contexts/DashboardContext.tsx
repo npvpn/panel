@@ -47,6 +47,7 @@ type DashboardStateType = {
   isEditingNodes: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
+  isConfirmingSyncInbounds: boolean;
   isSyncingInbounds: boolean;
   syncStatus: {
     running: boolean;
@@ -61,6 +62,7 @@ type DashboardStateType = {
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
   onResetAllUsage: (isResetingAllUsage: boolean) => void;
+  onConfirmingSyncInbounds: (isConfirmingSyncInbounds: boolean) => void;
   refetchUsers: () => void;
   resetAllUsage: () => Promise<void>;
   syncInbounds: () => Promise<void>;
@@ -120,6 +122,7 @@ export const useDashboard = create(
     },
     loading: true,
     isResetingAllUsage: false,
+    isConfirmingSyncInbounds: false,
     isSyncingInbounds: false,
     syncStatus: null,
     isEditingHosts: false,
@@ -199,6 +202,8 @@ export const useDashboard = create(
       setTimeout(tick, 500);
     },
     onResetAllUsage: (isResetingAllUsage) => set({ isResetingAllUsage }),
+    onConfirmingSyncInbounds: (isConfirmingSyncInbounds) =>
+      set({ isConfirmingSyncInbounds }),
     onCreateUser: (isCreatingNewUser) => set({ isCreatingNewUser }),
     onEditingUser: (editingUser) => {
       set({ editingUser });
