@@ -1498,7 +1498,8 @@ def create_node(db: Session, node: NodeCreate) -> Node:
     dbnode = Node(name=node.name,
                   address=node.address,
                   port=node.port,
-                  api_port=node.api_port)
+                  api_port=node.api_port,
+                  protocol=node.protocol)
 
     db.add(dbnode)
     db.commit()
@@ -1545,6 +1546,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.api_port is not None:
         dbnode.api_port = modify.api_port
+
+    if modify.protocol is not None:
+        dbnode.protocol = modify.protocol
 
     if modify.status is NodeStatus.disabled:
         dbnode.status = modify.status
