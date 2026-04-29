@@ -15,6 +15,7 @@ export const NodeSchema = z.object({
     .number()
     .min(1)
     .or(z.string().transform((v) => parseFloat(v))),
+  protocol: z.enum(["rest", "rpyc"]),
   xray_version: z.string().nullable().optional(),
   id: z.number().nullable().optional(),
   status: z
@@ -33,6 +34,7 @@ export const getNodeDefaultValues = (): NodeType => ({
   address: "",
   port: 62050,
   api_port: 62051,
+  protocol: "rest",
   xray_version: "",
   usage_coefficient: 1,
 });

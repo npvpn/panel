@@ -15,6 +15,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.poolmanager import PoolManager
 from websocket import WebSocketConnectionClosedException, WebSocketTimeoutException, create_connection
 
+from app.models.node import NodeProtocol
 from app.xray.config import XRayConfig
 from config import (
     XRAY_NODE_CERT_FETCH_TIMEOUT,
@@ -554,16 +555,9 @@ class XRayNode:
                 api_port: int,
                 ssl_key: str,
                 ssl_cert: str,
+                protocol: NodeProtocol = NodeProtocol.rest,
                 usage_coefficient: float = 1):
-        # trying to detect what's the server of node
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            s.connect((address, port))
-            s.send(b'HEAD / HTTP/1.0\r\n\r\n')
-            s.recv(1024)
-            s.close()
-            # it might be uvicorn
+        if protocol == NodeProtocol.rest or protocol == NodeProtocol.rest.value:
             return ReSTXRayNode(
                 address=address,
                 port=port,
@@ -572,8 +566,8 @@ class XRayNode:
                 ssl_cert=ssl_cert,
                 usage_coefficient=usage_coefficient
             )
-        except Exception:
-            # if might be rpyc
+
+        if protocol == NodeProtocol.rpyc or protocol == NodeProtocol.rpyc.value:
             return RPyCXRayNode(
                 address=address,
                 port=port,
@@ -582,3 +576,5 @@ class XRayNode:
                 ssl_cert=ssl_cert,
                 usage_coefficient=usage_coefficient
             )
+
+        raise ValueError(f"Unsupported node protocol: {protocol}")

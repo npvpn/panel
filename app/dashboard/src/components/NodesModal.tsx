@@ -24,6 +24,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  Select,
   Switch,
   Text,
   Tooltip,
@@ -479,6 +480,17 @@ const NodeForm: NodeFormType = ({
               {...form.register("address")}
               error={form.formState?.errors?.address?.message}
             />
+          </Box>
+        </HStack>
+        <HStack alignItems="flex-start" w="100%">
+          <Box>
+            <FormControl>
+              <FormLabel>{t("nodes.nodeProtocol")}</FormLabel>
+              <Select size="sm" {...form.register("protocol")}>
+                <option value="rest">{t("nodes.protocol.rest")}</option>
+                <option value="rpyc">{t("nodes.protocol.rpyc")}</option>
+              </Select>
+            </FormControl>
           </Box>
         </HStack>
         <HStack alignItems="flex-start" w="100%">

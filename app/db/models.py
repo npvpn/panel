@@ -22,7 +22,7 @@ from sqlalchemy.sql.expression import select, text
 
 from app import xray
 from app.db.base import Base
-from app.models.node import NodeStatus
+from app.models.node import NodeProtocol, NodeStatus
 from app.models.proxy import (
     ProxyHostALPN,
     ProxyHostFingerprint,
@@ -326,6 +326,12 @@ class Node(Base):
     address = Column(String(256), unique=False, nullable=False)
     port = Column(Integer, unique=False, nullable=False)
     api_port = Column(Integer, unique=False, nullable=False)
+    protocol = Column(
+        Enum(NodeProtocol),
+        nullable=False,
+        default=NodeProtocol.rest,
+        server_default=NodeProtocol.rest.value,
+    )
     xray_version = Column(String(32), nullable=True)
     status = Column(Enum(NodeStatus), nullable=False, default=NodeStatus.connecting)
     last_status_change = Column(DateTime, default=datetime.utcnow)

@@ -11,6 +11,11 @@ class NodeStatus(str, Enum):
     disabled = "disabled"
 
 
+class NodeProtocol(str, Enum):
+    rest = "rest"
+    rpyc = "rpyc"
+
+
 class NodeSettings(BaseModel):
     min_node_version: str = "v0.2.0"
     certificate: str
@@ -21,6 +26,7 @@ class Node(BaseModel):
     address: str
     port: int = 62050
     api_port: int = 62051
+    protocol: NodeProtocol = NodeProtocol.rest
     usage_coefficient: float = Field(gt=0, default=1.0)
 
 
@@ -32,6 +38,7 @@ class NodeCreate(Node):
             "address": "192.168.1.1",
             "port": 62050,
             "api_port": 62051,
+            "protocol": "rest",
             "add_as_new_host": True,
             "usage_coefficient": 1
         }
@@ -43,6 +50,7 @@ class NodeModify(Node):
     address: Optional[str] = Field(None, nullable=True)
     port: Optional[int] = Field(None, nullable=True)
     api_port: Optional[int] = Field(None, nullable=True)
+    protocol: Optional[NodeProtocol] = Field(None, nullable=True)
     status: Optional[NodeStatus] = Field(None, nullable=True)
     usage_coefficient: Optional[float] = Field(None, nullable=True)
     model_config = ConfigDict(json_schema_extra={
@@ -51,6 +59,7 @@ class NodeModify(Node):
             "address": "192.168.1.1",
             "port": 62050,
             "api_port": 62051,
+            "protocol": "rest",
             "status": "disabled",
             "usage_coefficient": 1.0
         }
