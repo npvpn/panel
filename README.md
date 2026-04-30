@@ -111,6 +111,51 @@ marzban cli admin create
 
 ---
 
+## Обновление с оригинальной панели
+
+Если панель была установлена из оригинального репозитория Marzban, вы можете переключить ее на `npvpn panel` без переустановки:
+
+1. Подключитесь к серверу, где установлена панель.
+
+2. Откройте `docker-compose`:
+
+```bash
+marzban edit
+```
+
+3. В сервисе `marzban` укажите образ `npvpn/panel:latest` и проверьте блок `volumes`:
+
+```
+services:
+marzban:
+    image: npvpn/panel:latest
+    restart: always
+    env_file: .env
+    network_mode: host
+    volumes:
+    - /var/lib/marzban:/var/lib/marzban
+    - /var/lib/marzban/logs:/var/lib/marzban-node
+    - <путь к сертифиату на сервере>:<путь к сертификату внутри контейнера>
+    - <путь к ключу на сервере>:<путь к ключу внутри контейнера>
+    depends_on:
+    mysql:
+        condition: service_healthy
+```
+
+4. Загрузите новый образ:
+
+```bash
+docker pull npvpn/panel:latest
+```
+
+5. Перезапустите панель:
+
+```bash
+marzban restart
+```
+
+---
+
 ## Лицензия
 
 Проект распространяется под лицензией **AGPL-3.0**, как и оригинальный Marzban.  
