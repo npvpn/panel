@@ -3,6 +3,7 @@ import logging.handlers
 import os
 import time
 import traceback
+from uuid import uuid4
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -16,6 +17,12 @@ from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
+from app.utils.request_context import (
+    request_handler_var,
+    request_id_var,
+    request_method_var,
+    request_path_template_var,
+)
 
 __version__ = "0.8.4"
 
@@ -55,8 +62,54 @@ async def log_exceptions_middleware(request: Request, call_next):
     поведение для клиента не поменялось.
     """
     started_at = time.monotonic()
+    # Correlation id (comes from client or generated here)
+    rid = request.headers.get("x-request-id") or uuid4().hex
+    token_rid = request_id_var.set(rid)
+
+    # Best-effort handler + route template extraction for logs/SQL correlation
+    route = request.scope.get("route")
+    endpoint = request.scope.get("endpoint")
+    handler = None
+    path_template = None
     try:
-        return await call_next(request)
+        handler = getattr(endpoint, "__name__", None) if endpoint else None
+    except Exception:
+        handler = None
+    try:
+        path_template = getattr(route, "path", None) if route else None
+    except Exception:
+        path_template = None
+
+    token_method = request_method_var.set(getattr(request, "method", None))
+    token_path = request_path_template_var.set(path_template)
+    token_handler = request_handler_var.set(handler)
+
+    # Only log start/end for /api/user* to reduce noise
+    should_trace = False
+    try:
+        should_trace = bool(path_template and path_template.startswith("/api/user"))
+    except Exception:
+        should_trace = False
+
+    if should_trace:
+        client_host = request.client.host if request.client else "-"
+        logger.info(
+            "[http.start] rid=%s method=%s handler=%s path=%s tmpl=%s from=%s ua=%r",
+            rid,
+            request.method,
+            handler or "-",
+            request.url.path,
+            path_template or "-",
+            client_host,
+            request.headers.get("user-agent", "-"),
+        )
+    try:
+        response = await call_next(request)
+        try:
+            response.headers["X-Request-ID"] = rid
+        except Exception:
+            pass
+        return response
     except (HTTPException, StarletteHTTPException):
         raise
     except Exception as exc:
@@ -64,8 +117,10 @@ async def log_exceptions_middleware(request: Request, call_next):
         client_host = request.client.host if request.client else "-"
         user_agent = request.headers.get("user-agent", "-")
         logger.error(
-            "Unhandled exception in %s %s?%s from %s ua=%r after %dms: "
+            "Unhandled exception rid=%s handler=%s in %s %s?%s from %s ua=%r after %dms: "
             "%s: %s\n%s",
+            rid,
+            handler or "-",
             request.method,
             request.url.path,
             request.url.query or "",
@@ -77,6 +132,33 @@ async def log_exceptions_middleware(request: Request, call_next):
             traceback.format_exc(),
         )
         raise
+    finally:
+        try:
+            response_status = "-"
+            # response is only defined on success path
+            if "response" in locals():
+                response_status = str(getattr(locals()["response"], "status_code", "-"))
+            duration_ms = int((time.monotonic() - started_at) * 1000)
+            if should_trace:
+                logger.info(
+                    "[http.end] rid=%s method=%s handler=%s tmpl=%s status=%s dur_ms=%d",
+                    rid,
+                    request.method,
+                    handler or "-",
+                    path_template or "-",
+                    response_status,
+                    duration_ms,
+                )
+        except Exception:
+            pass
+        # Reset contextvars
+        try:
+            request_id_var.reset(token_rid)
+            request_method_var.reset(token_method)
+            request_path_template_var.reset(token_path)
+            request_handler_var.reset(token_handler)
+        except Exception:
+            pass
 
 
 from prometheus_fastapi_instrumentator import Instrumentator

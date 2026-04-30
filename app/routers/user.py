@@ -1,10 +1,11 @@
 import threading
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import time
 from uuid import uuid4
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +29,7 @@ from app.models.user import (
     UserUsagesResponse,
 )
 from app.utils import report, responses
+from app.utils.request_context import request_id_var
 from app.db.models import Proxy as DBProxy
 from app.models.proxy import (
     ProxyTypes,
@@ -147,6 +149,7 @@ def _batch_sync_users(user_ids: list, op_id: str):
 def add_user(
     new_user: UserCreate,
     bg: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
@@ -176,9 +179,16 @@ def add_user(
             )
 
     try:
-        dbuser = crud.create_user(
-            db, new_user, admin=crud.get_admin(db, admin.username)
-        )
+        _t0 = time.monotonic()
+        dbuser = crud.create_user(db, new_user, admin=crud.get_admin(db, admin.username))
+        _dur_ms = int((time.monotonic() - _t0) * 1000)
+        if _dur_ms >= 500:
+            logger.warning(
+                "[user.add.slow] username=%s dur_ms=%d rid=%s",
+                getattr(dbuser, "username", "-"),
+                _dur_ms,
+                request_id_var.get() or "-",
+            )
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
@@ -191,10 +201,32 @@ def add_user(
 
 
 @router.get("/user/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
-def get_user(db: Session = Depends(get_db), dbuser: UserResponse = Depends(get_validated_user)):
+def get_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    dbuser: UserResponse = Depends(get_validated_user),
+):
     """Get user information"""
+    _t0 = time.monotonic()
+    _t_ensure0 = time.monotonic()
     crud.ensure_subscription_token(db, dbuser)
-    return UserResponse.model_validate(dbuser)
+    _ensure_ms = int((time.monotonic() - _t_ensure0) * 1000)
+
+    _t_ser0 = time.monotonic()
+    resp = UserResponse.model_validate(dbuser)
+    _ser_ms = int((time.monotonic() - _t_ser0) * 1000)
+
+    _total_ms = int((time.monotonic() - _t0) * 1000)
+    if _total_ms >= 500 or _ensure_ms >= 200 or _ser_ms >= 200:
+        logger.warning(
+            "[user.get.slow] username=%s total_ms=%d ensure_ms=%d serialize_ms=%d rid=%s",
+            getattr(dbuser, "username", "-"),
+            _total_ms,
+            _ensure_ms,
+            _ser_ms,
+            request_id_var.get() or "-",
+        )
+    return resp
 
 
 @router.get(
@@ -273,6 +305,7 @@ def delete_user_device(
 def modify_user(
     modified_user: UserModify,
     bg: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
     dbuser: UsersResponse = Depends(get_validated_user),
     admin: Admin = Depends(Admin.get_current),
@@ -303,7 +336,16 @@ def modify_user(
             )
 
     old_status = dbuser.status
+    _t0 = time.monotonic()
     dbuser = crud.update_user(db, dbuser, modified_user)
+    _dur_ms = int((time.monotonic() - _t0) * 1000)
+    if _dur_ms >= 500:
+        logger.warning(
+            "[user.modify.slow] username=%s dur_ms=%d rid=%s",
+            getattr(dbuser, "username", "-"),
+            _dur_ms,
+            request_id_var.get() or "-",
+        )
     user = UserResponse.model_validate(dbuser)
 
     if user.status in [UserStatus.active, UserStatus.on_hold]:
@@ -334,12 +376,22 @@ def modify_user(
 @router.delete("/user/{username}", responses={403: responses._403, 404: responses._404})
 def remove_user(
     bg: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
     dbuser: UserResponse = Depends(get_validated_user),
     admin: Admin = Depends(Admin.get_current),
 ):
     """Remove a user"""
+    _t0 = time.monotonic()
     crud.remove_user(db, dbuser)
+    _dur_ms = int((time.monotonic() - _t0) * 1000)
+    if _dur_ms >= 500:
+        logger.warning(
+            "[user.delete.slow] username=%s dur_ms=%d rid=%s",
+            getattr(dbuser, "username", "-"),
+            _dur_ms,
+            request_id_var.get() or "-",
+        )
     bg.add_task(xray.operations.remove_user, dbuser=dbuser)
 
     bg.add_task(
