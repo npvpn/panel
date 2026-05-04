@@ -115,17 +115,15 @@ def generate_subscription(
     )
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or expired or device_limited or unsupported_client):
+    if config_format == "v2ray" and (revoked or expired or unsupported_client):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
             text_list = SUB_REVOKED_SERVER_TEXT
         elif expired:
             text_list = SUB_EXPIRED_SERVER_TEXT
-        elif unsupported_client:
-            text_list = SUB_UNSUPPORTED_CLIENT_SERVER_TEXT
         else:
-            text_list = SUB_DEVICE_LIMIT_SERVER_TEXT
+            text_list = SUB_UNSUPPORTED_CLIENT_SERVER_TEXT
 
         if not text_list:
             return base64.b64encode("".encode()).decode()
@@ -147,6 +145,26 @@ def generate_subscription(
         payload = "\n".join(links)
         return base64.b64encode(payload.encode()).decode()
 
+    device_limit_links = []
+    if config_format == "v2ray" and device_limited:
+        from app.subscription.v2ray import V2rayShareLink
+
+        if SUB_DEVICE_LIMIT_SERVER_TEXT:
+            zero_id = "00000000-0000-0000-0000-000000000000"
+            device_limit_links = [
+                V2rayShareLink.vless(
+                    remark=remark,
+                    address="0.0.0.0",
+                    port=0,
+                    id=zero_id,
+                    net="ws",
+                    tls="none",
+                    path="",
+                    host="",
+                )
+                for remark in SUB_DEVICE_LIMIT_SERVER_TEXT
+            ]
+
     kwargs = {
         "proxies": user.proxies,
         "inbounds": user.inbounds,
@@ -155,7 +173,10 @@ def generate_subscription(
     }
 
     if config_format == "v2ray":
-        config = "\n".join(generate_v2ray_links(**kwargs))
+        links = generate_v2ray_links(**kwargs)
+        if device_limit_links:
+            links = [*device_limit_links, *links]
+        config = "\n".join(links)
     elif config_format == "clash-meta":
         config = generate_clash_subscription(**kwargs, is_meta=True)
     elif config_format == "clash":
