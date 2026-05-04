@@ -21,6 +21,8 @@ from config import (
     SUB_EXPIRED_ANNOUNCE_TEXT,
     SUB_PROFILE_TITLE,
     SUB_PROFILE_URL,
+    SUB_ROUTING_HAPP,
+    SUB_ROUTING_V2RAYTUN,
     SUB_REVOKED_ANNOUNCE_TEXT,
     SUB_SUPPORT_URL,
     SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT,
@@ -101,6 +103,17 @@ def get_subscription_user_info(user: UserResponse) -> dict:
 
 def get_empty_subscription_user(user: UserResponse) -> UserResponse:
     return user.model_copy(update={"proxies": {}, "inbounds": {}})
+
+
+def get_routing_header(user_agent: str, dbuser: User) -> dict:
+    """Build optional routing header for Happ/v2raytun clients."""
+    routing_value = ""
+    if re.search(r"v2raytun", user_agent or "", re.IGNORECASE):
+        routing_value = (dbuser.sub_routing_v2raytun or SUB_ROUTING_V2RAYTUN or "").strip()
+    elif re.search(r"\bhapp(?:/|\b)", user_agent or "", re.IGNORECASE):
+        routing_value = (dbuser.sub_routing_happ or SUB_ROUTING_HAPP or "").strip()
+
+    return {"routing": routing_value} if routing_value else {}
 
 
 @router.get("/{token}/")
@@ -195,6 +208,7 @@ def user_subscription(
             for key, val in get_subscription_user_info(user).items()
         )
     }
+    response_headers.update(get_routing_header(user_agent, dbuser))
 
     if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
         conf = generate_subscription(
@@ -461,6 +475,7 @@ def user_subscription_with_client_type(
             for key, val in get_subscription_user_info(user).items()
         )
     }
+    response_headers.update(get_routing_header(user_agent, dbuser))
 
     config = client_config.get(client_type)
     conf = generate_subscription(user=user,

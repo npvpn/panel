@@ -218,5 +218,9 @@
   "usersTable.noUser": "В системе нет созданных пользователей",
   "usersTable.noUserMatched": "Похоже, нет пользователя, соответствующего вашему запросу",
   "usersTable.status": "Статус",
-  "usersTable.total": "Всего"
+  "usersTable.total": "Всего",
+  "userDialog.subRoutingHapp": "Routing-заголовок для Happ",
+  "userDialog.subRoutingHappHint": "Пусто — использовать значение панели по умолчанию (SUB_ROUTING_HAPP из env).",
+  "userDialog.subRoutingV2raytun": "Routing-заголовок для v2raytun",
+  "userDialog.subRoutingV2raytunHint": "Пусто — использовать значение панели по умолчанию (SUB_ROUTING_V2RAYTUN из env)."
 }

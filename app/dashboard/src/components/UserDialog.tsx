@@ -111,6 +111,8 @@ const formatUser = (user: User): FormType => {
     ...user,
     sub_support_url: user.sub_support_url ?? "",
     sub_profile_title: user.sub_profile_title ?? "",
+    sub_routing_happ: user.sub_routing_happ ?? "",
+    sub_routing_v2raytun: user.sub_routing_v2raytun ?? "",
     data_limit: user.data_limit
       ? Number((user.data_limit / 1073741824).toFixed(5))
       : user.data_limit,
@@ -139,6 +141,8 @@ const getDefaultValues = (): FormType => {
     note: "",
     sub_support_url: "",
     sub_profile_title: "",
+    sub_routing_happ: "",
+    sub_routing_v2raytun: "",
     inbounds,
     proxies: {
       vless: { id: "", flow: "" },
@@ -174,6 +178,8 @@ const baseSchema = {
   note: z.string().nullable(),
   sub_support_url: z.string().max(1024).nullable(),
   sub_profile_title: z.string().max(256).nullable(),
+  sub_routing_happ: z.string().max(4096).nullable(),
+  sub_routing_v2raytun: z.string().max(4096).nullable(),
   proxies: z
     .record(z.string(), z.record(z.string(), z.any()))
     .transform((ins) => {
@@ -848,6 +854,34 @@ export const UserDialog: FC<UserDialogProps> = () => {
                         </FormHelperText>
                         <FormErrorMessage>
                           {form.formState.errors?.sub_profile_title?.message as string}
+                        </FormErrorMessage>
+                      </FormControl>
+
+                      <FormControl
+                        mb={"10px"}
+                        isInvalid={!!form.formState.errors.sub_routing_happ}
+                      >
+                        <FormLabel>{t("userDialog.subRoutingHapp")}</FormLabel>
+                        <Input {...form.register("sub_routing_happ")} />
+                        <FormHelperText>
+                          {t("userDialog.subRoutingHappHint")}
+                        </FormHelperText>
+                        <FormErrorMessage>
+                          {form.formState.errors?.sub_routing_happ?.message as string}
+                        </FormErrorMessage>
+                      </FormControl>
+
+                      <FormControl
+                        mb={"10px"}
+                        isInvalid={!!form.formState.errors.sub_routing_v2raytun}
+                      >
+                        <FormLabel>{t("userDialog.subRoutingV2raytun")}</FormLabel>
+                        <Input {...form.register("sub_routing_v2raytun")} />
+                        <FormHelperText>
+                          {t("userDialog.subRoutingV2raytunHint")}
+                        </FormHelperText>
+                        <FormErrorMessage>
+                          {form.formState.errors?.sub_routing_v2raytun?.message as string}
                         </FormErrorMessage>
                       </FormControl>
                     </Flex>

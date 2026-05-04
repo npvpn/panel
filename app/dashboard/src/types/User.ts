@@ -52,6 +52,8 @@ export type User = {
   note: string;
   sub_support_url?: string | null;
   sub_profile_title?: string | null;
+  sub_routing_happ?: string | null;
+  sub_routing_v2raytun?: string | null;
   online_at: string;
 };
 
@@ -69,6 +71,8 @@ export type UserCreate = Pick<
   | "note"
   | "sub_support_url"
   | "sub_profile_title"
+  | "sub_routing_happ"
+  | "sub_routing_v2raytun"
 >;
 
 export type UserApi = {

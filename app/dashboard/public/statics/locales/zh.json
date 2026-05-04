@@ -208,5 +208,9 @@
   "usersTable.noUserMatched": "没有找到您搜索的用户",
   "usersTable.status": "状态",
   "usersTable.sortByExpire": "按过期时间排序",
-  "usersTable.total": "总共"
+  "usersTable.total": "总共",
+  "userDialog.subRoutingHapp": "Happ 的 routing 头",
+  "userDialog.subRoutingHappHint": "留空则使用面板默认值（环境变量 SUB_ROUTING_HAPP）。",
+  "userDialog.subRoutingV2raytun": "v2raytun 的 routing 头",
+  "userDialog.subRoutingV2raytunHint": "留空则使用面板默认值（环境变量 SUB_ROUTING_V2RAYTUN）。"
 }
