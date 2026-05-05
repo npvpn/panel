@@ -171,15 +171,17 @@ def user_subscription(
         )
 
     device_limited = False
+    hard_device_limited = False
     unsupported_client = False
     registered = False
     if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+        hard_device_limited = not registered and not unsupported_client
+        device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks or hard_device_limited:
         user = get_empty_subscription_user(user)
 
     if not is_revoked and not is_expired:
@@ -219,7 +221,8 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
-            unsupported_client=unsupported_blocks
+            unsupported_client=unsupported_blocks,
+            device_limited_hard=hard_device_limited
         )
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
@@ -232,7 +235,8 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
-            unsupported_client=unsupported_blocks
+            unsupported_client=unsupported_blocks,
+            device_limited_hard=hard_device_limited
         )
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
@@ -245,7 +249,8 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
-            unsupported_client=unsupported_blocks
+            unsupported_client=unsupported_blocks,
+            device_limited_hard=hard_device_limited
         )
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
@@ -258,7 +263,8 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
-            unsupported_client=unsupported_blocks
+            unsupported_client=unsupported_blocks,
+            device_limited_hard=hard_device_limited
         )
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
@@ -273,7 +279,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -285,7 +292,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -300,7 +308,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         elif LooseVersion(version_str) >= LooseVersion("1.8.18"):
@@ -312,7 +321,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -324,7 +334,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -338,7 +349,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -350,7 +362,8 @@ def user_subscription(
                 revoked=is_revoked,
             expired=is_expired,
                 device_limited=device_limited,
-                unsupported_client=unsupported_blocks
+                unsupported_client=unsupported_blocks,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -376,7 +389,8 @@ def user_subscription(
                 reverse=False,
                 revoked=is_revoked,
             expired=is_expired,
-                device_limited=device_limited
+                device_limited=device_limited,
+                device_limited_hard=hard_device_limited
             )
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -391,7 +405,8 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
-            unsupported_client=unsupported_blocks
+            unsupported_client=unsupported_blocks,
+            device_limited_hard=hard_device_limited
         )
         return Response(content=conf, media_type="text/plain", headers=response_headers)
 
@@ -440,15 +455,17 @@ def user_subscription_with_client_type(
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     device_limited = False
+    hard_device_limited = False
     unsupported_client = False
     registered = False
     if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+        hard_device_limited = not registered and not unsupported_client
+        device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks or hard_device_limited:
         user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(usтer) or ""
@@ -485,6 +502,7 @@ def user_subscription_with_client_type(
                                  revoked=is_revoked,
                                  expired=is_expired,
                                  device_limited=device_limited,
+                                 device_limited_hard=hard_device_limited,
                                  unsupported_client=unsupported_blocks)
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
