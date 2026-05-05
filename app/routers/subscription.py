@@ -194,20 +194,22 @@ def user_subscription(
         )
 
     device_limited = False
+    hard_device_limited = False
     unsupported_client = False
     registered = False
     if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+        hard_device_limited = not registered and not unsupported_client
+        device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks or hard_device_limited:
         user = get_empty_subscription_user(user)
 
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
-        
+
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
@@ -243,6 +245,7 @@ def user_subscription(
             revoked=is_revoked,
             expired=is_expired,
             device_limited=device_limited,
+            device_limited_hard=hard_device_limited,
             unsupported_client=unsupported_blocks,
             settings=bot_settings,
         )
@@ -377,17 +380,19 @@ def user_subscription_with_client_type(
     user: UserResponse = UserResponse.model_validate(dbuser)
 
     device_limited = False
+    hard_device_limited = False
     unsupported_client = False
     registered = False
     if not is_revoked and not is_expired:
         registered, unsupported_client = crud.register_user_device(
             db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
         )
-        device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
+        hard_device_limited = not registered and not unsupported_client
+        device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks or hard_device_limited:
         user = get_empty_subscription_user(user)
-    
+
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
@@ -422,6 +427,7 @@ def user_subscription_with_client_type(
                                  revoked=is_revoked,
                                  expired=is_expired,
                                  device_limited=device_limited,
+                                 device_limited_hard=hard_device_limited,
                                  unsupported_client=unsupported_blocks,
                                  settings=bot_settings)
 
