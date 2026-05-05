@@ -166,7 +166,7 @@ def user_subscription(
         )
         device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or device_limited or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks:
         user = get_empty_subscription_user(user)
 
     if not is_revoked and not is_expired:
@@ -434,7 +434,7 @@ def user_subscription_with_client_type(
         )
         device_limited = (not registered and not unsupported_client) or crud.is_device_limit_exceeded(db, dbuser)
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
-    if is_revoked or is_expired or device_limited or unsupported_blocks:
+    if is_revoked or is_expired or unsupported_blocks:
         user = get_empty_subscription_user(user)
 
     announce_text = get_user_note(usтer) or ""
