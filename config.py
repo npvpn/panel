@@ -146,6 +146,8 @@ NODE_USER_USAGE_RETENTION_DAYS = config("NODE_USER_USAGE_RETENTION_DAYS", cast=i
 SUB_UPDATE_INTERVAL = config("SUB_UPDATE_INTERVAL", default="12")
 SUB_SUPPORT_URL = config("SUB_SUPPORT_URL", default="https://t.me/")
 SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
+SUB_ROUTING_HAPP = config("SUB_ROUTING_HAPP", default="")
+SUB_ROUTING_V2RAYTUN = config("SUB_ROUTING_V2RAYTUN", default="")
 SUB_CLIENT_NOTE = config("SUB_CLIENT_NOTE", default="")
 SUB_PROFILE_URL = config("SUB_PROFILE_URL", default="")
 BOT_URL = config("BOT_URL", default="")

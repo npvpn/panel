@@ -218,5 +218,9 @@
   "usersTable.noUser": "There is no user added to the system",
   "usersTable.noUserMatched": "It seems there is no user matched with what you are looking for",
   "usersTable.status": "status",
-  "usersTable.total": "Total"
+  "usersTable.total": "Total",
+  "userDialog.subRoutingHapp": "Routing header for Happ",
+  "userDialog.subRoutingHappHint": "Leave empty to use panel default (SUB_ROUTING_HAPP from env).",
+  "userDialog.subRoutingV2raytun": "Routing header for v2raytun",
+  "userDialog.subRoutingV2raytunHint": "Leave empty to use panel default (SUB_ROUTING_V2RAYTUN from env)."
 }
