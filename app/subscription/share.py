@@ -105,6 +105,7 @@ def generate_subscription(
         revoked: bool = False,
         expired: bool = False,
         device_limited: bool = False,
+        device_limited_hard: bool = False,
         unsupported_client: bool = False,
 ) -> str:
     from config import (
@@ -115,13 +116,15 @@ def generate_subscription(
     )
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or expired or unsupported_client):
+    if config_format == "v2ray" and (revoked or expired or unsupported_client or device_limited_hard):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
             text_list = SUB_REVOKED_SERVER_TEXT
         elif expired:
             text_list = SUB_EXPIRED_SERVER_TEXT
+        elif device_limited_hard:
+            text_list = SUB_DEVICE_LIMIT_SERVER_TEXT
         else:
             text_list = SUB_UNSUPPORTED_CLIENT_SERVER_TEXT
 
@@ -146,7 +149,7 @@ def generate_subscription(
         return base64.b64encode(payload.encode()).decode()
 
     device_limit_links = []
-    if config_format == "v2ray" and device_limited:
+    if config_format == "v2ray" and device_limited and not device_limited_hard:
         from app.subscription.v2ray import V2rayShareLink
 
         if SUB_DEVICE_LIMIT_SERVER_TEXT:
