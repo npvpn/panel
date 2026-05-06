@@ -100,7 +100,7 @@
         status: {
           value: "{{ user.status.value }}"
         },
-        used_traffic: "{ user.used_traffic or 0 }",
+        used_traffic: "{{ user.used_traffic or 0 }}",
         data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
         expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}",
         reset_strategy: "{{ user.data_limit_reset_strategy.value }}"
