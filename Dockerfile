@@ -1,4 +1,5 @@
 ARG PYTHON_VERSION=3.12
+ARG XRAY_VERSION=v26.3.27
 
 # Stage 1: Frontend build
 FROM node:16.17.0-slim AS frontend
@@ -11,6 +12,7 @@ RUN VITE_BASE_API=/api/ npm run build -- --outDir build --assetsDir statics \
 
 # Stage 2: Python dependencies + xray
 FROM python:${PYTHON_VERSION}-slim AS build
+ARG XRAY_VERSION
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /code
@@ -19,7 +21,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        build-essential gcc python3-dev libpq-dev curl unzip ca-certificates \
     && update-ca-certificates \
-    && curl -fsSL https://github.com/Gozargah/Marzban-scripts/raw/master/install_latest_xray.sh | bash -s v25.9.11 \
+    && curl -fsSL https://github.com/Gozargah/Marzban-scripts/raw/master/install_latest_xray.sh | bash -s -- "$XRAY_VERSION" \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./requirements.txt /code/requirements.txt
