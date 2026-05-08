@@ -184,6 +184,10 @@ Instrumentator(
     )
 ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
+from app.utils.db_metrics import register as _register_db_metrics  # noqa: E402
+
+_register_db_metrics()
+
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
 
