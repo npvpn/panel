@@ -68,10 +68,7 @@ class User(BaseModel):
     )
     inbounds: Dict[ProxyTypes, List[str]] = {}
     note: Optional[str] = Field(None, nullable=True)
-    sub_support_url: Optional[str] = Field(None, nullable=True)
-    sub_profile_title: Optional[str] = Field(None, nullable=True)
-    sub_routing_happ: Optional[str] = Field(None, nullable=True)
-    sub_routing_v2raytun: Optional[str] = Field(None, nullable=True)
+    bot_username: Optional[str] = Field(None, nullable=True)
     sub_updated_at: Optional[datetime] = Field(None, nullable=True)
     sub_last_user_agent: Optional[str] = Field(None, nullable=True)
     online_at: Optional[datetime] = Field(None, nullable=True)
@@ -128,33 +125,12 @@ class User(BaseModel):
             raise ValueError("User's note can be a maximum of 500 character")
         return v
 
-    @field_validator("sub_support_url", check_fields=False)
+    @field_validator("bot_username", check_fields=False)
     @classmethod
-    def validate_sub_support_url(cls, v):
-        if v and len(v) > 1024:
-            raise ValueError("sub_support_url can be a maximum of 1024 characters")
-        return v
-
-    @field_validator("sub_profile_title", check_fields=False)
-    @classmethod
-    def validate_sub_profile_title(cls, v):
-        if v and len(v) > 256:
-            raise ValueError("sub_profile_title can be a maximum of 256 characters")
-        return v
-
-    @field_validator("sub_routing_happ", check_fields=False)
-    @classmethod
-    def validate_sub_routing_happ(cls, v):
-        if v and len(v) > 4096:
-            raise ValueError("sub_routing_happ can be a maximum of 4096 characters")
-        return v
-
-    @field_validator("sub_routing_v2raytun", check_fields=False)
-    @classmethod
-    def validate_sub_routing_v2raytun(cls, v):
-        if v and len(v) > 4096:
-            raise ValueError("sub_routing_v2raytun can be a maximum of 4096 characters")
-        return v
+    def validate_bot_username(cls, v):
+        if v is None:
+            return v
+        return v.strip().lstrip("@")
 
     @field_validator("on_hold_expire_duration", "on_hold_timeout", mode="before")
     def validate_timeout(cls, v, values):

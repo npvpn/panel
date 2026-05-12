@@ -11,6 +11,7 @@ export type FilterType = {
   limit?: number;
   offset?: number;
   sort: string;
+  bot_username?: string;
   status?: "active" | "disabled" | "limited" | "expired" | "on_hold";
 };
 export type ProtocolType = "vmess" | "vless" | "trojan" | "shadowsocks";
@@ -45,6 +46,7 @@ type DashboardStateType = {
   QRcodeLinks: string[] | null;
   isEditingHosts: boolean;
   isEditingNodes: boolean;
+  isEditingBotSettings: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
   isConfirmingSyncInbounds: boolean;
@@ -76,6 +78,7 @@ type DashboardStateType = {
   setSubLink: (subscribeURL: string | null) => void;
   onEditingHosts: (isEditingHosts: boolean) => void;
   onEditingNodes: (isEditingHosts: boolean) => void;
+  onEditingBotSettings: (isEditingBotSettings: boolean) => void;
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
@@ -127,11 +130,12 @@ export const useDashboard = create(
     syncStatus: null,
     isEditingHosts: false,
     isEditingNodes: false,
+    isEditingBotSettings: false,
     isShowingNodesUsage: false,
     resetUsageUser: null,
     revokeSubscriptionUser: null,
     filters: {
-      username: "",
+      search: "",
       limit: getUsersPerPageLimitSize(),
       sort: "-created_at",
     },
@@ -258,6 +262,9 @@ export const useDashboard = create(
     },
     onEditingNodes: (isEditingNodes: boolean) => {
       set({ isEditingNodes });
+    },
+    onEditingBotSettings: (isEditingBotSettings: boolean) => {
+      set({ isEditingBotSettings });
     },
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });

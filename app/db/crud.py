@@ -4,7 +4,7 @@ Functions for managing proxy hosts, users, user templates, nodes, and administra
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, delete, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +16,8 @@ from app.db.models import (
     TLS,
     Admin,
     AdminUsageLogs,
+    Bot,
+    BotSettings,
     NextPlan,
     Node,
     NodeUsage,
@@ -181,7 +183,12 @@ def get_user_queryset(db: Session) -> Query:
     Returns:
         Query: Base user query.
     """
-    return db.query(User).options(joinedload(User.admin)).options(joinedload(User.next_plan))
+    return (
+        db.query(User)
+        .options(joinedload(User.admin))
+        .options(joinedload(User.next_plan))
+        .options(joinedload(User.bot))
+    )
 
 
 def get_user(db: Session, username: str) -> Optional[User]:
@@ -212,6 +219,65 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return get_user_queryset(db).filter(User.id == user_id).first()
 
 
+def _normalize_bot_username(bot_username: Optional[str]) -> Optional[str]:
+    if bot_username is None:
+        return None
+    bot_username = bot_username.strip()
+    if bot_username == "":
+        return ""
+    return bot_username.lstrip("@")
+
+
+def get_bot(db: Session, bot_username: str) -> Optional[Bot]:
+    normalized = _normalize_bot_username(bot_username)
+    if not normalized:
+        return None
+    return db.query(Bot).filter(Bot.username == normalized).first()
+
+
+def get_bots(db: Session) -> List[Bot]:
+    return db.query(Bot).order_by(Bot.username.asc()).all()
+
+
+def create_bot(db: Session, username: str, title: Optional[str] = None) -> Bot:
+    normalized = _normalize_bot_username(username)
+    if not normalized:
+        raise ValueError("Bot username is required")
+    if get_bot(db, normalized):
+        raise ValueError(f'Bot "{normalized}" already exists')
+
+    bot = Bot(username=normalized, title=title or None)
+    db.add(bot)
+    db.commit()
+    db.refresh(bot)
+    return bot
+
+
+def get_or_create_bot_settings(db: Session, bot: Bot) -> BotSettings:
+    settings = db.query(BotSettings).filter(BotSettings.bot_id == bot.id).first()
+    if settings:
+        return settings
+
+    settings = BotSettings(bot_id=bot.id, data={})
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+def get_bot_settings(db: Session, bot: Bot) -> Dict[str, Any]:
+    return dict(get_or_create_bot_settings(db, bot).data or {})
+
+
+def update_bot_settings(db: Session, bot: Bot, settings_data: Dict[str, Any]) -> Dict[str, Any]:
+    settings = get_or_create_bot_settings(db, bot)
+    settings.data = settings_data
+    settings.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(settings)
+    return dict(settings.data or {})
+
+
 UsersSortingOptions = Enum('UsersSortingOptions', {
     'username': User.username.asc(),
     'used_traffic': User.used_traffic.asc(),
@@ -231,6 +297,7 @@ def get_users(db: Session,
               limit: Optional[int] = None,
               usernames: Optional[List[str]] = None,
               search: Optional[str] = None,
+              bot_username: Optional[str] = None,
               status: Optional[Union[UserStatus, list]] = None,
               sort: Optional[List[UsersSortingOptions]] = None,
               admin: Optional[Admin] = None,
@@ -246,6 +313,7 @@ def get_users(db: Session,
         limit (Optional[int]): Number of records to retrieve.
         usernames (Optional[List[str]]): List of usernames to filter by.
         search (Optional[str]): Search term to filter by username or note.
+        bot_username (Optional[str]): Bot username to filter users by.
         status (Optional[Union[UserStatus, list]]): User status or list of statuses to filter by.
         sort (Optional[List[UsersSortingOptions]]): Sorting options.
         admin (Optional[Admin]): Admin to filter users by.
@@ -263,6 +331,11 @@ def get_users(db: Session,
 
     if usernames:
         query = query.filter(User.username.in_(usernames))
+
+    if bot_username:
+        normalized = _normalize_bot_username(bot_username)
+        if normalized:
+            query = query.join(User.bot).filter(Bot.username == normalized)
 
     if status:
         if isinstance(status, list):
@@ -383,6 +456,10 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
                   excluded_inbounds=excluded_inbounds)
         )
 
+    bot = get_bot(db, user.bot_username) if user.bot_username else None
+    if user.bot_username and not bot:
+        raise ValueError(f'Bot "{user.bot_username}" not found')
+
     dbuser = User(
         username=user.username,
         proxies=proxies,
@@ -393,10 +470,7 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
         admin=admin,
         data_limit_reset_strategy=user.data_limit_reset_strategy,
         note=user.note,
-        sub_support_url=user.sub_support_url or None,
-        sub_profile_title=user.sub_profile_title or None,
-        sub_routing_happ=user.sub_routing_happ or None,
-        sub_routing_v2raytun=user.sub_routing_v2raytun or None,
+        bot=bot,
         on_hold_expire_duration=(user.on_hold_expire_duration or None),
         on_hold_timeout=(user.on_hold_timeout or None),
         auto_delete_in_days=user.auto_delete_in_days,
@@ -521,17 +595,15 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
     if modify.note is not None:
         dbuser.note = modify.note or None
 
-    if modify.sub_support_url is not None:
-        dbuser.sub_support_url = modify.sub_support_url or None
-
-    if modify.sub_profile_title is not None:
-        dbuser.sub_profile_title = modify.sub_profile_title or None
-
-    if modify.sub_routing_happ is not None:
-        dbuser.sub_routing_happ = modify.sub_routing_happ or None
-
-    if modify.sub_routing_v2raytun is not None:
-        dbuser.sub_routing_v2raytun = modify.sub_routing_v2raytun or None
+    if modify.bot_username is not None:
+        normalized = _normalize_bot_username(modify.bot_username)
+        if normalized == "":
+            dbuser.bot = None
+        else:
+            bot = get_bot(db, normalized)
+            if not bot:
+                raise ValueError(f'Bot "{modify.bot_username}" not found')
+            dbuser.bot = bot
 
     if modify.data_limit_reset_strategy is not None:
         dbuser.data_limit_reset_strategy = modify.data_limit_reset_strategy.value
