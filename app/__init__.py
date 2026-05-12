@@ -161,7 +161,15 @@ async def log_exceptions_middleware(request: Request, call_next):
             pass
 
 
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
+
+# Дефолтные lowr-бакеты (0.1, 0.5, 1) обрезают гистограмму на 1с,
+# из-за чего histogram_quantile экстраполирует всё что выше в фантастические минуты.
+_LATENCY_HIGHR_BUCKETS = (
+    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5,
+    0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 30.0, 60.0,
+)
+_LATENCY_LOWR_BUCKETS = (0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
 
 Instrumentator(
     should_group_status_codes=False,
@@ -169,7 +177,16 @@ Instrumentator(
     excluded_handlers=["/metrics"],
     inprogress_name="http_requests_in_progress",
     inprogress_labels=True,
+).add(
+    metrics.default(
+        latency_highr_buckets=_LATENCY_HIGHR_BUCKETS,
+        latency_lowr_buckets=_LATENCY_LOWR_BUCKETS,
+    )
 ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
+from app.utils.db_metrics import register as _register_db_metrics  # noqa: E402
+
+_register_db_metrics()
 
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
