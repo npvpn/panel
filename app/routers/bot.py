@@ -6,6 +6,7 @@ from app.models.bot import (
     BotCreate,
     BotResponse,
     BotSettingsPayload,
+    DEFAULT_BOT_SETTINGS,
     apply_bot_settings_fallback,
 )
 from app.utils import responses
@@ -20,6 +21,14 @@ def get_bots(
 ):
     del admin  # explicit auth dependency
     return crud.get_bots(db)
+
+
+@router.get("/bots/default-settings", response_model=BotSettingsPayload)
+def get_default_bot_settings(
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    del admin
+    return apply_bot_settings_fallback(DEFAULT_BOT_SETTINGS)
 
 
 @router.post("/bots", response_model=BotResponse, responses={400: responses._400, 403: responses._403})

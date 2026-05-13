@@ -257,6 +257,7 @@
   "botSettings.newBotTitle": "Title",
   "botSettings.newBotTitleHint": "Any readable name for dashboard, e.g. Main RU bot.",
   "botSettings.noBots": "No bots available",
+  "botSettings.emptySelection": "— New bot (empty) —",
   "botSettings.botHint": "Choose bot to edit settings below.",
   "botSettings.subSupportUrlHint": "Full support URL, e.g. https://t.me/my_support.",
   "botSettings.subProfileTitleHint": "Profile title shown in subscription clients.",

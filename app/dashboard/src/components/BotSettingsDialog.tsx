@@ -60,41 +60,48 @@ export const BotSettingsDialog: FC = () => {
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [newBotUsername, setNewBotUsername] = useState("");
-  const [newBotTitle, setNewBotTitle] = useState("");
+  const [defaultSettings, setDefaultSettings] = useState<BotSettings>(emptySettings);
+  const [botUsername, setBotUsername] = useState("");
+  const [botTitle, setBotTitle] = useState("");
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
 
   const fetchBots = () => {
     return fetch<Bot[]>("/bots")
       .then((items) => {
         setBots(items);
-        setSelectedBot((prev) => {
-          if (prev && items.some((bot) => bot.username === prev)) {
-            return prev;
-          }
-          return items.length > 0 ? items[0].username : "";
-        });
       })
       .catch(() => {
         setBots([]);
-        setSelectedBot("");
       });
   };
 
   useEffect(() => {
     if (!isEditingBotSettings) return;
     setLoading(true);
-    fetchBots()
+    setSelectedBot("");
+    setBotUsername("");
+    setBotTitle("");
+    setSettings(emptySettings);
+    Promise.all([fetchBots(), fetch<BotSettings>("/bots/default-settings").then(setDefaultSettings)])
       .finally(() => setLoading(false));
   }, [isEditingBotSettings]);
 
   useEffect(() => {
-    if (!isEditingBotSettings || !selectedBot) return;
+    if (!isEditingBotSettings) return;
+    if (!selectedBot) {
+      setBotUsername("");
+      setBotTitle("");
+      setSettings(emptySettings);
+      return;
+    }
+    const selected = bots.find((bot) => bot.username === selectedBot);
+    setBotUsername(selected?.username || "");
+    setBotTitle(selected?.title || "");
     setLoading(true);
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
       .then(setSettings)
       .finally(() => setLoading(false));
-  }, [isEditingBotSettings, selectedBot]);
+  }, [isEditingBotSettings, selectedBot, bots]);
 
   const close = () => onEditingBotSettings(false);
 
@@ -107,6 +114,44 @@ export const BotSettingsDialog: FC = () => {
     }),
     [settings]
   );
+
+  const mergeWithDefaults = (current: BotSettings): BotSettings => {
+    return {
+      sub_update_interval: current.sub_update_interval.trim() || defaultSettings.sub_update_interval,
+      sub_support_url: current.sub_support_url.trim() || defaultSettings.sub_support_url,
+      sub_profile_title: current.sub_profile_title.trim() || defaultSettings.sub_profile_title,
+      sub_routing_happ: current.sub_routing_happ.trim() || defaultSettings.sub_routing_happ,
+      sub_routing_v2raytun: current.sub_routing_v2raytun.trim() || defaultSettings.sub_routing_v2raytun,
+      sub_client_note: current.sub_client_note.trim() || defaultSettings.sub_client_note,
+      sub_profile_url: current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
+      bot_url: current.bot_url.trim() || defaultSettings.bot_url,
+      sub_revoked_announce_text:
+        current.sub_revoked_announce_text.trim() || defaultSettings.sub_revoked_announce_text,
+      sub_expired_announce_text:
+        current.sub_expired_announce_text.trim() || defaultSettings.sub_expired_announce_text,
+      sub_device_limit_announce_text:
+        current.sub_device_limit_announce_text.trim() || defaultSettings.sub_device_limit_announce_text,
+      sub_unsupported_client_announce_text:
+        current.sub_unsupported_client_announce_text.trim() ||
+        defaultSettings.sub_unsupported_client_announce_text,
+      sub_revoked_server_text:
+        current.sub_revoked_server_text.length > 0
+          ? current.sub_revoked_server_text
+          : defaultSettings.sub_revoked_server_text,
+      sub_expired_server_text:
+        current.sub_expired_server_text.length > 0
+          ? current.sub_expired_server_text
+          : defaultSettings.sub_expired_server_text,
+      sub_device_limit_server_text:
+        current.sub_device_limit_server_text.length > 0
+          ? current.sub_device_limit_server_text
+          : defaultSettings.sub_device_limit_server_text,
+      sub_unsupported_client_server_text:
+        current.sub_unsupported_client_server_text.length > 0
+          ? current.sub_unsupported_client_server_text
+          : defaultSettings.sub_unsupported_client_server_text,
+    };
+  };
 
   const save = () => {
     if (!selectedBot) return;
@@ -137,20 +182,25 @@ export const BotSettingsDialog: FC = () => {
   };
 
   const createBot = () => {
-    if (!newBotUsername.trim()) return;
+    if (!botUsername.trim()) return;
     setCreating(true);
     fetch<Bot>("/bots", {
       method: "POST",
       body: {
-        username: newBotUsername.trim(),
-        title: newBotTitle.trim() || null,
+        username: botUsername.trim(),
+        title: botTitle.trim() || null,
       },
     })
       .then((bot) => {
-        setNewBotUsername("");
-        setNewBotTitle("");
-        setSelectedBot(bot.username);
-        return fetchBots();
+        return fetch<BotSettings>(`/bots/${bot.username}/settings`, {
+          method: "PUT",
+          body: mergeWithDefaults(settings),
+        }).then(() => bot);
+      })
+      .then((bot) => {
+        return fetchBots().then(() => {
+          setSelectedBot(bot.username);
+        });
       })
       .then(() => {
         toast({
@@ -194,35 +244,13 @@ export const BotSettingsDialog: FC = () => {
         <ModalBody>
           <VStack spacing={3} align="stretch">
             <FormControl>
-              <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
-              <Input
-                value={newBotUsername}
-                onChange={(event) => setNewBotUsername(event.target.value)}
-                placeholder="@my_vpn_bot"
-              />
-              <FormHelperText>{t("botSettings.newBotUsernameHint")}</FormHelperText>
-            </FormControl>
-
-            <FormControl>
-              <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
-              <Input
-                value={newBotTitle}
-                onChange={(event) => setNewBotTitle(event.target.value)}
-                placeholder="My VPN Bot"
-              />
-              <FormHelperText>{t("botSettings.newBotTitleHint")}</FormHelperText>
-            </FormControl>
-
-            <FormControl>
               <FormLabel>{t("botSettings.bot")}</FormLabel>
               <Select
                 value={selectedBot}
                 onChange={(event) => setSelectedBot(event.target.value)}
-                isDisabled={loading || bots.length === 0}
+                isDisabled={loading}
               >
-                {bots.length === 0 && (
-                  <option value="">{t("botSettings.noBots")}</option>
-                )}
+                <option value="">{t("botSettings.emptySelection")}</option>
                 {bots.map((bot) => (
                   <option key={bot.id} value={bot.username}>
                     @{bot.username}
@@ -231,6 +259,28 @@ export const BotSettingsDialog: FC = () => {
                 ))}
               </Select>
               <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
+              <Input
+                value={botUsername}
+                onChange={(event) => setBotUsername(event.target.value)}
+                placeholder="@my_vpn_bot"
+                isDisabled={!!selectedBot}
+              />
+              <FormHelperText>{t("botSettings.newBotUsernameHint")}</FormHelperText>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
+              <Input
+                value={botTitle}
+                onChange={(event) => setBotTitle(event.target.value)}
+                placeholder="My VPN Bot"
+                isDisabled={!!selectedBot}
+              />
+              <FormHelperText>{t("botSettings.newBotTitleHint")}</FormHelperText>
             </FormControl>
 
             <HStack>
@@ -460,7 +510,7 @@ export const BotSettingsDialog: FC = () => {
                 colorScheme="green"
                 onClick={createBot}
                 isLoading={creating}
-                isDisabled={!newBotUsername.trim()}
+                isDisabled={!!selectedBot || !botUsername.trim()}
               >
                 {t("botSettings.createBot")}
               </Button>
