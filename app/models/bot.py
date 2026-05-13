@@ -66,6 +66,16 @@ class BotCreate(BotBase):
     pass
 
 
+class BotUpdate(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    title: Optional[str] = Field(None, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str):
+        return value.strip().lstrip("@")
+
+
 class BotResponse(BotBase):
     id: int
     model_config = ConfigDict(from_attributes=True)

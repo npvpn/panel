@@ -114,6 +114,10 @@ export const BotSettingsDialog: FC = () => {
     }),
     [settings]
   );
+  const selectedBotModel = useMemo(
+    () => bots.find((bot) => bot.username === selectedBot),
+    [bots, selectedBot]
+  );
 
   const mergeWithDefaults = (current: BotSettings): BotSettings => {
     return {
@@ -155,24 +159,64 @@ export const BotSettingsDialog: FC = () => {
 
   const save = () => {
     if (!selectedBot) return;
+    const normalizedUsername = botUsername.trim().replace(/^@/, "");
+    if (!normalizedUsername) return;
+    const normalizedTitle = botTitle.trim();
+    const isIdentityChanged =
+      normalizedUsername !== selectedBot ||
+      normalizedTitle !== (selectedBotModel?.title || "");
+    const settingsPayload = {
+      ...settings,
+      sub_revoked_server_text: toList(listFields.sub_revoked_server_text),
+      sub_expired_server_text: toList(listFields.sub_expired_server_text),
+      sub_device_limit_server_text: toList(listFields.sub_device_limit_server_text),
+      sub_unsupported_client_server_text: toList(
+        listFields.sub_unsupported_client_server_text
+      ),
+    };
+
     setSaving(true);
-    fetch<BotSettings>(`/bots/${selectedBot}/settings`, {
-      method: "PUT",
-      body: {
-        ...settings,
-        sub_revoked_server_text: toList(listFields.sub_revoked_server_text),
-        sub_expired_server_text: toList(listFields.sub_expired_server_text),
-        sub_device_limit_server_text: toList(listFields.sub_device_limit_server_text),
-        sub_unsupported_client_server_text: toList(
-          listFields.sub_unsupported_client_server_text
-        ),
-      },
-    })
+    let targetUsername = selectedBot;
+    const identityPromise = isIdentityChanged
+      ? fetch<Bot>(`/bots/${selectedBot}`, {
+          method: "PATCH",
+          body: {
+            username: normalizedUsername,
+            title: normalizedTitle || null,
+          },
+        }).then((updatedBot) => {
+          targetUsername = updatedBot.username;
+          setBotUsername(updatedBot.username);
+          setBotTitle(updatedBot.title || "");
+        })
+      : Promise.resolve();
+
+    identityPromise
+      .then(() =>
+        fetch<BotSettings>(`/bots/${targetUsername}/settings`, {
+          method: "PUT",
+          body: settingsPayload,
+        })
+      )
       .then((updated) => {
         setSettings(updated);
+        return fetchBots().then(() => {
+          setSelectedBot(targetUsername);
+        });
+      })
+      .then(() => {
         toast({
           title: t("botSettings.saved"),
           status: "success",
+          duration: 2500,
+          isClosable: true,
+          position: "top",
+        });
+      })
+      .catch(() => {
+        toast({
+          title: t("core.generalErrorMessage"),
+          status: "error",
           duration: 2500,
           isClosable: true,
           position: "top",
@@ -267,7 +311,6 @@ export const BotSettingsDialog: FC = () => {
                 value={botUsername}
                 onChange={(event) => setBotUsername(event.target.value)}
                 placeholder="@my_vpn_bot"
-                isDisabled={!!selectedBot}
               />
               <FormHelperText>{t("botSettings.newBotUsernameHint")}</FormHelperText>
             </FormControl>
@@ -278,7 +321,6 @@ export const BotSettingsDialog: FC = () => {
                 value={botTitle}
                 onChange={(event) => setBotTitle(event.target.value)}
                 placeholder="My VPN Bot"
-                isDisabled={!!selectedBot}
               />
               <FormHelperText>{t("botSettings.newBotTitleHint")}</FormHelperText>
             </FormControl>
@@ -532,7 +574,7 @@ export const BotSettingsDialog: FC = () => {
                 colorScheme="primary"
                 onClick={save}
                 isLoading={saving}
-                isDisabled={loading || !selectedBot}
+                isDisabled={loading || !selectedBot || !botUsername.trim()}
               >
                 {t("core.save")}
               </Button>

@@ -253,6 +253,22 @@ def create_bot(db: Session, username: str, title: Optional[str] = None) -> Bot:
     return bot
 
 
+def update_bot(db: Session, bot: Bot, username: str, title: Optional[str] = None) -> Bot:
+    normalized = _normalize_bot_username(username)
+    if not normalized:
+        raise ValueError("Bot username is required")
+
+    conflict = db.query(Bot).filter(Bot.username == normalized, Bot.id != bot.id).first()
+    if conflict:
+        raise ValueError(f'Bot "{normalized}" already exists')
+
+    bot.username = normalized
+    bot.title = title.strip() if isinstance(title, str) and title.strip() else None
+    db.commit()
+    db.refresh(bot)
+    return bot
+
+
 def delete_bot(db: Session, bot: Bot) -> None:
     users = db.query(User).filter(User.bot_id == bot.id).all()
     for user in users:

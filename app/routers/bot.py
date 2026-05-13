@@ -5,6 +5,7 @@ from app.models.admin import Admin
 from app.models.bot import (
     BotCreate,
     BotResponse,
+    BotUpdate,
     BotSettingsPayload,
     DEFAULT_BOT_SETTINGS,
     apply_bot_settings_fallback,
@@ -56,6 +57,27 @@ def delete_bot(
         raise HTTPException(status_code=404, detail="Bot not found")
     crud.delete_bot(db, bot)
     return {"detail": "Bot deleted"}
+
+
+@router.patch(
+    "/bots/{bot_username}",
+    response_model=BotResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+def update_bot(
+    bot_username: str,
+    payload: BotUpdate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    del admin
+    bot = crud.get_bot(db, bot_username)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    try:
+        return crud.update_bot(db, bot, payload.username, payload.title)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 @router.get(
