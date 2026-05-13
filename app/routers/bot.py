@@ -35,6 +35,20 @@ def create_bot(
         raise HTTPException(status_code=400, detail=str(err))
 
 
+@router.delete("/bots/{bot_username}", responses={403: responses._403, 404: responses._404})
+def delete_bot(
+    bot_username: str,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    del admin
+    bot = crud.get_bot(db, bot_username)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    crud.delete_bot(db, bot)
+    return {"detail": "Bot deleted"}
+
+
 @router.get(
     "/bots/{bot_username}/settings",
     response_model=BotSettingsPayload,

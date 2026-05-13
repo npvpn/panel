@@ -1,6 +1,7 @@
 import {
   Button,
   FormControl,
+  FormHelperText,
   FormLabel,
   HStack,
   Input,
@@ -57,21 +58,33 @@ export const BotSettingsDialog: FC = () => {
   const [selectedBot, setSelectedBot] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [newBotUsername, setNewBotUsername] = useState("");
+  const [newBotTitle, setNewBotTitle] = useState("");
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
+
+  const fetchBots = () => {
+    return fetch<Bot[]>("/bots")
+      .then((items) => {
+        setBots(items);
+        setSelectedBot((prev) => {
+          if (prev && items.some((bot) => bot.username === prev)) {
+            return prev;
+          }
+          return items.length > 0 ? items[0].username : "";
+        });
+      })
+      .catch(() => {
+        setBots([]);
+        setSelectedBot("");
+      });
+  };
 
   useEffect(() => {
     if (!isEditingBotSettings) return;
     setLoading(true);
-    fetch<Bot[]>("/bots")
-      .then((items) => {
-        setBots(items);
-        if (items.length > 0) {
-          setSelectedBot((prev) => prev || items[0].username);
-        }
-      })
-      .catch(() => {
-        setBots([]);
-      })
+    fetchBots()
       .finally(() => setLoading(false));
   }, [isEditingBotSettings]);
 
@@ -123,6 +136,55 @@ export const BotSettingsDialog: FC = () => {
       .finally(() => setSaving(false));
   };
 
+  const createBot = () => {
+    if (!newBotUsername.trim()) return;
+    setCreating(true);
+    fetch<Bot>("/bots", {
+      method: "POST",
+      body: {
+        username: newBotUsername.trim(),
+        title: newBotTitle.trim() || null,
+      },
+    })
+      .then((bot) => {
+        setNewBotUsername("");
+        setNewBotTitle("");
+        setSelectedBot(bot.username);
+        return fetchBots();
+      })
+      .then(() => {
+        toast({
+          title: t("botSettings.created"),
+          status: "success",
+          duration: 2500,
+          isClosable: true,
+          position: "top",
+        });
+      })
+      .finally(() => setCreating(false));
+  };
+
+  const deleteBot = () => {
+    if (!selectedBot) return;
+    if (!window.confirm(t("botSettings.deleteConfirm", { username: `@${selectedBot}` }))) {
+      return;
+    }
+
+    setDeleting(true);
+    fetch(`/bots/${selectedBot}`, { method: "DELETE" })
+      .then(() => fetchBots())
+      .then(() => {
+        toast({
+          title: t("botSettings.deleted"),
+          status: "success",
+          duration: 2500,
+          isClosable: true,
+          position: "top",
+        });
+      })
+      .finally(() => setDeleting(false));
+  };
+
   return (
     <Modal isOpen={isEditingBotSettings} onClose={close} size="4xl">
       <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
@@ -132,18 +194,43 @@ export const BotSettingsDialog: FC = () => {
         <ModalBody>
           <VStack spacing={3} align="stretch">
             <FormControl>
+              <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
+              <Input
+                value={newBotUsername}
+                onChange={(event) => setNewBotUsername(event.target.value)}
+                placeholder="@my_vpn_bot"
+              />
+              <FormHelperText>{t("botSettings.newBotUsernameHint")}</FormHelperText>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
+              <Input
+                value={newBotTitle}
+                onChange={(event) => setNewBotTitle(event.target.value)}
+                placeholder="My VPN Bot"
+              />
+              <FormHelperText>{t("botSettings.newBotTitleHint")}</FormHelperText>
+            </FormControl>
+
+            <FormControl>
               <FormLabel>{t("botSettings.bot")}</FormLabel>
               <Select
                 value={selectedBot}
                 onChange={(event) => setSelectedBot(event.target.value)}
                 isDisabled={loading || bots.length === 0}
               >
+                {bots.length === 0 && (
+                  <option value="">{t("botSettings.noBots")}</option>
+                )}
                 {bots.map((bot) => (
                   <option key={bot.id} value={bot.username}>
                     @{bot.username}
+                    {bot.title ? ` - ${bot.title}` : ""}
                   </option>
                 ))}
               </Select>
+              <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
             </FormControl>
 
             <HStack>
@@ -158,6 +245,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.subSupportUrlHint")}</FormHelperText>
               </FormControl>
               <FormControl>
                 <FormLabel>{t("botSettings.subProfileTitle")}</FormLabel>
@@ -170,6 +258,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.subProfileTitleHint")}</FormHelperText>
               </FormControl>
             </HStack>
 
@@ -182,6 +271,7 @@ export const BotSettingsDialog: FC = () => {
                     setSettings((prev) => ({ ...prev, bot_url: event.target.value }))
                   }
                 />
+                <FormHelperText>{t("botSettings.botUrlHint")}</FormHelperText>
               </FormControl>
               <FormControl>
                 <FormLabel>{t("botSettings.subProfileUrl")}</FormLabel>
@@ -194,6 +284,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.subProfileUrlHint")}</FormHelperText>
               </FormControl>
             </HStack>
 
@@ -300,6 +391,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
               </FormControl>
               <FormControl>
                 <FormLabel>{t("botSettings.subExpiredServerText")}</FormLabel>
@@ -312,6 +404,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
               </FormControl>
             </HStack>
 
@@ -327,6 +420,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
               </FormControl>
               <FormControl>
                 <FormLabel>{t("botSettings.subUnsupportedClientServerText")}</FormLabel>
@@ -339,6 +433,7 @@ export const BotSettingsDialog: FC = () => {
                     }))
                   }
                 />
+                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
               </FormControl>
             </HStack>
 
@@ -353,21 +448,46 @@ export const BotSettingsDialog: FC = () => {
                   }))
                 }
               />
+              <FormHelperText>{t("botSettings.subUpdateIntervalHint")}</FormHelperText>
             </FormControl>
           </VStack>
         </ModalBody>
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={close}>
-            {t("cancel")}
-          </Button>
-          <Button
-            colorScheme="primary"
-            onClick={save}
-            isLoading={saving}
-            isDisabled={loading || !selectedBot}
-          >
-            {t("core.save")}
-          </Button>
+          <HStack justifyContent="space-between" width="full">
+            <HStack>
+              <Button
+                variant="outline"
+                colorScheme="green"
+                onClick={createBot}
+                isLoading={creating}
+                isDisabled={!newBotUsername.trim()}
+              >
+                {t("botSettings.createBot")}
+              </Button>
+              <Button
+                variant="outline"
+                colorScheme="red"
+                onClick={deleteBot}
+                isLoading={deleting}
+                isDisabled={!selectedBot}
+              >
+                {t("botSettings.deleteBot")}
+              </Button>
+            </HStack>
+            <HStack>
+              <Button variant="ghost" mr={3} onClick={close}>
+                {t("cancel")}
+              </Button>
+              <Button
+                colorScheme="primary"
+                onClick={save}
+                isLoading={saving}
+                isDisabled={loading || !selectedBot}
+              >
+                {t("core.save")}
+              </Button>
+            </HStack>
+          </HStack>
         </ModalFooter>
       </ModalContent>
     </Modal>

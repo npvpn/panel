@@ -253,6 +253,14 @@ def create_bot(db: Session, username: str, title: Optional[str] = None) -> Bot:
     return bot
 
 
+def delete_bot(db: Session, bot: Bot) -> None:
+    users = db.query(User).filter(User.bot_id == bot.id).all()
+    for user in users:
+        user.bot_id = None
+    db.delete(bot)
+    db.commit()
+
+
 def get_or_create_bot_settings(db: Session, bot: Bot) -> BotSettings:
     settings = db.query(BotSettings).filter(BotSettings.bot_id == bot.id).first()
     if settings:

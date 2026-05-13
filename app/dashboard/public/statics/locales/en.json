@@ -246,5 +246,22 @@
   "botSettings.subExpiredServerText": "Expired server text",
   "botSettings.subDeviceLimitServerText": "Device limit server text",
   "botSettings.subUnsupportedClientServerText": "Unsupported client server text",
-  "botSettings.subUpdateInterval": "Profile update interval"
+  "botSettings.subUpdateInterval": "Profile update interval",
+  "botSettings.createBot": "Add bot",
+  "botSettings.deleteBot": "Delete selected",
+  "botSettings.created": "Bot created",
+  "botSettings.deleted": "Bot deleted",
+  "botSettings.deleteConfirm": "Delete bot {{username}}? All linked users will be detached from this bot.",
+  "botSettings.newBotUsername": "New bot username",
+  "botSettings.newBotUsernameHint": "Format: @my_vpn_bot or my_vpn_bot. Use letters, digits and underscore.",
+  "botSettings.newBotTitle": "Title",
+  "botSettings.newBotTitleHint": "Any readable name for dashboard, e.g. Main RU bot.",
+  "botSettings.noBots": "No bots available",
+  "botSettings.botHint": "Choose bot to edit settings below.",
+  "botSettings.subSupportUrlHint": "Full support URL, e.g. https://t.me/my_support.",
+  "botSettings.subProfileTitleHint": "Profile title shown in subscription clients.",
+  "botSettings.botUrlHint": "Bot URL for announce-url and fallback pages, e.g. https://t.me/my_vpn_bot.",
+  "botSettings.subProfileUrlHint": "Subscription profile page URL. Leave empty for auto fallback.",
+  "botSettings.serverTextHint": "One message per line or separated by commas.",
+  "botSettings.subUpdateIntervalHint": "Number in hours, e.g. 12."
 }
