@@ -49,9 +49,8 @@ client_config = {
 router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
 
 
-def get_user_note(user: UserResponse) -> str:
+def get_user_note(user: UserResponse, note_template: str) -> str:
     """Return note from SUB_CLIENT_NOTE with <days_left> and <tg_id> placeholders."""
-    note_template = SUB_CLIENT_NOTE
     if not note_template:
         return ""
     if "_" in user.username:
@@ -184,15 +183,15 @@ def user_subscription(
 
     if not is_revoked and not is_expired:
         crud.update_user_sub(db, dbuser, user_agent)
-    announce_text = get_user_note(user) or ""
+    announce_text = get_user_note(user, SUB_CLIENT_NOTE) or ""
     if is_revoked and SUB_REVOKED_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_REVOKED_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_REVOKED_ANNOUNCE_TEXT)
     elif is_expired and SUB_EXPIRED_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_EXPIRED_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_EXPIRED_ANNOUNCE_TEXT)
     elif device_limited and SUB_DEVICE_LIMIT_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_DEVICE_LIMIT_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_DEVICE_LIMIT_ANNOUNCE_TEXT)
     elif unsupported_blocks and SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT)
     support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
     profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
@@ -451,15 +450,15 @@ def user_subscription_with_client_type(
     if is_revoked or is_expired or device_limited or unsupported_blocks:
         user = get_empty_subscription_user(user)
 
-    announce_text = get_user_note(usтer) or ""
+    announce_text = get_user_note(user, SUB_CLIENT_NOTE) or ""
     if is_revoked and SUB_REVOKED_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_REVOKED_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_REVOKED_ANNOUNCE_TEXT)
     elif is_expired and SUB_EXPIRED_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_EXPIRED_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_EXPIRED_ANNOUNCE_TEXT)
     elif device_limited and SUB_DEVICE_LIMIT_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_DEVICE_LIMIT_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_DEVICE_LIMIT_ANNOUNCE_TEXT)
     elif unsupported_blocks and SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT.strip():
-        announce_text = SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT
+        announce_text = get_user_note(user, SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT)
     support_url = dbuser.sub_support_url or SUB_SUPPORT_URL
     profile_title = dbuser.sub_profile_title or SUB_PROFILE_TITLE
     response_headers = {
