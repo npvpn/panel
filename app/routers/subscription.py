@@ -5,10 +5,12 @@ from app.db.models import User
 from distutils.version import LooseVersion
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse
+from sqlalchemy.exc import TimeoutError as SATimeoutError, OperationalError
 
-from app.db import Session, crud, get_db
+from app import logger
+from app.db import GetDB, Session, crud, get_db
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
@@ -105,6 +107,37 @@ def get_empty_subscription_user(user: UserResponse) -> UserResponse:
     return user.model_copy(update={"proxies": {}, "inbounds": {}})
 
 
+def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
+    """
+    Фоновый апдейт users.sub_updated_at / sub_last_user_agent.
+    Запускается через FastAPI BackgroundTasks ПОСЛЕ ответа клиенту, чтобы
+    одиночный UPDATE по строке users не блокировал горячий путь /sub/ и
+    не приводил к 500 (1205 Lock wait timeout exceeded), когда параллельно
+    с /sub/ идут массовые UPDATE'ы users из mailing_queue / record_usages /
+    edit_user. Поля sub_updated_at и sub_last_user_agent читаются только
+    админкой панели (telegram/utils/shared.py) для информации, никакая
+    бизнес-логика на их актуальности не строится, поэтому потеря одного
+    апдейта (или задержка ~ms) безопасна.
+    """
+    try:
+        with GetDB() as db:
+            dbuser = db.query(User).filter(User.id == user_id).first()
+            if dbuser is None:
+                return
+            crud.update_user_sub(db, dbuser, user_agent)
+    except (SATimeoutError, OperationalError) as exc:
+        # Lock wait / pool timeout — поле обновит следующий /sub-запрос.
+        logger.warning(
+            "[sub.update_bg] skip user_id=%s due to %s: %s",
+            user_id, type(exc).__name__, exc,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[sub.update_bg] unexpected error user_id=%s: %s: %s",
+            user_id, type(exc).__name__, exc,
+        )
+
+
 def get_routing_header(user_agent: str, dbuser: User) -> dict:
     """Build optional routing header for Happ/v2raytun clients."""
     routing_value = ""
@@ -121,6 +154,7 @@ def get_routing_header(user_agent: str, dbuser: User) -> dict:
 def user_subscription(
     request: Request,
     token: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user_agent: str = Header(default=""),
     x_hwid: str | None = Header(default=None),
@@ -183,7 +217,7 @@ def user_subscription(
         user = get_empty_subscription_user(user)
 
     if not is_revoked and not is_expired:
-        crud.update_user_sub(db, dbuser, user_agent)
+        background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
     announce_text = get_user_note(user) or ""
     if is_revoked and SUB_REVOKED_ANNOUNCE_TEXT.strip():
         announce_text = SUB_REVOKED_ANNOUNCE_TEXT
