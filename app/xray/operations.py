@@ -24,6 +24,30 @@ if TYPE_CHECKING:
     from app.db.models import Node as DBNode
 
 
+def _get_ready_nodes():
+    """Return nodes that look ready based on cached flags only — no network calls.
+
+    Network properties (`node.connected`, `node.started`) hit each node over HTTP and
+    serialize the caller; one slow node × ~200 nodes can stall the starlette threadpool.
+    """
+    ready = []
+    for node in list(xray.nodes.values()):
+        try:
+            if hasattr(node, "_started"):
+                is_started = bool(getattr(node, "_started"))
+                has_session = bool(getattr(node, "_session_id", None))
+            elif hasattr(node, "started"):
+                is_started = bool(getattr(node, "started"))
+                has_session = True
+            else:
+                continue
+        except Exception:
+            continue
+        if is_started and has_session:
+            ready.append(node)
+    return ready
+
+
 @lru_cache(maxsize=None)
 def get_tls():
     from app.db import GetDB, get_tls_certificate
@@ -38,7 +62,7 @@ def get_tls():
 @threaded_function
 def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     try:
-        api.add_inbound_user(tag=inbound_tag, user=account, timeout=60)
+        api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except xray.exc.EmailNotFoundError as e:
         # User may be absent on this inbound/node; removal is idempotent.
         logger.debug(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
@@ -64,7 +88,7 @@ def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
 @threaded_function
 def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     try:
-        api.remove_inbound_user(tag=inbound_tag, email=account.email, timeout=60)
+        api.remove_inbound_user(tag=inbound_tag, email=account.email, timeout=10)
     except xray.exc.EmailNotFoundError as e:
         # User may be absent on this inbound/node; removal is idempotent.
         logger.debug(f"[xray.alter_user.call][skip] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
@@ -73,7 +97,7 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     except Exception as e:
         logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     try:
-        api.add_inbound_user(tag=inbound_tag, user=account, timeout=60)
+        api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
@@ -83,6 +107,10 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
 def add_user(dbuser: "DBUser"):
     user = UserResponse.model_validate(dbuser)
     email = f"{dbuser.id}.{dbuser.username}"
+
+    t0 = time.monotonic()
+    ready_nodes = _get_ready_nodes()
+    total_nodes = len(xray.nodes)
 
     for proxy_type, inbound_tags in user.inbounds.items():
         for inbound_tag in inbound_tags:
@@ -109,13 +137,18 @@ def add_user(dbuser: "DBUser"):
                 account.flow = XTLSFlows.NONE
 
             _add_user_to_inbound(xray.api, inbound_tag, account)  # main core
-            for node in list(xray.nodes.values()):
-                # Не допускаем падения при недоступной ноде
+            for node in ready_nodes:
                 try:
-                    if node.connected and node.started:
-                        _add_user_to_inbound(node.api, inbound_tag, account)
+                    _add_user_to_inbound(node.api, inbound_tag, account)
                 except Exception as e:
-                    logger.warning(f"XRAY node check/add failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {e}")
+                    logger.warning(
+                        f"[xray.add_user] node call failed user=\"{dbuser.username}\" "
+                        f"inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                    )
+    logger.info(
+        f"[xray.add_user] done email={email} nodes_ready={len(ready_nodes)} "
+        f"nodes_total={total_nodes} dt={time.monotonic() - t0:.2f}s"
+    )
 
 
 def remove_user(dbuser: "DBUser"):
@@ -145,29 +178,8 @@ def remove_user(dbuser: "DBUser"):
         total_nodes = 0
     logger.info(f"[xray.remove_user] start email={email} target_inbounds={len(target_inbounds)} total_inbounds={total_inbounds} nodes={total_nodes}")
 
-    # Precompute ready nodes once to avoid per-inbound status checks (expensive network calls)
-    nodes_list = list(xray.nodes.values())
-    ready_nodes = []
-    _nodes_check_t0 = time.time()
-    for node in nodes_list:
-        # Avoid network calls in properties; rely on cached flags where possible
-        is_started_cached = False
-        has_session = True
-        try:
-            # ReSTXRayNode uses _started and _session_id
-            if hasattr(node, "_started"):
-                is_started_cached = bool(getattr(node, "_started"))
-                has_session = bool(getattr(node, "_session_id", None))
-            # RPyCXRayNode uses 'started'
-            elif hasattr(node, "started"):
-                is_started_cached = bool(getattr(node, "started"))
-            else:
-                is_started_cached = False
-        except Exception:
-            is_started_cached = False
-        if is_started_cached and has_session:
-            ready_nodes.append(node)
-    logger.info(f"[xray.remove_user] nodes_ready={len(ready_nodes)} nodes_checked={len(nodes_list)}")
+    ready_nodes = _get_ready_nodes()
+    logger.info(f"[xray.remove_user] nodes_ready={len(ready_nodes)} nodes_total={total_nodes}")
 
     for inbound_tag in target_inbounds:
         _remove_user_from_inbound(xray.api, inbound_tag, email)
@@ -182,6 +194,10 @@ def remove_user(dbuser: "DBUser"):
 def update_user(dbuser: "DBUser"):
     user = UserResponse.model_validate(dbuser)
     email = f"{dbuser.id}.{dbuser.username}"
+
+    t0 = time.monotonic()
+    ready_nodes = _get_ready_nodes()
+    total_nodes = len(xray.nodes)
 
     active_inbounds = []
     for proxy_type, inbound_tags in user.inbounds.items():
@@ -210,26 +226,32 @@ def update_user(dbuser: "DBUser"):
                 account.flow = XTLSFlows.NONE
 
             _alter_inbound_user(xray.api, inbound_tag, account)  # main core
-            for node in list(xray.nodes.values()):
-                # Не допускаем падения при недоступной ноде
+            for node in ready_nodes:
                 try:
-                    if node.connected and node.started:
-                        _alter_inbound_user(node.api, inbound_tag, account)
+                    _alter_inbound_user(node.api, inbound_tag, account)
                 except Exception as e:
-                    logger.warning(f"XRAY node check/alter failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {e}")
+                    logger.warning(
+                        f"[xray.update_user] node alter failed user=\"{dbuser.username}\" "
+                        f"inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                    )
 
     for inbound_tag in xray.config.inbounds_by_tag:
         if inbound_tag in active_inbounds:
             continue
         # remove disabled inbounds
         _remove_user_from_inbound(xray.api, inbound_tag, email)
-        for node in list(xray.nodes.values()):
-            # Не допускаем падения при недоступной ноде
+        for node in ready_nodes:
             try:
-                if node.connected and node.started:
-                    _remove_user_from_inbound(node.api, inbound_tag, email)
+                _remove_user_from_inbound(node.api, inbound_tag, email)
             except Exception as e:
-                logger.warning(f"XRAY node check/remove (disabled inbound) failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {e}")
+                logger.warning(
+                    f"[xray.update_user] node remove (disabled inbound) failed "
+                    f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                )
+    logger.info(
+        f"[xray.update_user] done email={email} nodes_ready={len(ready_nodes)} "
+        f"nodes_total={total_nodes} dt={time.monotonic() - t0:.2f}s"
+    )
 
 
 def update_user_by_id(user_id: int):
