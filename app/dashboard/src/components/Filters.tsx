@@ -10,6 +10,7 @@ import {
   InputGroup,
   InputLeftElement,
   InputRightElement,
+  Select,
   Spinner,
 } from "@chakra-ui/react";
 import {
@@ -20,8 +21,10 @@ import {
 import classNames from "classnames";
 import { useDashboard } from "contexts/DashboardContext";
 import debounce from "lodash.debounce";
-import React, { FC, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { fetch } from "service/http";
+import { Bot } from "types/Bot";
 
 const iconProps = {
   baseStyle: {
@@ -56,6 +59,12 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
   } = useDashboard();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [bots, setBots] = useState<Bot[]>([]);
+  useEffect(() => {
+    fetch<Bot[]>("/bots")
+      .then(setBots)
+      .catch(() => setBots([]));
+  }, []);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     setSearchField(e.target.value);
@@ -117,6 +126,25 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
       </GridItem>
       <GridItem colSpan={2} order={{ base: 1, md: 2 }}>
         <HStack justifyContent="flex-end" alignItems="center" h="full">
+          <Select
+            size="sm"
+            maxW="220px"
+            value={filters.bot_username || ""}
+            onChange={(event) =>
+              onFilterChange({
+                ...filters,
+                offset: 0,
+                bot_username: event.target.value || undefined,
+              })
+            }
+          >
+            <option value="">{t("filters.allBots")}</option>
+            {bots.map((bot) => (
+              <option key={bot.id} value={bot.username}>
+                @{bot.username}
+              </option>
+            ))}
+          </Select>
           <IconButton
             aria-label="refresh users"
             disabled={loading}
