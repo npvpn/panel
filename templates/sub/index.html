@@ -275,6 +275,55 @@
         <p class="text-gray-400 text-sm mt-1">Выберите устройство и следуйте инструкции</p>
       </header>
       <main class="space-y-4">
+        <div x-data="{ open: true }" class="bg-gray-800 rounded-lg">
+          <button @click="open = !open" class="w-full flex justify-between items-center text-left p-4">
+            <h2 class="text-lg font-bold">Информация о подписке</h2>
+            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+          <div x-show="open" x-transition class="p-4 pt-0">
+            <div class="flex items-center space-x-4">
+              <div class="flex-shrink-0">
+                <div class="radial-progress" :style="`--size: 7rem; --thickness: 0.7rem; --value: ${usagePercentage}; --color: #34d399;`">
+                  <div class="radial-progress-text text-xl font-bold" x-text="`${usagePercentage}%`"></div>
+                </div>
+              </div>
+              <div class="text-sm space-y-2 flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">ID:</span>
+                  <span class="font-medium" x-text="user.username"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Статус:</span>
+                  <span class="font-medium px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Трафик:</span>
+                  <span class="font-medium" x-text="trafficText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Действует до:</span>
+                  <span class="font-medium" x-text="expirationText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Осталось дней:</span>
+                  <span class="font-medium" x-text="remainingDays"></span>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
+          </div>
+        </div>
+        {% if device_limit_reached %}
+          <div class="rounded-lg p-4" style="background: rgba(127, 29, 29, 0.35); border: 1px solid rgba(248, 113, 113, 0.55);">
+            <h3 class="font-semibold mb-1" style="color: #fecaca;">Достигнут лимит устройств</h3>
+            <p class="text-sm" style="color: #fee2e2;">
+              Новое устройство подключить не получится. <br>
+              Удалите старые устройства внизу страницы.
+            </p>
+          </div>
+        {% endif %}
         <div class="grid grid-cols-3 gap-3 mb-6">
           <template x-for="os in osOptions" :key="os.id">
             <div @click="selectedOs = os.id" :class="{ 'active-os': selectedOs === os.id }" class="cursor-pointer flex items-center justify-center bg-gray-800 rounded-lg transition-transform transform hover:scale-105 h-16" tabindex="0" :aria-label="os.name" @keydown.enter.space="selectedOs = os.id">
@@ -425,45 +474,42 @@ chmod +x Happ.AppImage
             </div>
           </div>
         </div>
-        <div x-data="{ open: false }" class="bg-gray-800 rounded-lg">
-          <button @click="open = !open" class="w-full flex justify-between items-center text-left p-4">
-            <h2 class="text-lg font-bold">Информация о подписке</h2>
-            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-          <div x-show="open" x-transition class="p-4 pt-0">
-            <div class="flex items-center space-x-4">
-              <div class="flex-shrink-0">
-                <div class="radial-progress" :style="`--size: 7rem; --thickness: 0.7rem; --value: ${usagePercentage}; --color: #34d399;`">
-                  <div class="radial-progress-text text-xl font-bold" x-text="`${usagePercentage}%`"></div>
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <h2 class="text-lg font-bold mb-3">Подключенные устройства:</h2>
+          {% if devices %}
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              {% for device in devices %}
+                <div style="border: 1px solid #374151; border-radius: 10px; padding: 10px;">
+                  <div style="margin-bottom: 8px;">
+                    <div style="font-size: 0.9rem; font-weight: 600;">
+                      {{ device.device_model or "Неизвестная модель" }}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                      OS: {{ device.device_os or "Неизвестно" }}{% if device.ver_os %} {{ device.ver_os }}{% endif %}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                      HWID: {{ device.hwid }}
+                    </div>
+                    {% if device.last_seen %}
+                      <div style="font-size: 0.8rem; color: #9ca3af;">
+                        Последняя активность: {{ device.last_seen }}
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <a
+                    href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
+                    onclick="return confirm('Удалить это устройство из активных?');"
+                    style="display: inline-block; background: #7f1d1d; color: #fecaca; border: 1px solid #991b1b; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; text-decoration: none;"
+                  >
+                    Удалить
+                  </a>
                 </div>
-              </div>
-              <div class="text-sm space-y-2 flex-1">
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">ID:</span>
-                  <span class="font-medium" x-text="user.username"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Статус:</span>
-                  <span class="font-medium px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Трафик:</span>
-                  <span class="font-medium" x-text="trafficText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Действует до:</span>
-                  <span class="font-medium" x-text="expirationText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Осталось дней:</span>
-                  <span class="font-medium" x-text="remainingDays"></span>
-                </div>
-              </div>
+              {% endfor %}
             </div>
-            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
-          </div>
+          {% else %}
+            <p class="text-sm text-gray-400">Активных устройств сейчас нет.</p>
+          {% endif %}
         </div>
         <!--div class="bg-gray-800 p-4 rounded-lg">
           <h3 class="font-semibold mb-1">Нужна помощь?</h3>

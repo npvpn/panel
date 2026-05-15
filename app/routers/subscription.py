@@ -6,7 +6,7 @@ from distutils.version import LooseVersion
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import TimeoutError as SATimeoutError, OperationalError
 
 from app import logger
@@ -189,17 +189,17 @@ def user_subscription(
                     {"bot_url": BOT_URL}
                 )
             )
-        if html_device_limited:
-            return HTMLResponse(
-                render_template(
-                    "sub/device_limit.html",
-                    {"bot_url": BOT_URL}
-                )
-            )
+        devices = crud.get_user_active_devices(db, dbuser)
         return HTMLResponse(
             render_template(
                 SUBSCRIPTION_PAGE_TEMPLATE,
-                {"user": user}
+                {
+                    "user": user,
+                    "devices": devices,
+                    "token": token,
+                    "sub_path": XRAY_SUBSCRIPTION_PATH,
+                    "device_limit_reached": html_device_limited,
+                }
             )
         )
 
@@ -427,6 +427,31 @@ def user_subscription(
             unsupported_client=unsupported_blocks
         )
         return Response(content=conf, media_type="text/plain", headers=response_headers)
+
+
+@router.get("/{token}/devices/{device_id}/revoke", include_in_schema=False)
+@router.post("/{token}/devices/{device_id}/revoke", include_in_schema=False)
+def revoke_subscription_device(
+    token: str,
+    device_id: int,
+    db: Session = Depends(get_db),
+):
+    dbuser, is_revoked, _ = resolve_subscription_context(token, db)
+    if not dbuser:
+        return Response(status_code=404)
+
+    is_expired = bool(
+        dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp())
+    )
+    if is_revoked or is_expired:
+        raise HTTPException(status_code=403, detail="Subscription is not active")
+
+    dbdevice = crud.get_user_device(db, dbuser, device_id)
+    if not dbdevice or dbdevice.status != "active":
+        raise HTTPException(status_code=404, detail="Active device not found")
+
+    crud.revoke_user_device(db, dbdevice)
+    return RedirectResponse(url=f"/{XRAY_SUBSCRIPTION_PATH}/{token}", status_code=303)
 
 
 @router.get("/{token}/info", response_model=SubscriptionUserResponse)
