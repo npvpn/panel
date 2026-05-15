@@ -189,23 +189,17 @@ def user_subscription(
                     {"bot_url": BOT_URL}
                 )
             )
-        if html_device_limited:
-            devices = crud.get_user_active_devices(db, dbuser)
-            return HTMLResponse(
-                render_template(
-                    "sub/device_limit.html",
-                    {
-                        "bot_url": BOT_URL,
-                        "devices": devices,
-                        "token": token,
-                        "sub_path": XRAY_SUBSCRIPTION_PATH,
-                    }
-                )
-            )
+        devices = crud.get_user_active_devices(db, dbuser)
         return HTMLResponse(
             render_template(
                 SUBSCRIPTION_PAGE_TEMPLATE,
-                {"user": user}
+                {
+                    "user": user,
+                    "devices": devices,
+                    "token": token,
+                    "sub_path": XRAY_SUBSCRIPTION_PATH,
+                    "device_limit_reached": html_device_limited,
+                }
             )
         )
 
@@ -435,6 +429,7 @@ def user_subscription(
         return Response(content=conf, media_type="text/plain", headers=response_headers)
 
 
+@router.get("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 @router.post("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 def revoke_subscription_device(
     token: str,
