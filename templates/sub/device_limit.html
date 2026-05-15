@@ -33,6 +33,50 @@
           Эта ссылка не активна для нового устройства. Удалите старое устройство или увеличьте лимит в боте:
           <a href="{{ bot_url }}" class="text-blue-400 hover:underline">{{ bot_url }}</a>
         </p>
+
+        <div style="margin-top: 18px;">
+          <h2 style="font-size: 0.95rem; margin-bottom: 10px;">Активные устройства</h2>
+
+          {% if devices %}
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              {% for device in devices %}
+                <div style="border: 1px solid #374151; border-radius: 10px; padding: 10px;">
+                  <div style="margin-bottom: 8px;">
+                    <div style="font-size: 0.9rem; font-weight: 600;">
+                      {{ device.device_model or "Неизвестная модель" }}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                      OS: {{ device.device_os or "Неизвестно" }}{% if device.ver_os %} {{ device.ver_os }}{% endif %}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                      HWID: {{ device.hwid }}
+                    </div>
+                    {% if device.last_seen %}
+                      <div style="font-size: 0.8rem; color: #9ca3af;">
+                        Последняя активность: {{ device.last_seen }}
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <form
+                    method="post"
+                    action="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
+                    onsubmit="return confirm('Удалить это устройство из активных?');"
+                  >
+                    <button
+                      type="submit"
+                      style="background: #7f1d1d; color: #fecaca; border: 1px solid #991b1b; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer;"
+                    >
+                      Удалить
+                    </button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-gray-400" style="margin-top: 6px;">Активных устройств сейчас нет.</p>
+          {% endif %}
+        </div>
       </div>
     </main>
   </body>
