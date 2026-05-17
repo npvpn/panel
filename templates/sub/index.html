@@ -349,10 +349,9 @@
                 <button @click="copyTerminalCommands($el, 'Готово!')" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">Копировать</button>
               </div>
               <pre class="bg-gray-900 text-gray-300 text-xs p-3 rounded-md whitespace-pre-wrap break-all">
-														<code id="linux-commands">wget -O Happ.AppImage https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x86.AppImage
-chmod +x Happ.AppImage
-./Happ.AppImage</code>
-													</pre>
+														<code id="linux-commands">wget https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb
+sudo apt install ./Happ.linux.x64.deb</code>
+              </pre>
             </div>
           </template>
         </div>
