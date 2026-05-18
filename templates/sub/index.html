@@ -310,6 +310,12 @@
                   <span class="text-gray-400">Осталось дней:</span>
                   <span class="font-medium" x-text="remainingDays"></span>
                 </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Устройства:</span>
+                  <span class="font-medium">
+                    {{ devices|length }}/{% if user.device_limit %}{{ user.device_limit }}{% else %}∞{% endif %}
+                  </span>
+                </div>
               </div>
             </div>
             <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
@@ -476,6 +482,9 @@ chmod +x Happ.AppImage
         </div>
         <div class="bg-gray-800 p-4 rounded-lg">
           <h2 class="text-lg font-bold mb-3">Подключенные устройства:</h2>
+          <p class="text-sm text-gray-300 mb-3">
+            {{ devices|length }}/{% if user.device_limit %}{{ user.device_limit }}{% else %}∞{% endif %}
+          </p>
           {% if devices %}
             <div style="display: flex; flex-direction: column; gap: 10px;">
               {% for device in devices %}
