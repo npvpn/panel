@@ -208,18 +208,18 @@ def user_subscription(
 
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
+        
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
-        announce_text = bot_settings["sub_revoked_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
     elif is_expired and str(bot_settings["sub_expired_announce_text"]).strip():
-        announce_text = bot_settings["sub_expired_announce_text"]
+        announce_text = get_user_note(user,bot_settings["sub_expired_announce_text"])
     elif device_limited and str(bot_settings["sub_device_limit_announce_text"]).strip():
-        announce_text = bot_settings["sub_device_limit_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
-        announce_text = bot_settings["sub_unsupported_client_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
-   
     response_headers = {
         "content-disposition": build_content_disposition(user.username),
         "profile-web-page-url": bot_settings["sub_profile_url"] or str(request.url),
@@ -363,16 +363,16 @@ def user_subscription_with_client_type(
     unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
     if is_revoked or is_expired or device_limited or unsupported_blocks:
         user = get_empty_subscription_user(user)
-
+    
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
-        announce_text = bot_settings["sub_revoked_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
     elif is_expired and str(bot_settings["sub_expired_announce_text"]).strip():
-        announce_text = bot_settings["sub_expired_announce_text"]
+        announce_text = get_user_note(user,bot_settings["sub_expired_announce_text"])
     elif device_limited and str(bot_settings["sub_device_limit_announce_text"]).strip():
-        announce_text = bot_settings["sub_device_limit_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
-        announce_text = bot_settings["sub_unsupported_client_announce_text"]
+        announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
     response_headers = {
