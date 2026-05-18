@@ -563,6 +563,18 @@ def get_user_devices(db: Session, dbuser: User) -> List[UserDevice]:
     return db.query(UserDevice).filter(UserDevice.user_id == dbuser.id).order_by(UserDevice.last_seen.desc()).all()
 
 
+def get_user_active_devices(db: Session, dbuser: User) -> List[UserDevice]:
+    return (
+        db.query(UserDevice)
+        .filter(
+            UserDevice.user_id == dbuser.id,
+            UserDevice.status == "active",
+        )
+        .order_by(UserDevice.last_seen.desc())
+        .all()
+    )
+
+
 def get_user_device(db: Session, dbuser: User, device_id: int) -> Optional[UserDevice]:
     return db.query(UserDevice).filter(UserDevice.user_id == dbuser.id, UserDevice.id == device_id).first()
 
@@ -628,6 +640,14 @@ def update_user_device(db: Session, dbdevice: UserDevice, device: UserDeviceUpda
 def delete_user_device(db: Session, dbdevice: UserDevice) -> None:
     db.delete(dbdevice)
     db.commit()
+
+
+def revoke_user_device(db: Session, dbdevice: UserDevice) -> UserDevice:
+    dbdevice.status = "revoked"
+    dbdevice.last_seen = datetime.utcnow()
+    db.commit()
+    db.refresh(dbdevice)
+    return dbdevice
 
 
 def register_user_device(
