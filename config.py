@@ -196,6 +196,10 @@ JOB_SEND_NOTIFICATIONS_INTERVAL = config("JOB_SEND_NOTIFICATIONS_INTERVAL", cast
 JOB_CLEANUP_NODE_USER_USAGE_INTERVAL = config("JOB_CLEANUP_NODE_USER_USAGE_INTERVAL", cast=int, default=3600)
 NODE_USER_USAGE_CLEANUP_BATCH_SIZE = config("NODE_USER_USAGE_CLEANUP_BATCH_SIZE", cast=int, default=50000)
 
+# review job: пороги для диагностического лога [review][on_hold][slow] (секунды)
+SLOW_USER_TOTAL_THRESHOLD = config("SLOW_USER_TOTAL_THRESHOLD", cast=float, default=1.0)
+SLOW_STEP_THRESHOLD = config("SLOW_STEP_THRESHOLD", cast=float, default=0.5)
+
 # Node connection reliability guards
 XRAY_NODE_CONNECT_STALE_TIMEOUT = config("XRAY_NODE_CONNECT_STALE_TIMEOUT", cast=int, default=120)
 XRAY_NODE_CERT_FETCH_TIMEOUT = config("XRAY_NODE_CERT_FETCH_TIMEOUT", cast=int, default=20)
