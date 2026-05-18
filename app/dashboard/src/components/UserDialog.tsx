@@ -61,6 +61,7 @@ import {
   UserDevice,
   UserDevicesResponse,
 } from "types/User";
+import { Bot } from "types/Bot";
 import { relativeExpiryDate } from "utils/dateFormatter";
 import { z } from "zod";
 import { DeleteIcon } from "./DeleteUserModal";
@@ -109,10 +110,7 @@ export type FormType = Pick<UserCreate, keyof UserCreate> & {
 const formatUser = (user: User): FormType => {
   return {
     ...user,
-    sub_support_url: user.sub_support_url ?? "",
-    sub_profile_title: user.sub_profile_title ?? "",
-    sub_routing_happ: user.sub_routing_happ ?? "",
-    sub_routing_v2raytun: user.sub_routing_v2raytun ?? "",
+    bot_username: user.bot_username ?? "",
     data_limit: user.data_limit
       ? Number((user.data_limit / 1073741824).toFixed(5))
       : user.data_limit,
@@ -139,10 +137,7 @@ const getDefaultValues = (): FormType => {
     status: "active",
     on_hold_expire_duration: null,
     note: "",
-    sub_support_url: "",
-    sub_profile_title: "",
-    sub_routing_happ: "",
-    sub_routing_v2raytun: "",
+    bot_username: "",
     inbounds,
     proxies: {
       vless: { id: "", flow: "" },
@@ -176,10 +171,7 @@ const baseSchema = {
     message: "userDialog.selectOneProtocol",
   }),
   note: z.string().nullable(),
-  sub_support_url: z.string().max(1024).nullable(),
-  sub_profile_title: z.string().max(256).nullable(),
-  sub_routing_happ: z.string().max(4096).nullable(),
-  sub_routing_v2raytun: z.string().max(4096).nullable(),
+  bot_username: z.string().nullable(),
   proxies: z
     .record(z.string(), z.record(z.string(), z.any()))
     .transform((ins) => {
@@ -273,6 +265,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const [deletingDeviceId, setDeletingDeviceId] = useState<number | null>(null);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [devices, setDevices] = useState<UserDevice[]>([]);
+  const [bots, setBots] = useState<Bot[]>([]);
   const toast = useToast();
   const { t, i18n } = useTranslation();
 
@@ -282,6 +275,12 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const handleUsageToggle = () => {
     setUsageVisible((current) => !current);
   };
+
+  useEffect(() => {
+    fetch<Bot[]>("/bots")
+      .then(setBots)
+      .catch(() => setBots([]));
+  }, []);
 
   const form = useForm<FormType>({
     defaultValues: getDefaultValues(),
@@ -827,61 +826,20 @@ export const UserDialog: FC<UserDialogProps> = () => {
 
                       <FormControl
                         mb={"10px"}
-                        isInvalid={!!form.formState.errors.sub_support_url}
+                        isInvalid={!!form.formState.errors.bot_username}
                       >
-                        <FormLabel>{t("userDialog.subSupportUrl")}</FormLabel>
-                        <Input
-                          {...form.register("sub_support_url")}
-                          type="url"
-                          placeholder="https://"
-                        />
-                        <FormHelperText>
-                          {t("userDialog.subSupportUrlHint")}
-                        </FormHelperText>
+                        <FormLabel>{t("userDialog.botUsername")}</FormLabel>
+                        <Select {...form.register("bot_username")}>
+                          <option value="">{t("userDialog.noBot")}</option>
+                          {bots.map((bot) => (
+                            <option key={bot.id} value={bot.username}>
+                              @{bot.username}
+                            </option>
+                          ))}
+                        </Select>
+                        <FormHelperText>{t("userDialog.botUsernameHint")}</FormHelperText>
                         <FormErrorMessage>
-                          {form.formState.errors?.sub_support_url?.message as string}
-                        </FormErrorMessage>
-                      </FormControl>
-
-                      <FormControl
-                        mb={"10px"}
-                        isInvalid={!!form.formState.errors.sub_profile_title}
-                      >
-                        <FormLabel>{t("userDialog.subProfileTitle")}</FormLabel>
-                        <Input {...form.register("sub_profile_title")} />
-                        <FormHelperText>
-                          {t("userDialog.subProfileTitleHint")}
-                        </FormHelperText>
-                        <FormErrorMessage>
-                          {form.formState.errors?.sub_profile_title?.message as string}
-                        </FormErrorMessage>
-                      </FormControl>
-
-                      <FormControl
-                        mb={"10px"}
-                        isInvalid={!!form.formState.errors.sub_routing_happ}
-                      >
-                        <FormLabel>{t("userDialog.subRoutingHapp")}</FormLabel>
-                        <Input {...form.register("sub_routing_happ")} />
-                        <FormHelperText>
-                          {t("userDialog.subRoutingHappHint")}
-                        </FormHelperText>
-                        <FormErrorMessage>
-                          {form.formState.errors?.sub_routing_happ?.message as string}
-                        </FormErrorMessage>
-                      </FormControl>
-
-                      <FormControl
-                        mb={"10px"}
-                        isInvalid={!!form.formState.errors.sub_routing_v2raytun}
-                      >
-                        <FormLabel>{t("userDialog.subRoutingV2raytun")}</FormLabel>
-                        <Input {...form.register("sub_routing_v2raytun")} />
-                        <FormHelperText>
-                          {t("userDialog.subRoutingV2raytunHint")}
-                        </FormHelperText>
-                        <FormErrorMessage>
-                          {form.formState.errors?.sub_routing_v2raytun?.message as string}
+                          {form.formState.errors?.bot_username?.message as string}
                         </FormErrorMessage>
                       </FormControl>
                     </Flex>

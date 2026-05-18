@@ -50,10 +50,7 @@ export type User = {
   subscription_url: string;
   inbounds: UserInbounds;
   note: string;
-  sub_support_url?: string | null;
-  sub_profile_title?: string | null;
-  sub_routing_happ?: string | null;
-  sub_routing_v2raytun?: string | null;
+  bot_username?: string | null;
   online_at: string;
 };
 
@@ -69,10 +66,7 @@ export type UserCreate = Pick<
   | "username"
   | "status"
   | "note"
-  | "sub_support_url"
-  | "sub_profile_title"
-  | "sub_routing_happ"
-  | "sub_routing_v2raytun"
+  | "bot_username"
 >;
 
 export type UserApi = {

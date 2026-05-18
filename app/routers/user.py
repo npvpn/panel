@@ -192,6 +192,9 @@ def add_user(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
+    except ValueError as err:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(err))
 
     bg.add_task(xray.operations.add_user, dbuser=dbuser)
     user = UserResponse.model_validate(dbuser)
@@ -337,7 +340,11 @@ def modify_user(
 
     old_status = dbuser.status
     _t0 = time.monotonic()
-    dbuser = crud.update_user(db, dbuser, modified_user)
+    try:
+        dbuser = crud.update_user(db, dbuser, modified_user)
+    except ValueError as err:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(err))
     _dur_ms = int((time.monotonic() - _t0) * 1000)
     if _dur_ms >= 500:
         logger.warning(
@@ -452,6 +459,7 @@ def get_users(
     username: List[str] = Query(None),
     search: Union[str, None] = None,
     owner: Union[List[str], None] = Query(None, alias="admin"),
+    bot_username: Union[str, None] = None,
     status: UserStatus = None,
     sort: str = None,
     db: Session = Depends(get_db),
@@ -474,6 +482,7 @@ def get_users(
         offset=offset,
         limit=limit,
         search=search,
+        bot_username=bot_username,
         usernames=username,
         status=status,
         sort=sort,

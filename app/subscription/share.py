@@ -4,7 +4,7 @@ import secrets
 from collections import defaultdict
 from datetime import datetime as dt
 from datetime import timedelta
-from typing import TYPE_CHECKING, List, Literal, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Union
 
 from jdatetime import date as jd
 
@@ -106,26 +106,24 @@ def generate_subscription(
         expired: bool = False,
         device_limited: bool = False,
         unsupported_client: bool = False,
+        settings: Optional[dict] = None,
 ) -> str:
-    from config import (
-        SUB_REVOKED_SERVER_TEXT,
-        SUB_EXPIRED_SERVER_TEXT,
-        SUB_DEVICE_LIMIT_SERVER_TEXT,
-        SUB_UNSUPPORTED_CLIENT_SERVER_TEXT,
-    )
+    from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
+
+    resolved_settings = apply_bot_settings_fallback(settings or DEFAULT_BOT_SETTINGS)
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
     if config_format == "v2ray" and (revoked or expired or device_limited or unsupported_client):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
-            text_list = SUB_REVOKED_SERVER_TEXT
+            text_list = resolved_settings["sub_revoked_server_text"]
         elif expired:
-            text_list = SUB_EXPIRED_SERVER_TEXT
+            text_list = resolved_settings["sub_expired_server_text"]
         elif unsupported_client:
-            text_list = SUB_UNSUPPORTED_CLIENT_SERVER_TEXT
+            text_list = resolved_settings["sub_unsupported_client_server_text"]
         else:
-            text_list = SUB_DEVICE_LIMIT_SERVER_TEXT
+            text_list = resolved_settings["sub_device_limit_server_text"]
 
         if not text_list:
             return base64.b64encode("".encode()).decode()
