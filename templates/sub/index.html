@@ -498,6 +498,9 @@ sudo apt install ./Happ.linux.x64.deb</code>
                     <div style="font-size: 0.8rem; color: #9ca3af;">
                       HWID: {{ device.hwid }}
                     </div>
+                    <div style="font-size: 0.8rem; color: #9ca3af; word-break: break-all;">
+                      User-Agent: {{ device.user_agent }}
+                    </div>
                     {% if device.last_seen %}
                       <div style="font-size: 0.8rem; color: #9ca3af;">
                         Последняя активность: {{ device.last_seen }}
