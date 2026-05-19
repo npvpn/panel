@@ -105,6 +105,9 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
 
 
 def add_user(dbuser: "DBUser"):
+    if dbuser is None:
+        logger.warning("[xray.add_user] called with dbuser=None; skipping")
+        return
     user = UserResponse.model_validate(dbuser)
     email = f"{dbuser.id}.{dbuser.username}"
 
@@ -152,6 +155,9 @@ def add_user(dbuser: "DBUser"):
 
 
 def remove_user(dbuser: "DBUser"):
+    if dbuser is None:
+        logger.warning("[xray.remove_user] called with dbuser=None; skipping")
+        return
     email = f"{dbuser.id}.{dbuser.username}"
     user = UserResponse.model_validate(dbuser)
 
@@ -192,6 +198,9 @@ def remove_user(dbuser: "DBUser"):
 
 
 def update_user(dbuser: "DBUser"):
+    if dbuser is None:
+        logger.warning("[xray.update_user] called with dbuser=None; skipping")
+        return
     user = UserResponse.model_validate(dbuser)
     email = f"{dbuser.id}.{dbuser.username}"
 

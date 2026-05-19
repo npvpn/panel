@@ -38,7 +38,9 @@ def safe_execute(db: Session, stmt, params=None):
                 db.commit()
                 done = True
             except OperationalError as err:
-                if err.args[0] == 1213 and tries < 3:  # Deadlock
+                # 1213 — deadlock, 1205 — lock wait timeout. Оба транзиентны,
+                # ретраим, иначе джоб падает и статистика тика теряется.
+                if err.args[0] in (1213, 1205) and tries < 3:
                     db.rollback()
                     tries += 1
                     continue
@@ -142,7 +144,15 @@ def record_user_usages():
 
     executor = get_xray_executor()
     futures = {node_id: executor.submit(get_users_stats, api) for node_id, api in api_instances.items()}
-    api_params = {node_id: future.result() for node_id, future in futures.items()}
+    # Сбой одной ноды не должен ронять весь джоб и терять статистику остальных.
+    api_params = {}
+    for node_id, future in futures.items():
+        try:
+            api_params[node_id] = future.result()
+        except Exception as e:
+            logger.warning(f"[record_user_usages] failed to collect stats for node {node_id}: "
+                           f"{type(e).__name__}: {e}")
+            api_params[node_id] = []
 
     users_usage = defaultdict(int)
     for node_id, params in api_params.items():
@@ -153,43 +163,59 @@ def record_user_usages():
     if not users_usage:
         return
 
-    with GetDB() as db:
-        user_ids = [int(u["uid"]) for u in users_usage]
-        user_admin_map = dict(
-            db.query(User.id, User.admin_id)
-            .filter(User.id.in_(user_ids))
-            .all()
-        )
-
     admin_usage = defaultdict(int)
-    for user_usage in users_usage:
-        admin_id = user_admin_map.get(int(user_usage["uid"]))
-        if admin_id:
-            admin_usage[admin_id] += user_usage["value"]
+    try:
+        with GetDB() as db:
+            user_ids = [int(u["uid"]) for u in users_usage]
+            user_admin_map = dict(
+                db.query(User.id, User.admin_id)
+                .filter(User.id.in_(user_ids))
+                .all()
+            )
+        for user_usage in users_usage:
+            admin_id = user_admin_map.get(int(user_usage["uid"]))
+            if admin_id:
+                admin_usage[admin_id] += user_usage["value"]
+    except Exception as e:
+        # Не можем посчитать admin-агрегат — это не повод терять учёт трафика
+        # самих юзеров, просто пропускаем admin-обновление этого тика.
+        logger.warning(f"[record_user_usages] failed to build admin usage map: "
+                        f"{type(e).__name__}: {e}")
+        admin_usage = defaultdict(int)
 
     # record users usage
-    with GetDB() as db:
-        stmt = update(User). \
-            where(User.id == bindparam('uid')). \
-            values(
-                used_traffic=User.used_traffic + bindparam('value'),
-                online_at=datetime.utcnow()
-        )
+    try:
+        with GetDB() as db:
+            stmt = update(User). \
+                where(User.id == bindparam('uid')). \
+                values(
+                    used_traffic=User.used_traffic + bindparam('value'),
+                    online_at=datetime.utcnow()
+            )
 
-        safe_execute(db, stmt, users_usage)
+            safe_execute(db, stmt, users_usage)
 
-        admin_data = [{"admin_id": admin_id, "value": value} for admin_id, value in admin_usage.items()]
-        if admin_data:
-            admin_update_stmt = update(Admin). \
-                where(Admin.id == bindparam('admin_id')). \
-                values(users_usage=Admin.users_usage + bindparam('value'))
-            safe_execute(db, admin_update_stmt, admin_data)
+            admin_data = [{"admin_id": admin_id, "value": value} for admin_id, value in admin_usage.items()]
+            if admin_data:
+                admin_update_stmt = update(Admin). \
+                    where(Admin.id == bindparam('admin_id')). \
+                    values(users_usage=Admin.users_usage + bindparam('value'))
+                safe_execute(db, admin_update_stmt, admin_data)
+    except Exception as e:
+        # Счётчики xray уже сброшены (reset=True), трафик этого тика потерян
+        # безвозвратно — но джоб не должен умирать и пропускать следующие тики.
+        logger.error(f"[record_user_usages] failed to write user/admin usage: "
+                      f"{type(e).__name__}: {e}")
 
     if DISABLE_RECORDING_NODE_USER_USAGE:
         return
 
     for node_id, params in api_params.items():
-        record_user_stats(params, node_id, usage_coefficient[node_id])
+        try:
+            record_user_stats(params, node_id, usage_coefficient[node_id])
+        except Exception as e:
+            logger.warning(f"[record_user_usages] failed to record node_user_usage for "
+                           f"node {node_id}: {type(e).__name__}: {e}")
 
 
 def record_node_usages():

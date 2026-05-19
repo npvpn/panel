@@ -6,6 +6,7 @@ import traceback
 from uuid import uuid4
 from pathlib import Path
 
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -259,6 +260,29 @@ def _setup_file_logging() -> None:
         max_bytes // (1024 * 1024),
         backup_count,
     )
+
+
+def _scheduler_job_listener(event) -> None:
+    """
+    APScheduler логирует необработанные исключения джоб через свой логгер
+    ('apscheduler.executors.default'), к которому НЕ прицеплен RotatingFileHandler
+    (он висит только на uvicorn.error/uvicorn.access). Из-за этого трейсбэки
+    падающих джоб были видны только в `docker logs`, но не в marzban.log.
+    Прокидываем их в наш logger (uvicorn.error) с полным трейсбэком.
+    """
+    if event.code == EVENT_JOB_MISSED:
+        logger.warning("[scheduler] job %s missed its run time %s",
+                        event.job_id, getattr(event, "scheduled_run_time", "?"))
+        return
+    logger.error(
+        "[scheduler] job %s raised %s",
+        event.job_id,
+        type(event.exception).__name__ if event.exception else "?",
+        exc_info=event.exception,
+    )
+
+
+scheduler.add_listener(_scheduler_job_listener, EVENT_JOB_ERROR | EVENT_JOB_MISSED)
 
 
 @app.on_event("startup")

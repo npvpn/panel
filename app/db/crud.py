@@ -867,7 +867,10 @@ def reset_user_by_next(db: Session, dbuser: User, commit: bool = True) -> User:
     """
 
     if (dbuser.next_plan is None):
-        return
+        # Контракт функции -> User: возвращаем самого пользователя без изменений,
+        # а не None. Иначе вызывающий код (review job) пропускает None в xray
+        # операции и report.* и роняет весь джоб.
+        return dbuser
 
     usage_log = UserUsageResetLogs(
         user=dbuser,

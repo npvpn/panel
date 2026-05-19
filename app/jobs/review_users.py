@@ -14,7 +14,8 @@ from app.utils.concurrency import get_xray_executor
 from app.utils.helpers import (calculate_expiration_days,
                                calculate_usage_percent)
 from config import (JOB_REVIEW_USERS_INTERVAL, NOTIFY_DAYS_LEFT,
-                    NOTIFY_REACHED_USAGE_PERCENT, WEBHOOK_ADDRESS)
+                    NOTIFY_REACHED_USAGE_PERCENT, SLOW_STEP_THRESHOLD,
+                    SLOW_USER_TOTAL_THRESHOLD, WEBHOOK_ADDRESS)
 
 if TYPE_CHECKING:
     from app.db.models import User
@@ -47,7 +48,18 @@ def add_notification_reminders(db: Session, user: "User", now: datetime = dateti
 
 
 def reset_user_by_next_report(db: Session, user: "User"):
-    user = reset_user_by_next(db, user, commit=False)
+    reset_user = reset_user_by_next(db, user, commit=False)
+
+    # Защита от регрессии контракта reset_user_by_next: если оттуда вернулся
+    # None, нечего апдейтить и репортить. Раньше None утекал в xray и report.*
+    # и ронял весь review job.
+    if reset_user is None:
+        logger.warning(
+            f"reset_user_by_next returned None for user "
+            f"\"{getattr(user, 'username', '?')}\"; skipping xray update and report"
+        )
+        return
+    user = reset_user
 
     # Даже если нода недоступна — не срываем джоб, просто логируем и продолжаем
     _t0 = time.time()
