@@ -126,7 +126,7 @@ def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
         )
 
 
-def get_routing_header(user_agent: str, dbuser: User) -> dict:
+def get_routing_header(user_agent: str, settings: dict) -> dict:
     """Build optional routing header for Happ/v2raytun clients."""
     routing_value = ""
     if re.search(r"v2raytun", user_agent or "", re.IGNORECASE):
@@ -157,7 +157,6 @@ def user_subscription(
     crud.ensure_subscription_token(db, dbuser)
     is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp()))
     user: UserResponse = UserResponse.model_validate(dbuser)
-    bot_settings = resolve_bot_settings(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
     html_device_limited = False
