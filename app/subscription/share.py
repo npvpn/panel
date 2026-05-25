@@ -265,6 +265,7 @@ def setup_format_variables(extra_data: dict) -> dict:
             "TIME_LEFT": time_left,
             "STATUS_EMOJI": status_emoji,
             "STATUS_TEXT": status_text,
+            "BOT_USERNAME": extra_data.get("bot_username"),
         },
     )
 
@@ -293,7 +294,7 @@ def process_inbounds_and_tags(
         xray.config.inbounds_by_tag.keys())}
     inbounds = sorted(
         _inbounds, key=lambda x: index_dict.get(x[1][0], float('inf')))
-    user_bot_username = extra_data.get("bot_username")
+    user_bot_username = format_variables.get("BOT_USERNAME")
 
     for protocol, tags in inbounds:
         settings = proxies.get(protocol)
