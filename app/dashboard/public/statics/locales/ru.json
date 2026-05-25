@@ -37,6 +37,8 @@
   "hostsDialog.addHost": "Добавить хост",
   "hostsDialog.advancedOptions": "Дополнительные опции",
   "hostsDialog.allowinsecure": "Allow Insecure",
+  "hostsDialog.availableBots": "Доступен ботам",
+  "hostsDialog.availableBots.info": "Если не выбран ни один бот, хост будет доступен всем пользователям.",
   "hostsDialog.useSniAsHost": "Use sni as host",
   "hostsDialog.alpn": "ALPN",
   "hostsDialog.apply": "Применить",

@@ -95,8 +95,11 @@ def modify_hosts(
                 status_code=400, detail=f"Inbound {inbound_tag} doesn't exist"
             )
 
-    for inbound_tag, hosts in modified_hosts.items():
-        crud.update_hosts(db, inbound_tag, hosts)
+    try:
+        for inbound_tag, hosts in modified_hosts.items():
+            crud.update_hosts(db, inbound_tag, hosts)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
     xray.hosts.update()
 

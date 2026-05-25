@@ -32,6 +32,14 @@ from app.models.proxy import (
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 
 
+host_bot_association = Table(
+    "host_bot_association",
+    Base.metadata,
+    Column("host_id", ForeignKey("hosts.id", ondelete="CASCADE"), primary_key=True),
+    Column("bot_id", ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -69,6 +77,7 @@ class Bot(Base):
 
     users = relationship("User", back_populates="bot")
     settings = relationship("BotSettings", uselist=False, back_populates="bot", cascade="all, delete-orphan")
+    hosts = relationship("ProxyHost", secondary=host_bot_association, back_populates="bots")
 
 
 class BotSettings(Base):
@@ -320,6 +329,11 @@ class ProxyHost(Base):
     noise_setting = Column(String(2000), nullable=True)
     random_user_agent = Column(Boolean, nullable=False, default=False, server_default='0')
     use_sni_as_host = Column(Boolean, nullable=False, default=False, server_default="0")
+    bots = relationship("Bot", secondary=host_bot_association, back_populates="hosts")
+
+    @property
+    def bot_usernames(self):
+        return [bot.username for bot in self.bots]
 
 
 class System(Base):

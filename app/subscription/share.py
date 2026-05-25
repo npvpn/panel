@@ -293,6 +293,7 @@ def process_inbounds_and_tags(
         xray.config.inbounds_by_tag.keys())}
     inbounds = sorted(
         _inbounds, key=lambda x: index_dict.get(x[1][0], float('inf')))
+    user_bot_username = extra_data.get("bot_username")
 
     for protocol, tags in inbounds:
         settings = proxies.get(protocol)
@@ -308,6 +309,14 @@ def process_inbounds_and_tags(
             format_variables.update({"TRANSPORT": inbound["network"]})
             host_inbound = inbound.copy()
             for host in xray.hosts.get(tag, []):
+                allowed_bot_usernames = host.get("bot_usernames") or []
+                if (
+                    allowed_bot_usernames
+                    and user_bot_username
+                    and user_bot_username not in allowed_bot_usernames
+                ):
+                    continue
+
                 sni = ""
                 sni_list = host["sni"] or inbound["sni"]
                 if sni_list:
