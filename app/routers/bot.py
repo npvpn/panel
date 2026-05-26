@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app import xray
 from app.db import Session, crud, get_db
 from app.models.admin import Admin
 from app.models.bot import (
@@ -56,6 +57,7 @@ def delete_bot(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
     crud.delete_bot(db, bot)
+    xray.hosts.update()
     return {"detail": "Bot deleted"}
 
 
@@ -75,9 +77,11 @@ def update_bot(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
     try:
-        return crud.update_bot(db, bot, payload.username, payload.title)
+        updated_bot = crud.update_bot(db, bot, payload.username, payload.title)
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
+    xray.hosts.update()
+    return updated_bot
 
 
 @router.get(

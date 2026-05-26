@@ -52,7 +52,7 @@ import {
 } from "constants/Proxies";
 import { useHosts } from "contexts/HostsContext";
 import { motion } from "framer-motion";
-import { FC, useEffect, useState } from "react";
+import { ChangeEvent, FC, useEffect, useState } from "react";
 import {
   Controller,
   FormProvider,
@@ -61,8 +61,10 @@ import {
   useFormContext,
 } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
+import { fetch } from "service/http";
 import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
+import { Bot } from "types/Bot";
 import { z } from "zod";
 import { useDashboard } from "../contexts/DashboardContext";
 import { DeleteIcon } from "./DeleteUserModal";
@@ -153,6 +155,7 @@ const hostsSchema = z.record(
       alpn: z.string(),
       fingerprint: z.string(),
       use_sni_as_host: z.boolean().default(false),
+      bot_usernames: z.array(z.string()).default([]),
     })
   )
 );
@@ -169,12 +172,14 @@ const Error = chakra(FormErrorMessage, {
 type AccordionInboundType = {
   hostKey: string;
   isOpen: boolean;
+  bots: Bot[];
   toggleAccordion: () => void;
 };
 
 const AccordionInbound: FC<AccordionInboundType> = ({
   hostKey,
   isOpen,
+  bots,
   toggleAccordion,
 }) => {
   const { inbounds } = useDashboard();
@@ -214,6 +219,7 @@ const AccordionInbound: FC<AccordionInboundType> = ({
       alpn: "",
       fingerprint: "",
       use_sni_as_host: false,
+      bot_usernames: [],
     });
   };
   const duplicateHost = (index: number) => {
@@ -1174,6 +1180,130 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                 </Error>
                               )}
                           </FormControl>
+                          {bots.length > 0 && (
+                            <FormControl
+                              isInvalid={
+                                !!(
+                                  accordionErrors &&
+                                  accordionErrors[index]?.bot_usernames
+                                )
+                              }
+                            >
+                              <FormLabel>
+                                {t("hostsDialog.availableBots")}
+                              </FormLabel>
+                              <Text
+                                fontSize="xs"
+                                color="gray.600"
+                                _dark={{ color: "gray.400" }}
+                                mb={2}
+                              >
+                                {t("hostsDialog.availableBots.info")}
+                              </Text>
+                              <Controller
+                                control={form.control}
+                                name={`${hostKey}.${index}.bot_usernames`}
+                                render={({ field }) => {
+                                  const selectedBotUsernames: string[] =
+                                    field.value || [];
+                                  const selectedBots = bots.filter((bot: Bot) =>
+                                    selectedBotUsernames.includes(bot.username)
+                                  );
+
+                                  return (
+                                    <Popover placement="bottom-start">
+                                      <PopoverTrigger>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          w="full"
+                                          justifyContent="space-between"
+                                        >
+                                          <Text as="span" noOfLines={1}>
+                                            {selectedBots.length
+                                              ? t(
+                                                  "hostsDialog.availableBots.selected",
+                                                  { count: selectedBots.length }
+                                                )
+                                              : t("hostsDialog.availableBots.all")}
+                                          </Text>
+                                          <AccordionIcon />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <Portal>
+                                        <PopoverContent
+                                          w="280px"
+                                          maxH="320px"
+                                          overflowY="auto"
+                                          zIndex={1500}
+                                        >
+                                          <PopoverArrow />
+                                          <PopoverCloseButton />
+                                          <PopoverBody pt={8}>
+                                            <VStack align="start" spacing={2}>
+                                              {bots.map((bot: Bot) => (
+                                                <Checkbox
+                                                  key={bot.username}
+                                                  isChecked={selectedBotUsernames.includes(
+                                                    bot.username
+                                                  )}
+                                                  onChange={(
+                                                    event: ChangeEvent<HTMLInputElement>
+                                                  ) => {
+                                                    if (event.target.checked) {
+                                                      field.onChange([
+                                                        ...selectedBotUsernames,
+                                                        bot.username,
+                                                      ]);
+                                                    } else {
+                                                      field.onChange(
+                                                        selectedBotUsernames.filter(
+                                                          (username: string) =>
+                                                            username !==
+                                                            bot.username
+                                                        )
+                                                      );
+                                                    }
+                                                  }}
+                                                >
+                                                  <Text as="span" fontSize="sm">
+                                                    @{bot.username}
+                                                    {bot.title
+                                                      ? ` (${bot.title})`
+                                                      : ""}
+                                                  </Text>
+                                                </Checkbox>
+                                              ))}
+                                              {selectedBotUsernames.length > 0 && (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="xs"
+                                                  onClick={() => field.onChange([])}
+                                                >
+                                                  {t(
+                                                    "hostsDialog.availableBots.clear"
+                                                  )}
+                                                </Button>
+                                              )}
+                                            </VStack>
+                                          </PopoverBody>
+                                        </PopoverContent>
+                                      </Portal>
+                                    </Popover>
+                                  );
+                                }}
+                              />
+                              {accordionErrors &&
+                                accordionErrors[index]?.bot_usernames && (
+                                  <Error>
+                                    {
+                                      accordionErrors[index]?.bot_usernames
+                                        ?.message
+                                    }
+                                  </Error>
+                                )}
+                            </FormControl>
+                          )}
                         </VStack>
                       </AccordionPanel>
                     </AccordionItem>
@@ -1205,9 +1335,15 @@ export const HostsDialog: FC = () => {
   const toast = useToast();
   const { t } = useTranslation();
   const [openAccordions, setOpenAccordions] = useState<any>({});
+  const [bots, setBots] = useState<Bot[]>([]);
 
   useEffect(() => {
-    if (isEditingHosts) fetchHosts();
+    if (!isEditingHosts) return;
+
+    fetchHosts();
+    fetch<Bot[]>("/bots")
+      .then(setBots)
+      .catch(() => setBots([]));
   }, [isEditingHosts]);
   const form = useForm<z.infer<typeof hostsSchema>>({
     resolver: zodResolver(hostsSchema),
@@ -1301,6 +1437,7 @@ export const HostsDialog: FC = () => {
                             isOpen={openAccordions[String(index)]}
                             key={hostKey}
                             hostKey={hostKey}
+                            bots={bots}
                           />
                         );
                       })}

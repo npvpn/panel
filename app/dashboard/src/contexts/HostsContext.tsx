@@ -10,6 +10,7 @@ type HostsSchema = Record<
     path: string | null;
     sni: string | null;
     host: string | null;
+    bot_usernames?: string[];
   }[]
 >;
 

@@ -102,6 +102,27 @@ def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
     return inbound.hosts
 
 
+def _get_bots_by_usernames(db: Session, bot_usernames: List[str]) -> List[Bot]:
+    normalized_usernames = []
+    for username in bot_usernames or []:
+        normalized = _normalize_bot_username(username)
+        if normalized and normalized not in normalized_usernames:
+            normalized_usernames.append(normalized)
+
+    if not normalized_usernames:
+        return []
+
+    bots = db.query(Bot).filter(Bot.username.in_(normalized_usernames)).all()
+    bots_by_username = {bot.username: bot for bot in bots}
+    missing_usernames = [
+        username for username in normalized_usernames if username not in bots_by_username
+    ]
+    if missing_usernames:
+        raise ValueError(f'Bot "{missing_usernames[0]}" not found')
+
+    return [bots_by_username[username] for username in normalized_usernames]
+
+
 def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[ProxyHost]:
     """
     Adds a new host to a proxy inbound.
@@ -115,6 +136,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
         List[ProxyHost]: Updated list of hosts for the inbound.
     """
     inbound = get_or_create_inbound(db, inbound_tag)
+    bots = _get_bots_by_usernames(db, host.bot_usernames)
     inbound.hosts.append(
         ProxyHost(
             remark=host.remark,
@@ -126,7 +148,8 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
             inbound=inbound,
             security=host.security,
             alpn=host.alpn,
-            fingerprint=host.fingerprint
+            fingerprint=host.fingerprint,
+            bots=bots,
         )
     )
     db.commit()
@@ -166,6 +189,7 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
             noise_setting=host.noise_setting,
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
+            bots=_get_bots_by_usernames(db, host.bot_usernames),
         ) for host in modified_hosts
     ]
     db.commit()
