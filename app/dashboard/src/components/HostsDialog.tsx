@@ -52,7 +52,7 @@ import {
 } from "constants/Proxies";
 import { useHosts } from "contexts/HostsContext";
 import { motion } from "framer-motion";
-import { FC, useEffect, useState } from "react";
+import { ChangeEvent, FC, useEffect, useState } from "react";
 import {
   Controller,
   FormProvider,
@@ -1204,39 +1204,92 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                 control={form.control}
                                 name={`${hostKey}.${index}.bot_usernames`}
                                 render={({ field }) => {
-                                  const selectedBotUsernames = field.value || [];
+                                  const selectedBotUsernames: string[] =
+                                    field.value || [];
+                                  const selectedBots = bots.filter((bot: Bot) =>
+                                    selectedBotUsernames.includes(bot.username)
+                                  );
 
                                   return (
-                                    <VStack align="start" spacing={1}>
-                                      {bots.map((bot) => (
-                                        <Checkbox
-                                          key={bot.username}
-                                          isChecked={selectedBotUsernames.includes(
-                                            bot.username
-                                          )}
-                                          onChange={(event) => {
-                                            if (event.target.checked) {
-                                              field.onChange([
-                                                ...selectedBotUsernames,
-                                                bot.username,
-                                              ]);
-                                            } else {
-                                              field.onChange(
-                                                selectedBotUsernames.filter(
-                                                  (username: string) =>
-                                                    username !== bot.username
-                                                )
-                                              );
-                                            }
-                                          }}
+                                    <Popover placement="bottom-start">
+                                      <PopoverTrigger>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          w="full"
+                                          justifyContent="space-between"
                                         >
-                                          <Text as="span" fontSize="sm">
-                                            @{bot.username}
-                                            {bot.title ? ` (${bot.title})` : ""}
+                                          <Text as="span" noOfLines={1}>
+                                            {selectedBots.length
+                                              ? t(
+                                                  "hostsDialog.availableBots.selected",
+                                                  { count: selectedBots.length }
+                                                )
+                                              : t("hostsDialog.availableBots.all")}
                                           </Text>
-                                        </Checkbox>
-                                      ))}
-                                    </VStack>
+                                          <AccordionIcon />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <Portal>
+                                        <PopoverContent
+                                          w="280px"
+                                          maxH="320px"
+                                          overflowY="auto"
+                                          zIndex={1500}
+                                        >
+                                          <PopoverArrow />
+                                          <PopoverCloseButton />
+                                          <PopoverBody pt={8}>
+                                            <VStack align="start" spacing={2}>
+                                              {bots.map((bot: Bot) => (
+                                                <Checkbox
+                                                  key={bot.username}
+                                                  isChecked={selectedBotUsernames.includes(
+                                                    bot.username
+                                                  )}
+                                                  onChange={(
+                                                    event: ChangeEvent<HTMLInputElement>
+                                                  ) => {
+                                                    if (event.target.checked) {
+                                                      field.onChange([
+                                                        ...selectedBotUsernames,
+                                                        bot.username,
+                                                      ]);
+                                                    } else {
+                                                      field.onChange(
+                                                        selectedBotUsernames.filter(
+                                                          (username: string) =>
+                                                            username !==
+                                                            bot.username
+                                                        )
+                                                      );
+                                                    }
+                                                  }}
+                                                >
+                                                  <Text as="span" fontSize="sm">
+                                                    @{bot.username}
+                                                    {bot.title
+                                                      ? ` (${bot.title})`
+                                                      : ""}
+                                                  </Text>
+                                                </Checkbox>
+                                              ))}
+                                              {selectedBotUsernames.length > 0 && (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="xs"
+                                                  onClick={() => field.onChange([])}
+                                                >
+                                                  {t(
+                                                    "hostsDialog.availableBots.clear"
+                                                  )}
+                                                </Button>
+                                              )}
+                                            </VStack>
+                                          </PopoverBody>
+                                        </PopoverContent>
+                                      </Portal>
+                                    </Popover>
                                   );
                                 }}
                               />
