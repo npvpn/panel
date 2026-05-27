@@ -1,7 +1,7 @@
 import json
 import re
 from enum import Enum
-from typing import Optional, Union
+from typing import List, Optional, Union
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -148,6 +148,7 @@ class ProxyHost(BaseModel):
     security: ProxyHostSecurity = ProxyHostSecurity.inbound_default
     alpn: ProxyHostALPN = ProxyHostALPN.none
     fingerprint: ProxyHostFingerprint = ProxyHostFingerprint.none
+    bot_usernames: List[str] = Field(default_factory=list)
     allowinsecure: Union[bool, None] = None
     is_disabled: Union[bool, None] = None
     mux_enable: Union[bool, None] = None
