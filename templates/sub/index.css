@@ -2,7 +2,6 @@
 @import './styles/variables.css';
 @import './styles/components.css';
 
-
 * {
     box-sizing: border-box;
 }
@@ -55,9 +54,3 @@ p {
     margin: 0;
 }
 
-.center-wrapper {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}

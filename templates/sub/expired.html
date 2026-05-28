@@ -7,35 +7,38 @@
     <link rel="stylesheet" href="./index.css" />
     <link rel="icon" href="data:," />
     <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
-    <!-- <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script> -->
-    <script defer src="/statics/vendor/js/alpinejs.js"></script> 
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
     <meta http-equiv="refresh" content="60" />
     
     <script>
       const USE_MOCKS = false;
 
+      // МОКИ
       const MOCK_USER_DATA = {
         username: "444555666_7788",
         status: { value: "active" },
         used_traffic: 10737418240,  
         data_limit: 0,            
         expire: Math.floor(Date.now() / 1000) + 86400, 
-        device_limit: 5
+        device_limit: 10,     
+        devices_used: 4       
       };
 
+      // РЕАЛЬНЫЕ ДАННЫЕ
       const REAL_USER_DATA = {
         username: "{{ user.username }}",
         status: { value: "{{ user.status.value }}" },
         used_traffic: "{{ user.used_traffic or 0 }}",
         data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
         expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}",
-        device_limit: "{{ user.device_limit or 0 }}"
+        device_limit: "{{ user.device_limit or 0 }}",
+        devices_used: "{{ user.devices_used or 0 }}"
       };
 
       const userData = USE_MOCKS ? MOCK_USER_DATA : REAL_USER_DATA;
 
       function redirectToDashboard() {
-        window.location.href = '/dashboard'; // непонятно куда редиректить будем
+        window.location.href = '/dashboard';
       }
 
       function bytesFormat(bytes, decimals = 2) {
@@ -80,10 +83,11 @@
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
             return remaining >= 0 ? remaining : 0;
           },
-          get deviceLimitText() {
+          get deviceUsageText() {
+            const used = this.user.devices_used || 0;
             const limit = this.user.device_limit;
-            if (!limit || limit == 0) return '∞';
-            return limit;
+            if (!limit || limit == 0) return `${used} / ∞`;
+            return `${used} / ${limit}`;
           }
         }));
       });
@@ -91,55 +95,62 @@
   </head>
 
   <body>
-    <div x-data="subscriptionManager" x-cloak class="center-wrapper">
+    <div x-data="subscriptionManager" x-cloak class="page-wrapper">
       <main class="main-container">
         <div class="card">
-          
-          <!-- HEADER -->
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
-            <h2 class="page-title">Подписка истекла</h2>
-            <p class="page-subtitle">Войдите в личный кабинет для управления подпиской</p>
+          <div class="card-content">
+            <!-- HEADER -->
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+              <h2 class="page-title">Подписка истекла</h2>
+              <p class="page-subtitle">Войдите в личный кабинет для управления подпиской</p>
+            </div>
+
+            <!-- INFO CARD -->
+            <div class="info-card">
+              <div class="info-row">
+                <span class="info-label">ID</span>
+                <span class="info-value text-black" x-text="user.username"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Статус</span>
+                <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Трафик</span>
+                <span class="info-value text-black" x-text="trafficText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Действует до</span>
+                <span class="info-value text-black" x-text="expirationText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Осталось</span>
+                <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Кол-во устройств</span>
+                <span class="info-value text-black" x-text="deviceUsageText"></span>
+              </div>
+            </div>
+
+            <button class="btn-primary" onclick="redirectToDashboard()">
+              Войти в личный кабинет
+            </button>
           </div>
-
-          <!-- INFO CARD -->
-          <div class="info-card">
-            <div class="info-row">
-              <span class="info-label">ID</span>
-              <span class="info-value text-black" x-text="user.username"></span>
-            </div>
-
-            <div class="info-row">
-              <span class="info-label">Статус</span>
-              <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
-            </div>
-
-            <div class="info-row">
-              <span class="info-label">Трафик</span>
-              <span class="info-value text-black" x-text="trafficText"></span>
-            </div>
-
-            <div class="info-row">
-              <span class="info-label">Действует до</span>
-              <span class="info-value text-black" x-text="expirationText"></span>
-            </div>
-
-            <div class="info-row">
-              <span class="info-label">Осталось</span>
-              <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
-            </div>
-
-            <div class="info-row">
-              <span class="info-label">Кол-во устройств</span>
-              <span class="info-value text-black" x-text="deviceLimitText"></span>
-            </div>
-          </div>
-
-          <button class="btn-primary" style="width: 214px;" onclick="redirectToDashboard()">
-            Войти в личный кабинет
-          </button>
-
         </div>
       </main>
+
+      <footer class="footer">
+        Сайт работает на платформе 
+        <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
+          npvpn
+        </a>
+      </footer>
     </div>
   </body>
 </html>
