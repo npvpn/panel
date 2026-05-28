@@ -13,6 +13,7 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
+  Switch,
   Textarea,
   useToast,
   VStack,
@@ -43,6 +44,7 @@ const emptySettings: BotSettings = {
   sub_revoked_announce_text: "",
   sub_expired_announce_text: "",
   sub_device_limit_announce_text: "",
+  sub_device_limit_hard_mode: false,
   sub_unsupported_client_announce_text: "",
   sub_revoked_server_text: [],
   sub_expired_server_text: [],
@@ -135,6 +137,7 @@ export const BotSettingsDialog: FC = () => {
         current.sub_expired_announce_text.trim() || defaultSettings.sub_expired_announce_text,
       sub_device_limit_announce_text:
         current.sub_device_limit_announce_text.trim() || defaultSettings.sub_device_limit_announce_text,
+      sub_device_limit_hard_mode: current.sub_device_limit_hard_mode,
       sub_unsupported_client_announce_text:
         current.sub_unsupported_client_announce_text.trim() ||
         defaultSettings.sub_unsupported_client_announce_text,
@@ -443,6 +446,21 @@ export const BotSettingsDialog: FC = () => {
                 />
               </FormControl>
             </HStack>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.subDeviceLimitHardMode")}</FormLabel>
+              <Switch
+                colorScheme="primary"
+                isChecked={settings.sub_device_limit_hard_mode}
+                onChange={(event) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    sub_device_limit_hard_mode: event.target.checked,
+                  }))
+                }
+              />
+              <FormHelperText>{t("botSettings.subDeviceLimitHardModeHint")}</FormHelperText>
+            </FormControl>
 
             <HStack>
               <FormControl>

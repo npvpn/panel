@@ -16,6 +16,7 @@ export type BotSettings = {
   sub_revoked_announce_text: string;
   sub_expired_announce_text: string;
   sub_device_limit_announce_text: string;
+  sub_device_limit_hard_mode: boolean;
   sub_unsupported_client_announce_text: string;
   sub_revoked_server_text: string[];
   sub_expired_server_text: string[];

@@ -6,6 +6,7 @@ from config import (
     BOT_URL,
     SUB_CLIENT_NOTE,
     SUB_DEVICE_LIMIT_ANNOUNCE_TEXT,
+    SUB_DEVICE_LIMIT_HARD_MODE,
     SUB_DEVICE_LIMIT_SERVER_TEXT,
     SUB_EXPIRED_ANNOUNCE_TEXT,
     SUB_EXPIRED_SERVER_TEXT,
@@ -44,6 +45,7 @@ DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
     "sub_revoked_announce_text": SUB_REVOKED_ANNOUNCE_TEXT,
     "sub_expired_announce_text": SUB_EXPIRED_ANNOUNCE_TEXT,
     "sub_device_limit_announce_text": SUB_DEVICE_LIMIT_ANNOUNCE_TEXT,
+    "sub_device_limit_hard_mode": SUB_DEVICE_LIMIT_HARD_MODE,
     "sub_unsupported_client_announce_text": SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT,
     "sub_revoked_server_text": _normalize_server_text(SUB_REVOKED_SERVER_TEXT),
     "sub_expired_server_text": _normalize_server_text(SUB_EXPIRED_SERVER_TEXT),
@@ -93,6 +95,7 @@ class BotSettingsPayload(BaseModel):
     sub_revoked_announce_text: str = ""
     sub_expired_announce_text: str = ""
     sub_device_limit_announce_text: str = ""
+    sub_device_limit_hard_mode: bool = False
     sub_unsupported_client_announce_text: str = ""
     sub_revoked_server_text: List[str] = []
     sub_expired_server_text: List[str] = []
@@ -125,5 +128,7 @@ def apply_bot_settings_fallback(raw_settings: Optional[Dict[str, Any]]) -> Dict[
         "sub_unsupported_client_server_text",
     ):
         base[key] = _normalize_server_text(base.get(key))
+
+    base["sub_device_limit_hard_mode"] = bool(base.get("sub_device_limit_hard_mode"))
 
     return base
