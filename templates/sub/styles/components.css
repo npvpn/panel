@@ -1,0 +1,209 @@
+.text-gray-4 {
+    color: var(--gray-4);
+}
+
+.text-green {
+    color: var(--green);
+}
+
+.text-black {
+    color: var(--black);
+}
+
+.bg-main {
+    background-color: var(--bg);
+}
+
+.bg-surface {
+    background-color: var(--surface);
+}
+
+.bg-surface-2 {
+    background-color: var(--surface-2);
+}
+
+/* RADIUS */
+.rounded-small {
+    border-radius: var(--small-border);
+}
+
+.rounded-large {
+    border-radius: var(--large-border);
+}
+
+.btn-primary {
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    border-radius: var(--small-border);
+    font-family: var(--third-family);
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 150%;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    background-color: var(--blue);
+    color: var(--white);
+    border: none;
+    cursor: pointer;
+    width: 214px;
+}
+
+.font-primary {
+    font-family: var(--font-family);
+}
+
+.font-secondary {
+    font-family: var(--second-family);
+}
+
+.font-condensed {
+    font-family: var(--third-family);
+}
+
+.tracking-normal {
+    letter-spacing: -0.04em;
+}
+
+.tracking-wide {
+    letter-spacing: -0.02em;
+}
+
+.leading-snug {
+    line-height: 113%;
+}
+
+.leading-relaxed {
+    line-height: 125%;
+}
+
+.leading-loose {
+    line-height: 150%;
+}
+
+/* SPACING */
+.mb-4 {
+    margin-bottom: 16px;
+}
+
+.p-6 {
+    padding: 24px;
+}
+
+.mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Информационная карточка */
+.info-card {
+    background-color: var(--surface-2);
+    border-radius: var(--small-border);
+    width: 100%;
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+/* Строки информации */
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Текст метки */
+.info-label {
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 143%;
+    letter-spacing: -0.04em;
+    color: var(--gray-4);
+}
+
+/* Текст значения */
+.info-value {
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 143%;
+    letter-spacing: -0.04em;
+}
+
+/* Заголовок страницы */
+.page-title {
+    font-family: var(--third-family);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 113%;
+    letter-spacing: -0.04em;
+    margin: 0;
+}
+
+/* Подзаголовок */
+.page-subtitle {
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 125%;
+    letter-spacing: -0.04em;
+    text-align: center;
+    color: var(--gray-4);
+    max-width: 260px;
+    margin: 0;
+}
+
+.page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-container {
+    flex: 1;
+    width: 100%;
+    max-width: 422px;
+    margin: 0 auto;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+}
+
+/* Карточка */
+.card {
+    background-color: var(--surface);
+    border-radius: var(--large-border);
+    padding: 24px;
+    width: 100%;
+}
+
+/* Контент карточки */
+.card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Футер */
+.footer {
+    text-align: center;
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 114%;
+    color: var(--gray-4);
+    padding: 16px;
+}
+
+.footer-link {
+    color: var(--blue);
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
