@@ -240,6 +240,8 @@
   "botSettings.subClientNote": "قالب یادداشت کلاینت",
   "botSettings.subRevokedAnnounceText": "متن اعلان لغو",
   "botSettings.subExpiredAnnounceText": "متن اعلان انقضا",
+  "botSettings.subDeviceLimitHardMode": "جایگزین سخت محدودیت دستگاه",
+  "botSettings.subDeviceLimitHardModeHint": "فعال: فقط سرورهای جایگزین. غیرفعال (پیش‌فرض): جایگزین‌ها بالای سرورهای اصلی.",
   "botSettings.subDeviceLimitAnnounceText": "متن اعلان محدودیت دستگاه",
   "botSettings.subUnsupportedClientAnnounceText": "متن اعلان کلاینت پشتیبانی‌نشده",
   "botSettings.subRevokedServerText": "متن سرور لغوشده",

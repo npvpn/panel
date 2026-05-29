@@ -105,6 +105,7 @@ def generate_subscription(
         revoked: bool = False,
         expired: bool = False,
         device_limited: bool = False,
+        device_limited_hard: bool = False,
         unsupported_client: bool = False,
         settings: Optional[dict] = None,
 ) -> str:
@@ -113,17 +114,17 @@ def generate_subscription(
     resolved_settings = apply_bot_settings_fallback(settings or DEFAULT_BOT_SETTINGS)
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or expired or device_limited or unsupported_client):
+    if config_format == "v2ray" and (revoked or expired or unsupported_client or device_limited_hard):
         from app.subscription.v2ray import V2rayShareLink
 
         if revoked:
             text_list = resolved_settings["sub_revoked_server_text"]
         elif expired:
             text_list = resolved_settings["sub_expired_server_text"]
-        elif unsupported_client:
-            text_list = resolved_settings["sub_unsupported_client_server_text"]
-        else:
+        elif device_limited_hard:
             text_list = resolved_settings["sub_device_limit_server_text"]
+        else:
+            text_list = resolved_settings["sub_unsupported_client_server_text"]
 
         if not text_list:
             return base64.b64encode("".encode()).decode()
@@ -145,6 +146,27 @@ def generate_subscription(
         payload = "\n".join(links)
         return base64.b64encode(payload.encode()).decode()
 
+    device_limit_links = []
+    if config_format == "v2ray" and device_limited and not device_limited_hard:
+        from app.subscription.v2ray import V2rayShareLink
+
+        device_limit_text = resolved_settings["sub_device_limit_server_text"]
+        if device_limit_text:
+            zero_id = "00000000-0000-0000-0000-000000000000"
+            device_limit_links = [
+                V2rayShareLink.vless(
+                    remark=remark,
+                    address="0.0.0.0",
+                    port=0,
+                    id=zero_id,
+                    net="ws",
+                    tls="none",
+                    path="",
+                    host="",
+                )
+                for remark in device_limit_text
+            ]
+
     kwargs = {
         "proxies": user.proxies,
         "inbounds": user.inbounds,
@@ -153,7 +175,10 @@ def generate_subscription(
     }
 
     if config_format == "v2ray":
-        config = "\n".join(generate_v2ray_links(**kwargs))
+        links = generate_v2ray_links(**kwargs)
+        if device_limit_links:
+            links = [*device_limit_links, *links]
+        config = "\n".join(links)
     elif config_format == "clash-meta":
         config = generate_clash_subscription(**kwargs, is_meta=True)
     elif config_format == "clash":

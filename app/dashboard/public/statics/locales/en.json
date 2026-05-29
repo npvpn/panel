@@ -246,6 +246,8 @@
   "botSettings.subClientNote": "Client note template",
   "botSettings.subRevokedAnnounceText": "Revoked announce text",
   "botSettings.subExpiredAnnounceText": "Expired announce text",
+  "botSettings.subDeviceLimitHardMode": "Hard device limit stub",
+  "botSettings.subDeviceLimitHardModeHint": "On: stub servers only. Off (default): stub servers listed above main servers.",
   "botSettings.subDeviceLimitAnnounceText": "Device limit announce text",
   "botSettings.subUnsupportedClientAnnounceText": "Unsupported client announce text",
   "botSettings.subRevokedServerText": "Revoked server text",
