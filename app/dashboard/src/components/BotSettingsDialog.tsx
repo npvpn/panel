@@ -13,6 +13,7 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
+  Switch,
   Textarea,
   useToast,
   VStack,
@@ -40,9 +41,11 @@ const emptySettings: BotSettings = {
   sub_client_note: "",
   sub_profile_url: "",
   bot_url: "",
+  web_url: "",
   sub_revoked_announce_text: "",
   sub_expired_announce_text: "",
   sub_device_limit_announce_text: "",
+  sub_device_limit_hard_mode: false,
   sub_unsupported_client_announce_text: "",
   sub_revoked_server_text: [],
   sub_expired_server_text: [],
@@ -129,12 +132,14 @@ export const BotSettingsDialog: FC = () => {
       sub_client_note: current.sub_client_note.trim() || defaultSettings.sub_client_note,
       sub_profile_url: current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
       bot_url: current.bot_url.trim() || defaultSettings.bot_url,
+      web_url: current.web_url.trim() || defaultSettings.web_url,
       sub_revoked_announce_text:
         current.sub_revoked_announce_text.trim() || defaultSettings.sub_revoked_announce_text,
       sub_expired_announce_text:
         current.sub_expired_announce_text.trim() || defaultSettings.sub_expired_announce_text,
       sub_device_limit_announce_text:
         current.sub_device_limit_announce_text.trim() || defaultSettings.sub_device_limit_announce_text,
+      sub_device_limit_hard_mode: current.sub_device_limit_hard_mode,
       sub_unsupported_client_announce_text:
         current.sub_unsupported_client_announce_text.trim() ||
         defaultSettings.sub_unsupported_client_announce_text,
@@ -380,6 +385,18 @@ export const BotSettingsDialog: FC = () => {
               </FormControl>
             </HStack>
 
+            <FormControl>
+              <FormLabel>{t("botSettings.webUrl")}</FormLabel>
+              <Input
+                value={settings.web_url}
+                onChange={(event) =>
+                  setSettings((prev) => ({ ...prev, web_url: event.target.value }))
+                }
+                placeholder="https://cabinet.example.com"
+              />
+              <FormHelperText>{t("botSettings.webUrlHint")}</FormHelperText>
+            </FormControl>
+
             <HStack>
               <FormControl>
                 <FormLabel>{t("botSettings.subRoutingHapp")}</FormLabel>
@@ -443,6 +460,21 @@ export const BotSettingsDialog: FC = () => {
                 />
               </FormControl>
             </HStack>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.subDeviceLimitHardMode")}</FormLabel>
+              <Switch
+                colorScheme="primary"
+                isChecked={settings.sub_device_limit_hard_mode}
+                onChange={(event) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    sub_device_limit_hard_mode: event.target.checked,
+                  }))
+                }
+              />
+              <FormHelperText>{t("botSettings.subDeviceLimitHardModeHint")}</FormHelperText>
+            </FormControl>
 
             <HStack>
               <FormControl>

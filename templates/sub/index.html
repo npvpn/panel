@@ -275,52 +275,6 @@
         <p class="text-gray-400 text-sm mt-1">Выберите устройство и следуйте инструкции</p>
       </header>
       <main class="space-y-4">
-        <div x-data="{ open: true }" class="bg-gray-800 rounded-lg">
-          <button @click="open = !open" class="w-full flex justify-between items-center text-left p-4">
-            <h2 class="text-lg font-bold">Информация о подписке</h2>
-            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-          <div x-show="open" x-transition class="p-4 pt-0">
-            <div class="flex items-center space-x-4">
-              <div class="flex-shrink-0">
-                <div class="radial-progress" :style="`--size: 7rem; --thickness: 0.7rem; --value: ${usagePercentage}; --color: #34d399;`">
-                  <div class="radial-progress-text text-xl font-bold" x-text="`${usagePercentage}%`"></div>
-                </div>
-              </div>
-              <div class="text-sm space-y-2 flex-1">
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">ID:</span>
-                  <span class="font-medium" x-text="user.username"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Статус:</span>
-                  <span class="font-medium px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Трафик:</span>
-                  <span class="font-medium" x-text="trafficText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Действует до:</span>
-                  <span class="font-medium" x-text="expirationText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Осталось дней:</span>
-                  <span class="font-medium" x-text="remainingDays"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-gray-400">Устройства:</span>
-                  <span class="font-medium">
-                    {{ devices|length }}/{% if user.device_limit %}{{ user.device_limit }}{% else %}∞{% endif %}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
-          </div>
-        </div>
         {% if device_limit_reached %}
           <div class="rounded-lg p-4" style="background: rgba(127, 29, 29, 0.35); border: 1px solid rgba(248, 113, 113, 0.55);">
             <h3 class="font-semibold mb-1" style="color: #fecaca;">Достигнут лимит устройств</h3>
@@ -479,10 +433,56 @@ sudo apt install ./Happ.linux.x64.deb</code>
             </div>
           </div>
         </div>
+        <div x-data="{ open: true }" class="bg-gray-800 rounded-lg">
+          <button @click="open = !open" class="w-full flex justify-between items-center text-left p-4">
+            <h2 class="text-lg font-bold">Информация о подписке</h2>
+            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+          <div x-show="open" x-transition class="p-4 pt-0">
+            <div class="flex items-center space-x-4">
+              <div class="flex-shrink-0">
+                <div class="radial-progress" :style="`--size: 7rem; --thickness: 0.7rem; --value: ${usagePercentage}; --color: #34d399;`">
+                  <div class="radial-progress-text text-xl font-bold" x-text="`${usagePercentage}%`"></div>
+                </div>
+              </div>
+              <div class="text-sm space-y-2 flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">ID:</span>
+                  <span class="font-medium" x-text="user.username"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Статус:</span>
+                  <span class="font-medium px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Трафик:</span>
+                  <span class="font-medium" x-text="trafficText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Действует до:</span>
+                  <span class="font-medium" x-text="expirationText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Осталось дней:</span>
+                  <span class="font-medium" x-text="remainingDays"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Устройства:</span>
+                  <span class="font-medium">
+                    {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
+          </div>
+        </div>
         <div class="bg-gray-800 p-4 rounded-lg">
           <h2 class="text-lg font-bold mb-3">Подключенные устройства:</h2>
           <p class="text-sm text-gray-300 mb-3">
-            {{ devices|length }}/{% if user.device_limit %}{{ user.device_limit }}{% else %}∞{% endif %}
+            {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
           </p>
           {% if devices %}
             <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -522,6 +522,12 @@ sudo apt install ./Happ.linux.x64.deb</code>
             <p class="text-sm text-gray-400">Активных устройств сейчас нет.</p>
           {% endif %}
         </div>
+        {% if web_url %}
+          <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+             class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg">
+            Открыть личный кабинет
+          </a>
+        {% endif %}
         <!--div class="bg-gray-800 p-4 rounded-lg">
           <h3 class="font-semibold mb-1">Нужна помощь?</h3>
           <p class="text-sm text-gray-400 mb-2">Если возникли трудности, обратитесь в службу поддержки.</p>

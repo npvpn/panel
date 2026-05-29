@@ -233,17 +233,21 @@
   "botSettings.subSupportUrl": "لینک پشتیبانی",
   "botSettings.subProfileTitle": "عنوان پروفایل",
   "botSettings.botUrl": "لینک ربات",
+  "botSettings.webUrl": "آدرس وب‌اپ",
   "botSettings.subProfileUrl": "لینک پروفایل",
   "botSettings.subRoutingHapp": "routing برای Happ",
   "botSettings.subRoutingV2raytun": "routing برای v2raytun",
   "botSettings.subClientNote": "قالب یادداشت کلاینت",
   "botSettings.subRevokedAnnounceText": "متن اعلان لغو",
   "botSettings.subExpiredAnnounceText": "متن اعلان انقضا",
+  "botSettings.subDeviceLimitHardMode": "جایگزین سخت محدودیت دستگاه",
+  "botSettings.subDeviceLimitHardModeHint": "فعال: فقط سرورهای جایگزین. غیرفعال (پیش‌فرض): جایگزین‌ها بالای سرورهای اصلی.",
   "botSettings.subDeviceLimitAnnounceText": "متن اعلان محدودیت دستگاه",
   "botSettings.subUnsupportedClientAnnounceText": "متن اعلان کلاینت پشتیبانی‌نشده",
   "botSettings.subRevokedServerText": "متن سرور لغوشده",
   "botSettings.subExpiredServerText": "متن سرور منقضی",
   "botSettings.subDeviceLimitServerText": "متن سرور محدودیت دستگاه",
   "botSettings.subUnsupportedClientServerText": "متن سرور کلاینت پشتیبانی‌نشده",
-  "botSettings.subUpdateInterval": "بازه به‌روزرسانی پروفایل"
+  "botSettings.subUpdateInterval": "بازه به‌روزرسانی پروفایل",
+  "botSettings.webUrlHint": "آدرس وب‌کابین برای دکمه صفحه اشتراک. از ربات تلگرام همگام‌سازی می‌شود (web_frontend.domain)."
 }
