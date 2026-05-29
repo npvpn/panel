@@ -6,42 +6,22 @@
     <title>Подписка истекла</title>
     <link rel="stylesheet" href="./index.css" />
     <link rel="icon" href="data:," />
-    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
-    
+    <script defer src="/statics/vendor/js/qrcode.min.js"></script>
+    <!-- <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script> -->
     <meta http-equiv="refresh" content="60" />
     
+    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
     <script>
-      const USE_MOCKS = false;
-
-      // МОКИ
-      const MOCK_USER_DATA = {
-        username: "444555666_7788",
-        status: { value: "active" },
-        used_traffic: 10737418240,  
-        data_limit: 0,            
-        expire: Math.floor(Date.now() / 1000) + 86400, 
-        device_limit: 10,     
-        devices_used: 4       
+      const userData = { 
+        username: "{{ user.username }}", 
+        status: { value: "{{ user.status.value }}" }, 
+        used_traffic: Number("{{ user.used_traffic or 0 }}"), 
+        data_limit: Number( "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}" ), 
+        expire: Number( "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}" ), 
+        device_limit: Number("{{ user.device_limit or 0 }}"), 
+        devices_used: Number( "{% if devices %}{{ devices|length }}{% else %}0{% endif %}" )
       };
-
-      // РЕАЛЬНЫЕ ДАННЫЕ
-      const REAL_USER_DATA = {
-        username: "{{ user.username }}",
-        status: { value: "{{ user.status.value }}" },
-        used_traffic: "{{ user.used_traffic or 0 }}",
-        data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
-        expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}",
-        device_limit: "{{ user.device_limit or 0 }}",
-        devices_used: "{{ user.devices_used or 0 }}"
-      };
-
-      const userData = USE_MOCKS ? MOCK_USER_DATA : REAL_USER_DATA;
-
-      function redirectToDashboard() {
-        window.location.href = '/dashboard';
-      }
 
       function bytesFormat(bytes, decimals = 2) {
         if (!+bytes) return '0 Bytes';
@@ -64,8 +44,14 @@
             };
             return statuses[this.user.status.value] || "Неизвестен";
           },
-          get statusColor() {
-            return this.user.status.value === 'active' ? 'var(--green)' : 'var(--red)';
+          get statusColor() { 
+            const colors = { 
+              active: 'var(--green)', 
+              limited: '#f59e0b', 
+              expired: 'var(--red)', 
+              disabled: '#6b7280' 
+            }; 
+              return colors[this.user.status.value] || '#6b7280'; 
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
@@ -140,9 +126,11 @@
               </div>
             </div>
 
-            <button class="btn-primary" onclick="redirectToDashboard()">
-              Войти в личный кабинет
-            </button>
+            {% if web_url %}
+              <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
+                Войти в личный кабинет
+              </a>
+            {% endif %}
           </div>
         </div>
       </main>
