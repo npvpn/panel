@@ -189,6 +189,7 @@ def user_subscription(
                     "token": token,
                     "sub_path": XRAY_SUBSCRIPTION_PATH,
                     "device_limit_reached": html_device_limited,
+                    "web_url": (bot_settings.get("web_url") or "").strip(),
                 }
             )
         )

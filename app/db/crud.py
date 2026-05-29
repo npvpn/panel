@@ -47,6 +47,7 @@ from app.models.user import (
     UserStatus,
     UserUsageResponse,
 )
+from app.models.bot import apply_bot_settings_fallback
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app.utils.jwt import create_subscription_token
@@ -263,7 +264,25 @@ def get_bots(db: Session) -> List[Bot]:
     return db.query(Bot).order_by(Bot.username.asc()).all()
 
 
-def create_bot(db: Session, username: str, title: Optional[str] = None) -> Bot:
+def _normalize_web_url(value: Optional[str]) -> str:
+    domain = str(value or "").strip().replace("https://", "").replace("http://", "").strip("/")
+    if not domain:
+        return ""
+    return f"https://{domain}"
+
+
+def _set_bot_web_url(db: Session, bot: Bot, web_url: Optional[str]) -> None:
+    if web_url is None:
+        return
+    settings = get_or_create_bot_settings(db, bot)
+    data = apply_bot_settings_fallback(settings.data)
+    data["web_url"] = _normalize_web_url(web_url)
+    settings.data = data
+    settings.updated_at = datetime.utcnow()
+    db.commit()
+
+
+def create_bot(db: Session, username: str, title: Optional[str] = None, web_url: Optional[str] = None) -> Bot:
     normalized = _normalize_bot_username(username)
     if not normalized:
         raise ValueError("Bot username is required")
@@ -274,10 +293,14 @@ def create_bot(db: Session, username: str, title: Optional[str] = None) -> Bot:
     db.add(bot)
     db.commit()
     db.refresh(bot)
+    _set_bot_web_url(db, bot, web_url)
+    db.refresh(bot)
     return bot
 
 
-def update_bot(db: Session, bot: Bot, username: str, title: Optional[str] = None) -> Bot:
+def update_bot(
+    db: Session, bot: Bot, username: str, title: Optional[str] = None, web_url: Optional[str] = None
+) -> Bot:
     normalized = _normalize_bot_username(username)
     if not normalized:
         raise ValueError("Bot username is required")
@@ -289,6 +312,8 @@ def update_bot(db: Session, bot: Bot, username: str, title: Optional[str] = None
     bot.username = normalized
     bot.title = title.strip() if isinstance(title, str) and title.strip() else None
     db.commit()
+    db.refresh(bot)
+    _set_bot_web_url(db, bot, web_url)
     db.refresh(bot)
     return bot
 

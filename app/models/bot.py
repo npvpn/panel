@@ -41,6 +41,7 @@ DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
     "sub_client_note": SUB_CLIENT_NOTE,
     "sub_profile_url": SUB_PROFILE_URL,
     "bot_url": BOT_URL,
+    "web_url": "",
     "sub_revoked_announce_text": SUB_REVOKED_ANNOUNCE_TEXT,
     "sub_expired_announce_text": SUB_EXPIRED_ANNOUNCE_TEXT,
     "sub_device_limit_announce_text": SUB_DEVICE_LIMIT_ANNOUNCE_TEXT,
@@ -63,12 +64,13 @@ class BotBase(BaseModel):
 
 
 class BotCreate(BotBase):
-    pass
+    web_url: Optional[str] = None
 
 
 class BotUpdate(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     title: Optional[str] = Field(None, max_length=128)
+    web_url: Optional[str] = None
 
     @field_validator("username")
     @classmethod
@@ -90,6 +92,7 @@ class BotSettingsPayload(BaseModel):
     sub_client_note: str = ""
     sub_profile_url: str = ""
     bot_url: str = ""
+    web_url: str = ""
     sub_revoked_announce_text: str = ""
     sub_expired_announce_text: str = ""
     sub_device_limit_announce_text: str = ""

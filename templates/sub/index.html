@@ -522,6 +522,12 @@ sudo apt install ./Happ.linux.x64.deb</code>
             <p class="text-sm text-gray-400">Активных устройств сейчас нет.</p>
           {% endif %}
         </div>
+        {% if web_url %}
+          <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+             class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg">
+            Открыть личный кабинет
+          </a>
+        {% endif %}
         <!--div class="bg-gray-800 p-4 rounded-lg">
           <h3 class="font-semibold mb-1">Нужна помощь?</h3>
           <p class="text-sm text-gray-400 mb-2">Если возникли трудности, обратитесь в службу поддержки.</p>

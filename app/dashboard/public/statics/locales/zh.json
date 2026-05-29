@@ -229,6 +229,7 @@
   "botSettings.subSupportUrl": "支持链接",
   "botSettings.subProfileTitle": "配置标题",
   "botSettings.botUrl": "机器人链接",
+  "botSettings.webUrl": "Web 应用 URL",
   "botSettings.subProfileUrl": "配置链接",
   "botSettings.subRoutingHapp": "Happ routing",
   "botSettings.subRoutingV2raytun": "v2raytun routing",
@@ -241,5 +242,6 @@
   "botSettings.subExpiredServerText": "过期服务器文本",
   "botSettings.subDeviceLimitServerText": "设备限制服务器文本",
   "botSettings.subUnsupportedClientServerText": "不支持客户端服务器文本",
-  "botSettings.subUpdateInterval": "配置更新间隔"
+  "botSettings.subUpdateInterval": "配置更新间隔",
+  "botSettings.webUrlHint": "订阅页按钮指向的 Web 控制台 URL。从 Telegram 机器人同步（web_frontend.domain）。"
 }
