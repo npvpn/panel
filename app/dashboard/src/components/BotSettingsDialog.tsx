@@ -40,6 +40,7 @@ const emptySettings: BotSettings = {
   sub_client_note: "",
   sub_profile_url: "",
   bot_url: "",
+  web_url: "",
   sub_revoked_announce_text: "",
   sub_expired_announce_text: "",
   sub_device_limit_announce_text: "",
@@ -129,6 +130,7 @@ export const BotSettingsDialog: FC = () => {
       sub_client_note: current.sub_client_note.trim() || defaultSettings.sub_client_note,
       sub_profile_url: current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
       bot_url: current.bot_url.trim() || defaultSettings.bot_url,
+      web_url: current.web_url.trim() || defaultSettings.web_url,
       sub_revoked_announce_text:
         current.sub_revoked_announce_text.trim() || defaultSettings.sub_revoked_announce_text,
       sub_expired_announce_text:
@@ -379,6 +381,18 @@ export const BotSettingsDialog: FC = () => {
                 <FormHelperText>{t("botSettings.subProfileUrlHint")}</FormHelperText>
               </FormControl>
             </HStack>
+
+            <FormControl>
+              <FormLabel>{t("botSettings.webUrl")}</FormLabel>
+              <Input
+                value={settings.web_url}
+                onChange={(event) =>
+                  setSettings((prev) => ({ ...prev, web_url: event.target.value }))
+                }
+                placeholder="https://cabinet.example.com"
+              />
+              <FormHelperText>{t("botSettings.webUrlHint")}</FormHelperText>
+            </FormControl>
 
             <HStack>
               <FormControl>
