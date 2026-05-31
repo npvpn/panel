@@ -3,23 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Подписка истекла</title>
+    <title>Подписка отозвана</title>
     <link rel="stylesheet" href="./index.css" />
     <link rel="icon" href="data:," />
-    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
-    <script defer src="/statics/vendor/js/qrcode.min.js"></script>
     <meta http-equiv="refresh" content="60" />
-    
+    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
+
     <script>
       const userData = {
         username: "{{ user.username }}",
-        status: {value: "{{ user.status.value }}"},
-        used_traffic: Number("{{ user.used_traffic or 0 }}"),
-        data_limit: Number("{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}"),
-        expire: Number("{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}"),
-        device_limit: Number("{{ user.device_limit or 0 }}"),
-        devices_used: Number("{% if devices %}{{ devices|length }}{% else %}0{% endif %}")
+        status: {
+          value: "{{ user.status.value }}"
+        },
+        used_traffic: "{{ user.used_traffic or 0 }}",
+        data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
+        expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}"
       };
 
       function bytesFormat(bytes, decimals = 2) {
@@ -44,13 +43,13 @@
             return statuses[this.user.status.value] || "Неизвестен";
           },
           get statusColor() {
-            const colors = { 
-              active: 'var(--green)', 
-              limited: '#f59e0b', 
-              expired: 'var(--red)', 
-              disabled: '#6b7280' 
+            const colors = {
+              active: 'var(--green)',
+              limited: '#eeba00',
+              expired: 'var(--red)',
+              disabled: '#7b7b7b'
             };
-            return colors[this.user.status.value] || '#6b7280'; 
+            return colors[this.user.status.value] || '#7b7b7b';
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
@@ -69,12 +68,6 @@
             if (this.user.expire == 0) return '∞';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
             return remaining >= 0 ? remaining : 0;
-          },
-          get deviceUsageText() {
-            const used = this.user.devices_used || 0;
-            const limit = this.user.device_limit;
-            if (!limit || limit == 0) return `${used} / ∞`;
-            return `${used} / ${limit}`;
           }
         }));
       });
@@ -86,6 +79,7 @@
       <main class="main-container">
         <div class="card">
           <div class="card-content">
+
             <!-- HEADER -->
             <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
               <h2 class="page-title">Подписка была отозвана</h2>
@@ -121,12 +115,14 @@
 
               <div class="info-row">
                 <span class="info-label">Кол-во устройств</span>
-                <span class="info-value text-black" x-text="deviceUsageText"></span>
+                <span class="info-value text-black">
+                  {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+                </span>
               </div>
             </div>
 
             {% if web_url %}
-              <a
+              
                 href="{{ web_url }}"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -136,12 +132,13 @@
                 Войти в личный кабинет
               </a>
             {% endif %}
+
           </div>
         </div>
       </main>
 
       <footer class="footer">
-        Сайт работает на платформе 
+        Сайт работает на платформе
         <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
           npvpn
         </a>
