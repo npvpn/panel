@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="./index.css" />
     <link rel="icon" href="data:," />
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
-    <script defer src="/statics/vendor/js/qrcode.min.js"></script>
     <!-- <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script> -->
     <meta http-equiv="refresh" content="60" />
     
@@ -47,11 +46,11 @@
           get statusColor() { 
             const colors = { 
               active: 'var(--green)', 
-              limited: '#f59e0b', 
+              limited: '#eeba00', 
               expired: 'var(--red)', 
-              disabled: '#6b7280' 
+              disabled: '#7b7b7b' 
             }; 
-              return colors[this.user.status.value] || '#6b7280'; 
+              return colors[this.user.status.value] || '#7b7b7b'; 
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
