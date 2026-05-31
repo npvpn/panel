@@ -45,11 +45,11 @@
           get statusColor() {
             const colors = {
               active: 'var(--green)',
-              limited: '#f59e0b',
+              limited: '#eeba00',
               expired: 'var(--red)',
-              disabled: '#6b7280'
+              disabled: '#7b7b7b'
             };
-            return colors[this.user.status.value] || '#6b7280';
+            return colors[this.user.status.value] || '#7b7b7b';
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
@@ -93,25 +93,24 @@
               </p>
             </div>
 
-            <!-- DEVICES LIST -->
+            <!-- DEVICES LIST --> 
             {% if devices %}
-            <div class="devices-list">
-              {% for device in devices %}
+              <div class="devices-list">
+
+                {% for device in devices %}
                 <div class="device-card">
-
                   <div class="device-card__left">
-
                     <div class="device-card__icon">
                       {% set os = device.device_os or '' %}
-                      {% if 'windows' in os.lower() or 'linux' in os.lower() %}
-                        <!-- Laptop -->
+                      {% set os_lower = os.lower() %}
+
+                      {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
                           <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
                           <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
                         </svg>
                       {% else %}
-                        <!-- Phone -->
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
                           <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
@@ -124,30 +123,35 @@
                         {{ device.device_model or "Неизвестная модель" }}
                       </div>
 
-                      {% if device.device_os %}
-                        <div class="device-card__os">
-                          {{ device.device_os }}{% if device.ver_os %} {{ device.ver_os }}{% endif %}
-                        </div>
-                      {% endif %}
+                      <div class="device-card__os">
+                        {{ device.device_os or "Неизвестно" }}
+                        {% if device.ver_os %} {{ device.ver_os }}{% endif %}
+                      </div>
                     </div>
-
                   </div>
 
                   <a
-                  href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
-                  class="device-card__delete"
-                  title="Удалить устройство"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 1L11 11M1 11L11 1" stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-</svg>
-                </a>
-
+                    href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
+                    class="device-card__delete"
+                    title="Удалить устройство"
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M7 7L17 17M7 17L17 7"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"/>
+                    </svg>
+                  </a>
                 </div>
-              {% endfor %}
-            </div>
-            {% endif %}
+                {% endfor %}
 
+              </div>
+              {% else %}
+              <p class="empty-devices">
+                Активных устройств сейчас нет
+              </p>
+            {% endif %}
+          
             <!-- INFO CARD -->
             <div class="info-card">
               <div class="info-row">
@@ -188,7 +192,6 @@
                 Войти в личный кабинет
               </a>
             {% endif %}
-
           </div>
         </div>
       </main>
