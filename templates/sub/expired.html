@@ -70,10 +70,12 @@
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
             return remaining >= 0 ? remaining : 0;
           },
+          get showDeviceLimit() { // показываю кол-во устройств если есть лимит только
+            return this.user.device_limit > 0;
+          },
           get deviceUsageText() {
             const used = this.user.devices_used || 0;
             const limit = this.user.device_limit;
-            if (!limit || limit == 0) return `${used} / ∞`;
             return `${used} / ${limit}`;
           }
         }));
@@ -119,7 +121,8 @@
                 <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
               </div>
 
-              <div class="info-row">
+              <!-- Условный рендеринг строки с устройствами -->
+              <div class="info-row" x-show="showDeviceLimit">
                 <span class="info-label">Кол-во устройств</span>
                 <span class="info-value text-black" x-text="deviceUsageText"></span>
               </div>
