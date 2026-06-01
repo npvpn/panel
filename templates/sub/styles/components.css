@@ -144,6 +144,7 @@
     line-height: 113%;
     letter-spacing: -0.04em;
     margin: 0;
+    text-align: center;
 }
 
 /* Подзаголовок */
@@ -207,3 +208,105 @@
     text-decoration: none;
     transition: opacity 0.2s ease;
 }
+
+.devices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .device-card {
+    width: 100%;
+    background: var(--surface-2);
+    border-radius: var(--small-border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+  }
+
+  .device-card__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .device-card__icon {
+    background: var(--surface);
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--small-border);
+    color: currentColor;
+  }
+
+  .device-card__icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+  }
+
+  .device-card__info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .device-card__name {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-family: var(--font-family);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .device-card__os {
+    color: var(--gray-4);
+    font-size: 12px;
+    font-family: var(--font-family);
+    line-height: 1.4;
+  }
+
+  .device-card__delete {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+    background: none;
+    border: none;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+    text-decoration: none;
+  }
+
+  .device-card__delete svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+  }
+
+  /* Mobile адаптация */
+  @media (max-width: 768px) {
+    .device-card {
+      padding: 12px 16px;
+      height: auto;
+      min-height: 76px;
+    }
+
+    .device-card__icon {
+      padding: 8px;
+    }
+
+    .device-card__icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .device-card__delete svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
