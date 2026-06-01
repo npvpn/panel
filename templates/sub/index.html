@@ -149,6 +149,7 @@
                     href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
                     class="device-card__delete"
                     title="Удалить устройство"
+                    onclick="return confirm('Удалить это устройство из активных?');"
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M7 7L17 17M7 17L17 7"
