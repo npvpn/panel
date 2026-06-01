@@ -1,39 +1,148 @@
 <!DOCTYPE html>
 <html lang="ru">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Подписка отозвана</title>
-    <link rel="stylesheet" href="/statics/main.css">
-    <link rel="icon" href="data:,">
-    <style>
-      body {
-        font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-        background-color: #111827;
-        color: #e5e7eb;
-        margin: 0;
-        padding: 16px;
+    <link rel="stylesheet" href="./index.css" />
+    <link rel="icon" href="data:," />
+    <script defer src="/statics/vendor/js/alpinejs.js"></script>
+    <meta http-equiv="refresh" content="60" />
+    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
+
+    <script>
+      const userData = {
+        username: "{{ user.username }}",
+        status: {
+          value: "{{ user.status.value }}"
+        },
+        used_traffic: "{{ user.used_traffic or 0 }}",
+        data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
+        expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}"
+      };
+
+      function bytesFormat(bytes, decimals = 2) {
+        if (!+bytes) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
       }
 
-      *, *::before, *::after { box-sizing: border-box; }
-      .antialiased { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-      .max-w-sm { max-width: 24rem; }
-      .p-4 { padding: 1rem; }
-      .p-6 { padding: 1.5rem; }
-      .text-blue-400 { color: #60a5fa; }
-    </style>
-    <meta http-equiv="refresh" content="60">
+      document.addEventListener('alpine:init', () => {
+        Alpine.data('subscriptionManager', () => ({
+          user: userData,
+          get statusText() {
+            const statuses = {
+              active: "Активен",
+              limited: "Ограничен",
+              expired: "Просрочен",
+              disabled: "Отключен"
+            };
+            return statuses[this.user.status.value] || "Неизвестен";
+          },
+          get statusColor() {
+            const colors = {
+              active: 'var(--green)',
+              limited: '#eeba00',
+              expired: 'var(--red)',
+              disabled: '#7b7b7b'
+            };
+            return colors[this.user.status.value] || '#7b7b7b';
+          },
+          get trafficText() {
+            const used = bytesFormat(this.user.used_traffic);
+            const limit = this.user.data_limit > 0 ? bytesFormat(this.user.data_limit) : 'Безлимит';
+            return `${used} / ${limit}`;
+          },
+          get expirationText() {
+            if (this.user.expire == 0) return 'Никогда';
+            return new Date(this.user.expire * 1000).toLocaleDateString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
+          },
+          get remainingDays() {
+            if (this.user.expire == 0) return '∞';
+            const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
+            return remaining >= 0 ? remaining : 0;
+          }
+        }));
+      });
+    </script>
   </head>
-  <body class="antialiased">
-    <main class="max-w-sm mx-auto p-4" style="width: 100%; max-width: 393px;">
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <div class="inline-block bg-red-900 text-red-200 rounded-full px-3 py-1 text-xs mb-3">Revoked</div>
-        <h1 class="text-xl font-bold mb-2">Эта подписка была отозвана</h1>
-        <p class="text-sm text-gray-400">
-          Эта ссылка больше не работает. Пожалуйста, обновите её в боте:
-          <a href="{{ bot_url }}" class="text-blue-400 hover:underline">{{ bot_url }}</a>
-        </p>
-      </div>
-    </main>
+
+  <body>
+    <div x-data="subscriptionManager" x-cloak class="page-wrapper">
+      <main class="main-container">
+        <div class="card">
+          <div class="card-content">
+
+            <!-- HEADER -->
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+              <h2 class="page-title">Подписка была отозвана</h2>
+              <p class="page-subtitle">Войдите в личный кабинет для управления подпиской</p>
+            </div>
+
+            <!-- INFO CARD -->
+            <div class="info-card">
+              <div class="info-row">
+                <span class="info-label">ID</span>
+                <span class="info-value text-black" x-text="user.username"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Статус</span>
+                <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Трафик</span>
+                <span class="info-value text-black" x-text="trafficText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Действует до</span>
+                <span class="info-value text-black" x-text="expirationText"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Осталось</span>
+                <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">Кол-во устройств</span>
+                <span class="info-value text-black">
+                  {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+                </span>
+              </div>
+            </div>
+
+            {% if web_url %}
+              <a
+                href="{{ web_url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-primary"
+                style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;"
+              >
+                Войти в личный кабинет
+              </a>
+            {% endif %}
+
+          </div>
+        </div>
+      </main>
+
+      <footer class="footer">
+        Сайт работает на платформе
+        <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
+          npvpn
+        </a>
+      </footer>
+    </div>
   </body>
 </html>
