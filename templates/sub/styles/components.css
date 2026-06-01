@@ -256,18 +256,24 @@
 
   .device-card__name {
     color: var(--text-primary);
-    font-weight: 500;
+    font-weight: 600;
     font-family: var(--font-family);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.4;
   }
 
-  .device-card__os {
+  .device-card__os,
+  .device-card__user-agent {
     color: var(--gray-4);
-    font-size: 12px;
+    font-size: 14px;
     font-family: var(--font-family);
+    font-weight: 600;
     line-height: 1.4;
   }
+
+  .device-card__user-agent {
+    word-break: break-word;
+    }
 
   .device-card__delete {
     cursor: pointer;

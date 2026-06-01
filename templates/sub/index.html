@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Лимит устройств достигнут</title>
-    <link rel="stylesheet" href="/statics/sub/index.css" />
+    <link rel="stylesheet" href="/statics/sub/index.css" /> 
     <link rel="icon" href="data:," />
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
     <meta http-equiv="refresh" content="60" />
@@ -88,7 +88,14 @@
                 {% if user.device_limit %}
                   {{ devices|length }} из {{ user.device_limit }}
                 {% else %}
-                  {{ devices|length }}
+                  {{ devices|length }}{% for device in devices %}
+                  {% set os = device.device_os or '' %} {% set os_lower = os.lower() %} {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}  {% else %}  {% endif %}
+                  {{ device.device_model or "Неизвестная модель" }}
+                  {{ device.device_os or "Неизвестно" }} {% if device.ver_os %} {{ device.ver_os }} {% endif %}
+                  {% if device.user_agent %}
+                  {{ device.user_agent }}
+                  {% endif %}
+                  
                 {% endif %}
               </p>
             </div>
@@ -125,8 +132,16 @@
 
                       <div class="device-card__os">
                         {{ device.device_os or "Неизвестно" }}
-                        {% if device.ver_os %} {{ device.ver_os }}{% endif %}
+                        {% if device.ver_os %} 
+                          {{ device.ver_os }}
+                        {% endif %}
                       </div>
+
+                      {% if device.user_agent %}
+                        <div class="device-card__user-agent">
+                          {{ device.user_agent }}
+                        </div>
+                      {% endif %}
                     </div>
                   </div>
 
