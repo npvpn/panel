@@ -205,31 +205,29 @@ def user_subscription(
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
+        devices = crud.get_user_active_devices(db, dbuser)
+        html_context = {
+            "user": user,
+            "devices": devices,
+            "token": token,
+            "sub_path": XRAY_SUBSCRIPTION_PATH,
+            "web_url": (bot_settings.get("web_url") or "").strip(),
+            "bot_url": bot_settings["bot_url"],
+        }
         if is_revoked:
             return HTMLResponse(
-                render_template(
-                    "sub/revoked.html",
-                    {"bot_url": bot_settings["bot_url"]}
-                )
+                render_template("sub/revoked.html", html_context)
             )
         if is_expired:
             return HTMLResponse(
-                render_template(
-                    "sub/expired.html",
-                    {"bot_url": bot_settings["bot_url"]}
-                )
+                render_template("sub/expired.html", html_context)
             )
-        devices = crud.get_user_active_devices(db, dbuser)
         return HTMLResponse(
             render_template(
                 SUBSCRIPTION_PAGE_TEMPLATE,
                 {
-                    "user": user,
-                    "devices": devices,
-                    "token": token,
-                    "sub_path": XRAY_SUBSCRIPTION_PATH,
+                    **html_context,
                     "device_limit_reached": html_device_limited,
-                    "web_url": (bot_settings.get("web_url") or "").strip(),
                 }
             )
         )
