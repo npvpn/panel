@@ -67,11 +67,10 @@
             try {
               const response = await fetch(
                 `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`,
-                { method: 'POST', redirect: 'manual' }
+                { method: 'POST' }
               );
-              const redirected = response.status === 303 || response.type === 'opaqueredirect';
-              if (!redirected && !response.ok) {
-                throw new Error('revoke failed');
+              if (!response.ok) {
+                throw new Error(`revoke failed: ${response.status}`);
               }
               this.devices = this.devices.filter((device) => device.id !== deviceId);
               if (this.deviceLimit > 0 && this.devices.length <= this.deviceLimit) {
