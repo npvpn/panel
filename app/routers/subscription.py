@@ -199,9 +199,11 @@ def user_subscription(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    html_device_limited = False
-    if not is_revoked and not is_expired and dbuser.device_limit:
-        html_device_limited = crud.count_user_devices(db, dbuser) >= dbuser.device_limit
+    html_device_limited = (
+        not is_revoked
+        and not is_expired
+        and crud.is_device_limit_exceeded(db, dbuser)
+    )
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
@@ -222,14 +224,12 @@ def user_subscription(
             return HTMLResponse(
                 render_template("sub/expired.html", html_context)
             )
-        return HTMLResponse(
-            render_template(
-                SUBSCRIPTION_PAGE_TEMPLATE,
-                {
-                    **html_context,
-                    "device_limit_reached": html_device_limited,
-                }
+        if html_device_limited:
+            return HTMLResponse(
+                render_template("sub/limited.html", html_context)
             )
+        return HTMLResponse(
+            render_template(SUBSCRIPTION_PAGE_TEMPLATE, html_context)
         )
 
     user, device_limited, device_limited_hard_for_gen, unsupported_blocks = (
