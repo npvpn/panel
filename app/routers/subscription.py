@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, timezone
 import math
@@ -38,6 +39,22 @@ client_config = {
 }
 
 router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
+
+
+def devices_json(devices) -> str:
+    return json.dumps(
+        [
+            {
+                "id": device.id,
+                "device_model": device.device_model or "Неизвестная модель",
+                "device_os": device.device_os or "Неизвестно",
+                "ver_os": device.ver_os or "",
+                "user_agent": device.user_agent or "",
+            }
+            for device in devices
+        ],
+        ensure_ascii=False,
+    )
 
 
 def get_user_note(user: UserResponse, note_template: str) -> str:
@@ -199,7 +216,7 @@ def user_subscription(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    html_device_limited = (
+    is_limited = (
         not is_revoked
         and not is_expired
         and crud.is_device_limit_exceeded(db, dbuser)
@@ -211,6 +228,7 @@ def user_subscription(
         html_context = {
             "user": user,
             "devices": devices,
+            "devices_json": devices_json(devices),
             "token": token,
             "sub_path": XRAY_SUBSCRIPTION_PATH,
             "web_url": (bot_settings.get("web_url") or "").strip(),
@@ -224,7 +242,7 @@ def user_subscription(
             return HTMLResponse(
                 render_template("sub/expired.html", html_context)
             )
-        if html_device_limited:
+        if is_limited:
             return HTMLResponse(
                 render_template("sub/limited.html", html_context)
             )

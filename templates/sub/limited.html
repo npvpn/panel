@@ -10,6 +10,8 @@
     <meta http-equiv="refresh" content="60" />
     <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
 
+    <script id="devices-data" type="application/json">{{ devices_json | safe }}</script>
+
     <script>
       const userData = {
         username: "{{ user.username }}",
@@ -20,6 +22,10 @@
         data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
         expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}"
       };
+
+      const initialDevices = JSON.parse(
+        document.getElementById('devices-data').textContent
+      );
 
       function bytesFormat(bytes, decimals = 2) {
         if (!+bytes) return '0 Bytes';
@@ -33,6 +39,50 @@
       document.addEventListener('alpine:init', () => {
         Alpine.data('subscriptionManager', () => ({
           user: userData,
+          devices: initialDevices,
+          deviceLimit: Number("{{ user.device_limit or 0 }}"),
+          revokingId: null,
+          subUrl: '/{{ sub_path }}/{{ token }}',
+          get devicesCountText() {
+            if (this.deviceLimit > 0) {
+              return `${this.devices.length} из ${this.deviceLimit}`;
+            }
+            return String(this.devices.length);
+          },
+          get devicesInfoText() {
+            if (this.deviceLimit > 0) {
+              return `${this.devices.length}/${this.deviceLimit}`;
+            }
+            return String(this.devices.length);
+          },
+          isPcOs(os) {
+            const lower = (os || '').toLowerCase();
+            return lower.includes('windows') || lower.includes('linux') || lower.includes('pc');
+          },
+          async revokeDevice(deviceId) {
+            if (!confirm('Удалить это устройство из активных?')) {
+              return;
+            }
+            this.revokingId = deviceId;
+            try {
+              const response = await fetch(
+                `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`,
+                { method: 'POST', redirect: 'manual' }
+              );
+              const redirected = response.status === 303 || response.type === 'opaqueredirect';
+              if (!redirected && !response.ok) {
+                throw new Error('revoke failed');
+              }
+              this.devices = this.devices.filter((device) => device.id !== deviceId);
+              if (this.deviceLimit > 0 && this.devices.length <= this.deviceLimit) {
+                window.location.href = this.subUrl;
+              }
+            } catch {
+              alert('Не удалось удалить устройство. Попробуйте ещё раз.');
+            } finally {
+              this.revokingId = null;
+            }
+          },
           get statusText() {
             const statuses = {
               active: "Активен",
@@ -84,65 +134,49 @@
             <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
               <h2 class="page-title">Лимит устройств достигнут</h2>
               <p class="page-subtitle">
-                Подключено
-                {% if user.device_limit %}
-                  {{ devices|length }} из {{ user.device_limit }}
-                {% else %}
-                  {{ devices|length }}
-                {% endif %}
+                Подключено <span x-text="devicesCountText"></span>
               </p>
             </div>
 
-            <!-- DEVICES LIST --> 
-            {% if devices %}
-              <div class="devices-list">
-
-                {% for device in devices %}
+            <!-- DEVICES LIST -->
+            <div class="devices-list" x-show="devices.length > 0">
+              <template x-for="device in devices" :key="device.id">
                 <div class="device-card">
                   <div class="device-card__left">
                     <div class="device-card__icon">
-                      {% set os = device.device_os or '' %}
-                      {% set os_lower = os.lower() %}
-
-                      {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}
+                      <template x-if="isPcOs(device.device_os)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
                           <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
                           <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                      {% else %}
+                      </template>
+                      <template x-if="!isPcOs(device.device_os)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
                           <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                      {% endif %}
+                      </template>
                     </div>
 
                     <div class="device-card__info">
-                      <div class="device-card__name">
-                        {{ device.device_model or "Неизвестная модель" }}
-                      </div>
+                      <div class="device-card__name" x-text="device.device_model"></div>
 
                       <div class="device-card__os">
-                        {{ device.device_os or "Неизвестно" }}
-                        {% if device.ver_os %} 
-                          {{ device.ver_os }}
-                        {% endif %}
+                        <span x-text="device.device_os"></span>
+                        <span x-show="device.ver_os" x-text="' ' + device.ver_os"></span>
                       </div>
 
-                      {% if device.user_agent %}
-                        <div class="device-card__user-agent">
-                          {{ device.user_agent }}
-                        </div>
-                      {% endif %}
+                      <div class="device-card__user-agent" x-show="device.user_agent" x-text="device.user_agent"></div>
                     </div>
                   </div>
 
-                  <a
-                    href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
+                  <button
+                    type="button"
                     class="device-card__delete"
                     title="Удалить устройство"
-                    onclick="return confirm('Удалить это устройство из активных?');"
+                    :disabled="revokingId === device.id"
+                    @click="revokeDevice(device.id)"
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M7 7L17 17M7 17L17 7"
@@ -150,16 +184,14 @@
                             stroke-linecap="round"
                             stroke-linejoin="round"/>
                     </svg>
-                  </a>
+                  </button>
                 </div>
-                {% endfor %}
+              </template>
+            </div>
 
-              </div>
-              {% else %}
-              <p class="empty-devices">
-                Активных устройств сейчас нет
-              </p>
-            {% endif %}
+            <p class="empty-devices" x-show="devices.length === 0">
+              Активных устройств сейчас нет
+            </p>
           
             <!-- INFO CARD -->
             <div class="info-card">
@@ -190,9 +222,7 @@
 
               <div class="info-row">
                 <span class="info-label">Кол-во устройств</span>
-                <span class="info-value text-black">
-                  {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
-                </span>
+                <span class="info-value text-black" x-text="devicesInfoText"></span>
               </div>
             </div>
 
