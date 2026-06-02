@@ -4,12 +4,39 @@ import traceback
 from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
-from config import JOB_CORE_HEALTH_CHECK_INTERVAL
+from config import JOB_CORE_HEALTH_CHECK_INTERVAL, XRAY_NODE_ERROR_RECONNECT_INTERVAL
 from xray_api import exc as xray_exc
+
+_error_reconnect_last: dict[int, float] = {}
+
+
+def _quick_node_ready(node) -> bool:
+    """Cached readiness check — no network I/O."""
+    try:
+        if hasattr(node, "_session_id"):
+            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
+        if hasattr(node, "started"):
+            return bool(getattr(node, "started", False))
+    except Exception:
+        pass
+    return False
+
+
+def _should_force_reconnect(node_id: int, status: NodeStatus, now: float) -> bool:
+    if status == NodeStatus.connecting and xray.operations.is_connect_stale(node_id):
+        return True
+    if status != NodeStatus.error:
+        return False
+    last_attempt = _error_reconnect_last.get(node_id, 0)
+    if now - last_attempt >= XRAY_NODE_ERROR_RECONNECT_INTERVAL:
+        _error_reconnect_last[node_id] = now
+        return True
+    return False
 
 
 def core_health_check():
     config = None
+    now = time.time()
 
     # main core
     if not xray.core.started:
@@ -17,21 +44,34 @@ def core_health_check():
             config = xray.config.include_db_users()
         xray.core.restart(config)
 
-    # nodes' core
-    for node_id, node in list(xray.nodes.items()):
-        if node.connected:
+    with GetDB() as db:
+        dbnodes = crud.get_nodes(db=db, enabled=True)
+
+    for dbnode in dbnodes:
+        node_id = dbnode.id
+
+        if node_id not in xray.nodes:
+            xray.operations.add_node(dbnode)
+
+        node = xray.nodes[node_id]
+
+        if dbnode.status == NodeStatus.connected and _quick_node_ready(node):
             try:
-                assert node.started
                 node.api.get_sys_stats(timeout=2)
             except (ConnectionError, xray_exc.XrayError, AssertionError):
                 if not config:
                     config = xray.config.include_db_users()
                 xray.operations.restart_node(node_id, config)
+            continue
 
-        if not node.connected:
-            if not config:
-                config = xray.config.include_db_users()
-            xray.operations.connect_node(node_id, config)
+        if not config:
+            config = xray.config.include_db_users()
+
+        force = _should_force_reconnect(node_id, dbnode.status, now)
+        if xray.operations.is_connect_in_progress(node_id) and not force:
+            continue
+
+        xray.operations.connect_node(node_id, config, force=force)
 
 
 @app.on_event("startup")
