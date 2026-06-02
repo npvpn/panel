@@ -449,7 +449,6 @@ def connect_node(node_id, config=None, force: bool = False):
                 return
             except Exception as exc:
                 last_exc = exc
-                _cleanup_node_connection(node)
                 if attempt < retries:
                     delay = retry_delay * attempt
                     logger.warning(
@@ -463,7 +462,6 @@ def connect_node(node_id, config=None, force: bool = False):
                 raise last_exc
 
     except Exception as exc:
-        _cleanup_node_connection(node)
         try:
             _change_node_status(node_id, NodeStatus.error, message=str(exc))
         except Exception as status_exc:
