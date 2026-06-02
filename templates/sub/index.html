@@ -1,38 +1,185 @@
 <!DOCTYPE html>
 <html lang="ru">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Лимит устройств достигнут</title>
-    <link rel="stylesheet" href="/statics/sub/index.css" /> 
-    <link rel="icon" href="data:," />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Информация о подписке</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="/statics/main.css">
+    <link rel="icon" href="data:,">
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
-    <meta http-equiv="refresh" content="60" />
-    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
+    <script defer src="/statics/vendor/js/qrcode.min.js"></script>
+    <style>
+      body {
+        font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        background-color: #111827;
+        color: #e5e7eb;
+      }
 
+      [x-cloak] {
+        display: none !important;
+      }
+
+      /* Local fallbacks for Tailwind utilities used on this page (no CDN) */
+      .antialiased { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      .max-w-sm { max-width: 24rem; }
+      .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+        --tw-space-y-reverse: 0;
+        margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+        margin-bottom: calc(1rem * var(--tw-space-y-reverse));
+      }
+      .gap-3 { gap: 0.75rem; }
+      .text-blue-400 { color: #60a5fa; }
+      .break-all { word-break: break-all; }
+      .whitespace-pre-wrap { white-space: pre-wrap; }
+      .object-contain { object-fit: contain; }
+      .rounded-b-lg { border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
+      .p-3 { padding: 0.75rem; }
+      .p-6 { padding: 1.5rem; }
+      .h-9 { height: 2.25rem; }
+      .w-9 { width: 2.25rem; }
+      .transition-transform { transition-property: transform; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.4,0,0.2,1); }
+      .hover\:scale-105:hover { transform: scale(1.05); }
+      .rotate-180 { transform: rotate(180deg); }
+      .bg-opacity-75 { --tw-bg-opacity: 0.75; }
+      .top-2 { top: 0.5rem; }
+      .right-2 { right: 0.5rem; }
+
+      /* Ensure small QR preview renders at fixed size */
+      #qrcode-small { width: 72px; height: 72px; }
+      #qrcode-small canvas, #qrcode-small img { width: 100% !important; height: 100% !important; display: block; }
+
+      .active-os {
+        outline: 2px solid #38bdf8;
+        box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.3);
+      }
+
+      .radial-progress {
+        position: relative;
+        display: inline-grid;
+        place-content: center;
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        background: conic-gradient(var(--color, #38bdf8) calc(var(--value) * 1%), #4b5563 0);
+      }
+
+      .radial-progress::before {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        inset: 0;
+        background: #1f2937;
+        margin: var(--thickness);
+      }
+
+      .radial-progress-text {
+        position: relative;
+        z-index: 1;
+      }
+    </style>
     <script>
+      fetch('/settings', {
+        method: 'GET'
+      }).then(res => {
+        let supportAccount = res.headers.get("X-Custom-SUPPORT_ACCOUNT");
+      });
+      const sub = "{{ user.subscription_url }}";
+      let fullUrl = `{{ user.subscription_url }}`;
+      if (sub && sub.startsWith('/')) {
+        fullUrl = `${window.location.origin}${sub}`;
+      }
       const userData = {
         username: "{{ user.username }}",
+        subscription_url: fullUrl,
         status: {
           value: "{{ user.status.value }}"
         },
         used_traffic: "{{ user.used_traffic or 0 }}",
         data_limit: "{% if not user.data_limit %}0{% else %}{{ user.data_limit }}{% endif %}",
-        expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}"
+        expire: "{% if not user.expire %}0{% else %}{{ user.expire }}{% endif %}",
+        reset_strategy: "{{ user.data_limit_reset_strategy.value }}"
       };
 
-      function bytesFormat(bytes, decimals = 2) {
-        if (!+bytes) return '0 Bytes';
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+      function detectOS() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        if (userAgent.includes('win')) return 'Windows';
+        if (userAgent.includes('android')) return 'Android';
+        if (userAgent.includes('iphone') || userAgent.includes('ipad') || (userAgent.includes('mac') && !userAgent.includes('iphone'))) return 'iOS';
+        if (userAgent.includes('linux')) return 'Linux';
+        return 'Windows';
       }
 
+      function bytesFormat(bytes, decimals = 2) {
+        if (!+bytes) return '0 Bytes'
+        const k = 1024
+        const dm = decimals < 0 ? 0 : decimals
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+        const i = Math.floor(Math.log(bytes) / Math.log(k))
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+      }
       document.addEventListener('alpine:init', () => {
         Alpine.data('subscriptionManager', () => ({
           user: userData,
+          selectedOs: 'Windows',
+          isQrModalOpen: false,
+          isImageModalOpen: false,
+          modalImageUrl: '',
+          osOptions: [{
+            id: 'Windows',
+            name: 'Windows',
+            icon: 'https://img.icons8.com/color/96/windows-11.png',
+            appName: 'Happ Proxy',
+            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe'
+          }, {
+            id: 'iOS',
+            name: 'iOS или Mac',
+            icon: 'https://img.icons8.com/?size=100&id=30659&format=png&color=ffffff',
+            appName: 'Happ Proxy',
+            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973',
+            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215'
+          }, {
+            id: 'Android',
+            name: 'Android',
+            icon: 'https://img.icons8.com/color/96/android-os.png',
+            appName: 'Happ Proxy',
+            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy&hl=ru'
+          }, {
+            id: 'Linux',
+            name: 'Linux',
+            icon: 'https://img.icons8.com/color/96/linux--v1.png',
+            appName: 'Happ Proxy',
+            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb'
+          }, {
+            id: 'AndroidTV',
+            name: 'Android TV',
+            appName: 'Happ Proxy',
+            icon: 'https://img.icons8.com/?size=100&id=111173&format=png&color=ffffff',
+            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy'
+          }, ],
+          init() {
+            this.selectedOs = detectOS();
+            document.title = `${this.user.username} - Настройка VPN`;
+            this.$nextTick(() => {
+              const qrSmallContainer = document.getElementById('qrcode-small');
+              if (qrSmallContainer) {
+                qrSmallContainer.innerHTML = '';
+                new QRCode(qrSmallContainer, {
+                  text: this.user.subscription_url,
+                  width: 72,
+                  height: 72
+                });
+              }
+            });
+          },
+          get currentOs() {
+            return this.osOptions.find(os => os.id === this.selectedOs) || this.osOptions[0];
+          },
           get statusText() {
             const statuses = {
               active: "Активен",
@@ -42,14 +189,19 @@
             };
             return statuses[this.user.status.value] || "Неизвестен";
           },
-          get statusColor() {
-            const colors = {
-              active: 'var(--green)',
-              limited: '#eeba00',
-              expired: 'var(--red)',
-              disabled: '#7b7b7b'
+          get statusClass() {
+            const classes = {
+              active: 'bg-green-500',
+              limited: 'bg-yellow-500',
+              expired: 'bg-red-500',
+              disabled: 'bg-gray-500'
             };
-            return colors[this.user.status.value] || '#7b7b7b';
+            return classes[this.user.status.value] || 'bg-gray-500';
+          },
+          get usagePercentage() {
+            if (!this.user.data_limit || this.user.data_limit == 0) return 0;
+            const percentage = (this.user.used_traffic / this.user.data_limit) * 100;
+            return Math.min(percentage, 100).toFixed(0);
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
@@ -68,156 +220,284 @@
             if (this.user.expire == 0) return '∞';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
             return remaining >= 0 ? remaining : 0;
-          }
+          },
+          get resetText() {
+            const intervals = {
+              day: '(сброс каждый день)',
+              week: '(сброс каждую неделю)',
+              month: '(сброс каждый месяц)',
+              year: '(сброс каждый год)'
+            };
+            return intervals[this.user.reset_strategy] || '';
+          },
+          openQrModal() {
+            this.isQrModalOpen = true;
+            this.$nextTick(() => {
+              const qrContainer = document.getElementById('qrcode-large');
+              qrContainer.innerHTML = '';
+              new QRCode(qrContainer, {
+                text: this.user.subscription_url,
+                width: 256,
+                height: 256
+              });
+            });
+          },
+          openImageModal(src) {
+            this.modalImageUrl = src;
+            this.isImageModalOpen = true;
+          },
+          copyToClipboard(text, button, successText = 'Ключ скопирован!') {
+            navigator.clipboard.writeText(text).then(() => {
+              const originalHTML = button.innerHTML;
+              button.innerHTML = `<span class="inline-flex items-center gap-1 whitespace-nowrap">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+								</svg>
+								<span>${successText}</span>
+							</span>`;
+              setTimeout(() => {
+                button.innerHTML = originalHTML;
+              }, 2000);
+            });
+          },
+          copyTerminalCommands(button, successText = 'Готово!') {
+            const text = document.getElementById('linux-commands').innerText;
+            this.copyToClipboard(text, button, successText);
+          },
         }));
       });
     </script>
   </head>
-
-  <body>
-    <div x-data="subscriptionManager" x-cloak class="page-wrapper">
-      <main class="main-container">
-        <div class="card">
-          <div class="card-content">
-
-            <!-- HEADER -->
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
-              <h2 class="page-title">Лимит устройств достигнут</h2>
-              <p class="page-subtitle">
-                Подключено
-                {% if user.device_limit %}
-                  {{ devices|length }} из {{ user.device_limit }}
-                {% else %}
-                  {{ devices|length }}{% for device in devices %}
-                  {% set os = device.device_os or '' %} {% set os_lower = os.lower() %} {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}  {% else %}  {% endif %}
-                  {{ device.device_model or "Неизвестная модель" }}
-                  {{ device.device_os or "Неизвестно" }} {% if device.ver_os %} {{ device.ver_os }} {% endif %}
-                  {% if device.user_agent %}
-                  {{ device.user_agent }}
-                  {% endif %}
-                  
-                {% endif %}
-              </p>
+  <body class="antialiased">
+    <div x-data="subscriptionManager" x-init="init()" x-cloak class="max-w-sm mx-auto p-4" style="width: 393px;">
+      <header class="text-center mb-6">
+        <h1 class="text-2xl font-bold">Настройка VPN</h1>
+        <p class="text-gray-400 text-sm mt-1">Выберите устройство и следуйте инструкции</p>
+      </header>
+      <main class="space-y-4">
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <template x-for="os in osOptions" :key="os.id">
+            <div @click="selectedOs = os.id" :class="{ 'active-os': selectedOs === os.id }" class="cursor-pointer flex items-center justify-center bg-gray-800 rounded-lg transition-transform transform hover:scale-105 h-16" tabindex="0" :aria-label="os.name" @keydown.enter.space="selectedOs = os.id">
+              <img :src="os.icon" :alt="os.name + ' logo'" class="h-10 w-10 object-contain" />
             </div>
-
-            <!-- DEVICES LIST --> 
-            {% if devices %}
-              <div class="devices-list">
-
-                {% for device in devices %}
-                <div class="device-card">
-                  <div class="device-card__left">
-                    <div class="device-card__icon">
-                      {% set os = device.device_os or '' %}
-                      {% set os_lower = os.lower() %}
-
-                      {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
-                          <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
-                          <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                      {% else %}
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
-                          <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                      {% endif %}
-                    </div>
-
-                    <div class="device-card__info">
-                      <div class="device-card__name">
-                        {{ device.device_model or "Неизвестная модель" }}
-                      </div>
-
-                      <div class="device-card__os">
-                        {{ device.device_os or "Неизвестно" }}
-                        {% if device.ver_os %} 
-                          {{ device.ver_os }}
-                        {% endif %}
-                      </div>
-
-                      {% if device.user_agent %}
-                        <div class="device-card__user-agent">
-                          {{ device.user_agent }}
-                        </div>
-                      {% endif %}
-                    </div>
-                  </div>
-
-                  <a
-                    href="/{{ sub_path }}/{{ token }}/devices/{{ device.id }}/revoke"
-                    class="device-card__delete"
-                    title="Удалить устройство"
-                    onclick="return confirm('Удалить это устройство из активных?');"
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M7 7L17 17M7 17L17 7"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"/>
-                    </svg>
-                  </a>
-                </div>
-                {% endfor %}
-
-              </div>
-              {% else %}
-              <p class="empty-devices">
-                Активных устройств сейчас нет
-              </p>
-            {% endif %}
-          
-            <!-- INFO CARD -->
-            <div class="info-card">
-              <div class="info-row">
-                <span class="info-label">ID</span>
-                <span class="info-value text-black" x-text="user.username"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Статус</span>
-                <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Трафик</span>
-                <span class="info-value text-black" x-text="trafficText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Действует до</span>
-                <span class="info-value text-black" x-text="expirationText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Осталось</span>
-                <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Кол-во устройств</span>
-                <span class="info-value text-black">
-                  {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
-                </span>
-              </div>
-            </div>
-
-            {% if web_url %}
-              <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
-                Войти в личный кабинет
-              </a>
-            {% endif %}
+          </template>
+          <div @click="openQrModal()" class="cursor-pointer flex items-center justify-center bg-gray-800 rounded-lg transition-transform transform hover:scale-105 h-16" role="button" aria-label="Показать QR-код">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-9 w-9 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"></path>
+            </svg>
           </div>
         </div>
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <p class="text-base font-semibold mb-3">
+            <span class="text-blue-400">1</span> Приложение для <span x-text="currentOs.name"></span>
+          </p>
+          <template x-if="selectedOs === 'Windows'">
+            <div class="flex justify-between items-center mb-3 border-b border-gray-700">
+              <p class="text-sm text-gray-400 mb-2">Можно открыть эту страницу из Telegram-бота на вашем ПК или ноутбуке.</a>
+              </p>
+            </div>
+          </template>
+          <template x-if="selectedOs === 'AndroidTV'">
+            <div class="flex justify-between items-center mb-3">
+              <p class="text-sm text-gray-400">
+                Сначала установите приложение <span class="font-semibold">«Happ&nbsp;Proxy»</span> на телефон 
+                iPhone или Android. Настройте и убедитесь что VPN корректно работает на телефоне. 
+                После этого скачайте то же приложение на телевизор AndroidTV через  
+                <a href="https://play.google.com/store/apps/details?id=com.happproxy" target="_blank" class="text-blue-400 hover:underline">Google&nbsp;Play</a>, найдя его в поиске. 
+              </p>
+            </div>
+          </template>
+          <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
+            <a :href="currentOs.downloadUrl" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg" style="height: 52px;"> 
+              Скачать&nbsp;<span x-text="currentOs.appName"></span>
+            </a>
+          </template>
+          <template x-if="selectedOs === 'iOS'">
+            <div>
+              <a :href="currentOs.ruUrl" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52"> 
+                Скачать Happ Proxy в App Store 🇷🇺
+              </a>
+              <a :href="currentOs.globalUrl" target="_blank" class="w-full flex items-center justify-center text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52 btn-ios-secondary mt-2"> 
+                Скачать Happ Proxy Global 🌎
+              </a>
+              <p class="text-sm text-gray-400 mt-2">
+                Выберите кнопку, соответствующую региону вашего Apple ID. <br><br>
+                Можно использовать альтернативные приложения для подключения, например, <a href="https://apps.apple.com/ru/app/v2raytun/id6476628951" target="_blank" class="text-blue-400 hover:underline">v2rayTun</a> или <a href="https://apps.apple.com/ru/app/streisand/id6450534064" target="_blank" class="text-blue-400 hover:underline">Streisand.</a>
+              </p>
+            </div>
+          </template>
+          <template x-if="selectedOs === 'Windows'">
+            <div class="mt-4 pt-4 border-t border-gray-700">
+              <div class="flex justify-between items-center mb-2">
+                <p class="text-sm text-gray-400">После загрузки откройте и запустите скачанное приложение.</a>
+                </p>
+              </div>
+            </div>
+          </template>
+          <template x-if="selectedOs === 'Android'">
+            <div class="mt-4 pt-4 border-t border-gray-700">
+              <div class="flex justify-between items-center mb-2">
+                <p class="text-sm text-gray-400">Скачать <a href="https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" target="_blank" class="text-blue-400 hover:underline">Happ</a> с сайта разработчика. Можно использовать альтернативные приложения для подключения, например, <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru" target="_blank" class="text-blue-400 hover:underline">v2rayTun</a>.
+                </p>
+              </div>
+            </div>
+          </template>
+          <template x-if="selectedOs === 'Linux'">
+            <div class="mt-4 pt-4 border-t border-gray-700">
+              <div class="flex justify-between items-center mb-2">
+                <p class="text-sm font-semibold text-gray-300">Или установка через терминал:</p>
+                <button @click="copyTerminalCommands($el, 'Готово!')" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">Копировать</button>
+              </div>
+              <pre class="bg-gray-900 text-gray-300 text-xs p-3 rounded-md whitespace-pre-wrap break-all">
+														<code id="linux-commands">wget https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb
+sudo apt install ./Happ.linux.x64.deb</code>
+              </pre>
+            </div>
+          </template>
+        </div>
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <p class="text-base font-semibold mb-3">
+            <span class="text-blue-400">2</span> Настройка VPN-приложения
+          </p>
+          <template x-if="['iOS','Android','Windows','Linux'].includes(selectedOs)">
+            <div>
+              <a x-show="String(selectedOs).toLowerCase() !== 'linux'" :href="`happ://add/${user.subscription_url}`" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="currentOs.appName"></span>
+              </a>
+              <div class="mb-4 border-t border-gray-700 mt-4 pt-4">
+                <input type="text" :value="user.subscription_url" class="w-full bg-gray-700 text-gray-300 rounded-t-lg p-2 text-sm focus:outline-none" readonly @click="$el.select()" />
+                <button @click="copyToClipboard(user.subscription_url, $el, 'Ключ скопирован!')" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-b-lg flex items-center gap-2 justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                  </svg>
+                  <span>Копировать ключ</span>
+                </button>
+              </div>
+            </div>
+          </template>
+          <div class="mt-4">
+            <template x-if="selectedOs === 'Windows'">
+              <div class="text-sm text-gray-400 mt-2"> Можно открыть приложение Happ&nbsp;Proxy на вашем ПК и вставить ключ через кнопку <span class="font-semibold">+</span>
+              </div>
+            </template>
+            <template x-if="selectedOs === 'AndroidTV'">
+              <div class="text-sm text-gray-400 mt-2"> Запустите приложение Happ&nbsp;Proxy на телевизоре. На телевизоре появится QR-код. Отсканируйте его на мобильном телефоне. Выберите настройки подключения для телевизора. 
+              </div>
+            </template>
+            <template x-if="selectedOs === 'iOS'">
+              <div class="text-sm text-gray-400 mt-2"> Откройте приложение для подключения Happ&nbsp;Proxy, v2rayTun или Streisand, и вставьте ключ через кнопку <span class="font-semibold">+</span>
+              </div>
+            </template>
+            <template x-if="selectedOs === 'Android'">
+              <div class="text-sm text-gray-400 mt-2"> Откройте приложение для подключения Happ&nbsp;Proxy или v2rayTun, и вставьте ключ через кнопку <span class="font-semibold">+</span>
+              </div>
+            </template>
+            <template x-if="selectedOs === 'Linux'">
+              <div class="text-sm text-gray-400 mt-2"> Откройте приложение для подключения Happ&nbsp;Proxy на вашем ПК и вставьте ключ через кнопку <span class="font-semibold">Из буфера</span>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <p class="text-base font-semibold mb-3">
+            <span class="text-blue-400">3</span> Подключение к VPN
+          </p>
+          <template x-if="['AndroidTV'].includes(selectedOs)">
+            <div>
+              <p class="text-sm text-gray-400">Настройки приложения добавлены на Android&nbsp;TV. Теперь отройте VPN-приложение на телевизоре и нажмите кнопку «Подключиться» </p>
+            </div>
+          </template>
+          <template x-if="['iOS','Android','Windows','Linux'].includes(selectedOs)">
+            <div>
+              <p class="text-sm text-gray-400">VPN-приложение скачано. Ключ для настройки добавлен. Отройте VPN-приложение, выберите страну и нажмите кнопку «Подключиться» </p>
+            </div>
+          </template>
+        </div>
+        <div @click="openQrModal()" class="bg-gray-800 p-3 rounded-lg cursor-pointer">
+          <div class="flex items-center">
+            <div id="qrcode-small" class="mr-3 bg-white p-1 rounded-md inline-block">
+              <!-- QR-код будет сгенерирован сюда -->
+            </div>
+            <div class="flex-1">
+              <h3 class="font-semibold whitespace-nowrap">QR-код для другого устройства</h3>
+              <p class="text-sm text-gray-400 whitespace-nowrap">Отсканируйте на другом устройстве</p>
+            </div>
+          </div>
+        </div>
+        <div x-data="{ open: true }" class="bg-gray-800 rounded-lg">
+          <button @click="open = !open" class="w-full flex justify-between items-center text-left p-4">
+            <h2 class="text-lg font-bold">Информация о подписке</h2>
+            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+          <div x-show="open" x-transition class="p-4 pt-0">
+            <div class="flex items-center space-x-4">
+              <div class="shrink-0">
+                <div class="radial-progress" :style="`--size: 7rem; --thickness: 0.7rem; --value: ${usagePercentage}; --color: #34d399;`">
+                  <div class="radial-progress-text text-xl font-bold" x-text="`${usagePercentage}%`"></div>
+                </div>
+              </div>
+              <div class="text-sm space-y-2 flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">ID:</span>
+                  <span class="font-medium" x-text="user.username"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Статус:</span>
+                  <span class="font-medium px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Трафик:</span>
+                  <span class="font-medium" x-text="trafficText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Действует до:</span>
+                  <span class="font-medium" x-text="expirationText"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Осталось дней:</span>
+                  <span class="font-medium" x-text="remainingDays"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Устройства:</span>
+                  <span class="font-medium">
+                    {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
+          </div>
+        </div>
+        {% if web_url %}
+          <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+             class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg">
+            Открыть личный кабинет
+          </a>
+        {% endif %}
       </main>
-
-      <footer class="footer">
-        Сайт работает на платформе
-        <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
-          npvpn
-        </a>
-      </footer>
+      <div x-show="isQrModalOpen" @keydown.escape.window="isQrModalOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 transition-opacity" @click.self="isQrModalOpen = false">
+        <div x-show="isQrModalOpen" x-transition class="bg-white p-6 rounded-lg text-center relative">
+          <h3 class="text-lg font-bold text-gray-900 mb-4">Отсканируйте для подключения <br>другого устройства </h3>
+          <div id="qrcode-large" class="flex justify-center"></div>
+          <button @click="isQrModalOpen = false" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div x-show="isImageModalOpen" @keydown.escape.window="isImageModalOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 transition-opacity" @click.self="isImageModalOpen = false">
+        <div x-show="isImageModalOpen" x-transition class="p-4 relative">
+          <img :src="modalImageUrl" class="max-w-[90vw] max-h-[85vh] rounded-lg">
+          <button @click="isImageModalOpen = false" class="absolute top-0 -right-8 text-white hover:text-gray-300">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   </body>
 </html>
