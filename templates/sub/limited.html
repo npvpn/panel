@@ -88,14 +88,7 @@
                 {% if user.device_limit %}
                   {{ devices|length }} из {{ user.device_limit }}
                 {% else %}
-                  {{ devices|length }}{% for device in devices %}
-                  {% set os = device.device_os or '' %} {% set os_lower = os.lower() %} {% if 'windows' in os_lower or 'linux' in os_lower or 'pc' in os_lower %}  {% else %}  {% endif %}
-                  {{ device.device_model or "Неизвестная модель" }}
-                  {{ device.device_os or "Неизвестно" }} {% if device.ver_os %} {{ device.ver_os }} {% endif %}
-                  {% if device.user_agent %}
-                  {{ device.user_agent }}
-                  {% endif %}
-                  
+                  {{ devices|length }}
                 {% endif %}
               </p>
             </div>
