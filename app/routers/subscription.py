@@ -373,7 +373,6 @@ def user_subscription(
 @router.get("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 @router.post("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 def revoke_subscription_device(
-    request: Request,
     token: str,
     device_id: int,
     db: Session = Depends(get_db),
@@ -393,8 +392,6 @@ def revoke_subscription_device(
         raise HTTPException(status_code=404, detail="Active device not found")
 
     crud.revoke_user_device(db, dbdevice)
-    if request.method == "POST":
-        return Response(status_code=204)
     return RedirectResponse(url=f"/{XRAY_SUBSCRIPTION_PATH}/{token}", status_code=303)
 
 
