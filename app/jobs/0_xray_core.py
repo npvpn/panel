@@ -5,7 +5,19 @@ from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
 from config import JOB_CORE_HEALTH_CHECK_INTERVAL
+from app.xray.node import NodeAPIError
 from xray_api import exc as xray_exc
+
+
+def _quick_node_ready(node) -> bool:
+    try:
+        if hasattr(node, "_session_id"):
+            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
+        if hasattr(node, "started"):
+            return bool(getattr(node, "started", False))
+    except Exception:
+        pass
+    return False
 
 
 def core_health_check():
@@ -31,14 +43,13 @@ def core_health_check():
             xray.operations.connect_node(node_id, config)
             continue
 
-        if node.connected:
+        if status == NodeStatus.connected and _quick_node_ready(node):
             try:
-                assert node.started
                 node.api.get_sys_stats(timeout=2)
-            except (ConnectionError, xray_exc.XrayError, AssertionError):
+            except (ConnectionError, NodeAPIError, xray_exc.XrayError):
                 if not config:
                     config = xray.config.include_db_users()
-                xray.operations.restart_node(node_id, config)
+                xray.operations.connect_node(node_id, config)
             continue
 
         if not config:

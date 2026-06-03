@@ -221,8 +221,7 @@ class ReSTXRayNode:
 
     @property
     def started(self):
-        res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
-        return res.get('started', False)
+        return bool(self._session_id) and bool(self._started)
 
     @property
     def api(self):
