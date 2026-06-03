@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, timezone
 import math
@@ -38,6 +39,22 @@ client_config = {
 }
 
 router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
+
+
+def devices_json(devices) -> str:
+    return json.dumps(
+        [
+            {
+                "id": device.id,
+                "device_model": device.device_model or "Неизвестная модель",
+                "device_os": device.device_os or "Неизвестно",
+                "ver_os": device.ver_os or "",
+                "user_agent": device.user_agent or "",
+            }
+            for device in devices
+        ],
+        ensure_ascii=False,
+    )
 
 
 def get_user_note(user: UserResponse, note_template: str) -> str:
@@ -199,39 +216,38 @@ def user_subscription(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    html_device_limited = False
-    if not is_revoked and not is_expired and dbuser.device_limit:
-        html_device_limited = crud.count_user_devices(db, dbuser) >= dbuser.device_limit
+    is_limited = (
+        not is_revoked
+        and not is_expired
+        and crud.is_device_limit_exceeded(db, dbuser)
+    )
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
+        devices = crud.get_user_active_devices(db, dbuser)
+        html_context = {
+            "user": user,
+            "devices": devices,
+            "devices_json": devices_json(devices),
+            "token": token,
+            "sub_path": XRAY_SUBSCRIPTION_PATH,
+            "web_url": (bot_settings.get("web_url") or "").strip(),
+            "bot_url": bot_settings["bot_url"],
+        }
         if is_revoked:
             return HTMLResponse(
-                render_template(
-                    "sub/revoked.html",
-                    {"bot_url": bot_settings["bot_url"]}
-                )
+                render_template("sub/revoked.html", html_context)
             )
         if is_expired:
             return HTMLResponse(
-                render_template(
-                    "sub/expired.html",
-                    {"bot_url": bot_settings["bot_url"]}
-                )
+                render_template("sub/expired.html", html_context)
             )
-        devices = crud.get_user_active_devices(db, dbuser)
+        if is_limited:
+            return HTMLResponse(
+                render_template("sub/limited.html", html_context)
+            )
         return HTMLResponse(
-            render_template(
-                SUBSCRIPTION_PAGE_TEMPLATE,
-                {
-                    "user": user,
-                    "devices": devices,
-                    "token": token,
-                    "sub_path": XRAY_SUBSCRIPTION_PATH,
-                    "device_limit_reached": html_device_limited,
-                    "web_url": (bot_settings.get("web_url") or "").strip(),
-                }
-            )
+            render_template(SUBSCRIPTION_PAGE_TEMPLATE, html_context)
         )
 
     user, device_limited, device_limited_hard_for_gen, unsupported_blocks = (

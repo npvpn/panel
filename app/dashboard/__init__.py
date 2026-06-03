@@ -4,12 +4,30 @@ import subprocess
 from pathlib import Path
 
 from app import app
-from config import DEBUG, VITE_BASE_API, DASHBOARD_PATH
+from config import CUSTOM_TEMPLATES_DIRECTORY, DEBUG, VITE_BASE_API, DASHBOARD_PATH
 from fastapi.staticfiles import StaticFiles
 
 base_dir = Path(__file__).parent
 build_dir = base_dir / 'build'
 statics_dir = build_dir / 'statics'
+
+
+def _sub_templates_dir() -> Path | None:
+    if CUSTOM_TEMPLATES_DIRECTORY:
+        path = Path(CUSTOM_TEMPLATES_DIRECTORY) / "sub"
+    else:
+        path = Path(__file__).resolve().parent.parent.parent / "templates" / "sub"
+    return path if path.is_dir() else None
+
+
+def mount_sub_statics() -> None:
+    sub_dir = _sub_templates_dir()
+    if sub_dir:
+        app.mount(
+            '/statics/sub/',
+            StaticFiles(directory=sub_dir),
+            name='sub-statics',
+        )
 
 
 def build():
@@ -39,6 +57,7 @@ def run_build():
     if not build_dir.is_dir():
         build()
 
+    mount_sub_statics()
     app.mount(
         DASHBOARD_PATH,
         StaticFiles(directory=build_dir, html=True),
@@ -54,6 +73,7 @@ def run_build():
 @app.on_event("startup")
 def startup():
     if DEBUG:
+        mount_sub_statics()
         run_dev()
     else:
         run_build()
