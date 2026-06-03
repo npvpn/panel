@@ -416,6 +416,7 @@ def connect_node(node_id, config=None, force: bool = False):
 
         for attempt in range(1, retries + 1):
             try:
+                _cleanup_node_connection(node)
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )

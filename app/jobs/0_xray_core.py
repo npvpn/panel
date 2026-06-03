@@ -17,8 +17,20 @@ def core_health_check():
             config = xray.config.include_db_users()
         xray.core.restart(config)
 
-    # nodes' core
+    with GetDB() as db:
+        dbnodes = crud.get_nodes(db=db, enabled=True)
+        db_status = {dbnode.id: dbnode.status for dbnode in dbnodes}
+
     for node_id, node in list(xray.nodes.items()):
+        status = db_status.get(node_id)
+
+        # DB says error/connecting but in-memory session may look fine — reconnect anyway.
+        if status in (NodeStatus.error, NodeStatus.connecting):
+            if not config:
+                config = xray.config.include_db_users()
+            xray.operations.connect_node(node_id, config)
+            continue
+
         if node.connected:
             try:
                 assert node.started
@@ -27,11 +39,11 @@ def core_health_check():
                 if not config:
                     config = xray.config.include_db_users()
                 xray.operations.restart_node(node_id, config)
+            continue
 
-        if not node.connected:
-            if not config:
-                config = xray.config.include_db_users()
-            xray.operations.connect_node(node_id, config)
+        if not config:
+            config = xray.config.include_db_users()
+        xray.operations.connect_node(node_id, config)
 
 
 @app.on_event("startup")

@@ -126,6 +126,43 @@ class ReSTXRayNode:
         self._api = None
         self._started = False
 
+    def _recreate_session(self):
+        try:
+            self.session.close()
+        except Exception:
+            pass
+        self.session = requests.Session()
+        self.session.mount('https://', SANIgnoringAdaptor())
+        self.session.cert = (self._certfile.name, self._keyfile.name)
+
+    def _reset_local_state(self, recreate_session: bool = True):
+        self._session_id = None
+        self._api = None
+        self._started = False
+        if recreate_session:
+            self._recreate_session()
+
+    @staticmethod
+    def _is_transport_error(exc: Exception) -> bool:
+        if isinstance(exc, (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        )):
+            return True
+        msg = str(exc).lower()
+        return any(
+            token in msg
+            for token in (
+                'timed out',
+                'connection aborted',
+                'unexpected eof',
+                'broken pipe',
+                'connection reset',
+                'write operation timed out',
+            )
+        )
+
     def _prepare_config(self, config: XRayConfig):
         for inbound in config.get("inbounds", []):
             streamSettings = inbound.get("streamSettings") or {}
@@ -151,10 +188,17 @@ class ReSTXRayNode:
     def make_request(self, path: str, timeout: int, **params):
         try:
             req_timeout = max(1, int(timeout))
-            res = self.session.post(self._rest_api_url + path, timeout=req_timeout,
-                                    json={"session_id": self._session_id, **params})
+            connect_timeout = min(10, req_timeout)
+            res = self.session.post(
+                self._rest_api_url + path,
+                timeout=(connect_timeout, req_timeout),
+                headers={'Connection': 'close'},
+                json={"session_id": self._session_id, **params},
+            )
             data = res.json()
         except Exception as e:
+            if self._is_transport_error(e):
+                self._reset_local_state()
             exc = NodeAPIError(0, str(e))
             raise exc
 
@@ -172,6 +216,7 @@ class ReSTXRayNode:
             self.make_request("/ping", timeout=XRAY_NODE_REST_PING_TIMEOUT)
             return True
         except NodeAPIError:
+            self._reset_local_state()
             return False
 
     @property
@@ -198,6 +243,13 @@ class ReSTXRayNode:
         return self._api
 
     def connect(self):
+        if self._session_id:
+            try:
+                self.make_request("/disconnect", timeout=XRAY_NODE_REST_DISCONNECT_TIMEOUT)
+            except NodeAPIError:
+                pass
+        self._reset_local_state()
+
         self._node_cert = fetch_server_certificate(
             self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
         )
@@ -208,8 +260,13 @@ class ReSTXRayNode:
         self._session_id = res['session_id']
 
     def disconnect(self):
-        self.make_request("/disconnect", timeout=XRAY_NODE_REST_DISCONNECT_TIMEOUT)
-        self._session_id = None
+        try:
+            if self._session_id:
+                self.make_request("/disconnect", timeout=XRAY_NODE_REST_DISCONNECT_TIMEOUT)
+        except NodeAPIError:
+            pass
+        finally:
+            self._reset_local_state()
 
     def get_version(self):
         res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
