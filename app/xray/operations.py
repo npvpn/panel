@@ -334,8 +334,6 @@ global _connecting_nodes
 _connecting_nodes = set()
 _connecting_started_at = {}
 _connecting_nodes_lock = threading.Lock()
-<<<<<<< Updated upstream
-=======
 
 
 def _cleanup_node_connection(node) -> None:
@@ -349,7 +347,6 @@ def _cleanup_node_connection(node) -> None:
                 node._reset_local_state()
             except Exception:
                 pass
->>>>>>> Stashed changes
 
 
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
