@@ -245,5 +245,9 @@
   "botSettings.subDeviceLimitServerText": "设备限制服务器文本",
   "botSettings.subUnsupportedClientServerText": "不支持客户端服务器文本",
   "botSettings.subUpdateInterval": "配置更新间隔",
-  "botSettings.webUrlHint": "订阅页按钮指向的 Web 控制台 URL。从 Telegram 机器人同步（web_frontend.domain）。"
+  "botSettings.webUrlHint": "订阅页按钮指向的 Web 控制台 URL。从 Telegram 机器人同步（web_frontend.domain）。",
+  "botSettings.tabBotInfo": "基本信息",
+  "botSettings.tabSubscription": "订阅设置",
+  "botSettings.tabMessages": "消息",
+  "botSettings.serverResponses": "服务器响应"
 }

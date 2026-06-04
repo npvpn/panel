@@ -273,5 +273,9 @@
   "botSettings.webUrlHint": "Web cabinet URL for the subscription page button. Synced from telegram bot (web_frontend.domain).",
   "botSettings.subProfileUrlHint": "Subscription profile page URL. Leave empty for auto fallback.",
   "botSettings.serverTextHint": "One message per line or separated by commas.",
-  "botSettings.subUpdateIntervalHint": "Number in hours, e.g. 12."
+  "botSettings.subUpdateIntervalHint": "Number in hours, e.g. 12.",
+  "botSettings.tabBotInfo": "Bot Info",
+  "botSettings.tabSubscription": "Subscription",
+  "botSettings.tabMessages": "Messages",
+  "botSettings.serverResponses": "Server Responses"
 }

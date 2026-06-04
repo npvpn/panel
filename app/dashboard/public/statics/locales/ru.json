@@ -273,5 +273,9 @@
   "botSettings.webUrlHint": "URL веб-кабинета для кнопки на странице подписки. Синхронизируется из telegram-бота (web_frontend.domain).",
   "botSettings.subProfileUrlHint": "URL страницы профиля подписки. Можно оставить пустым для автоподстановки.",
   "botSettings.serverTextHint": "По одному сообщению на строку или через запятую.",
-  "botSettings.subUpdateIntervalHint": "Число в часах, например 12."
+  "botSettings.subUpdateIntervalHint": "Число в часах, например 12.",
+  "botSettings.tabBotInfo": "Основное",
+  "botSettings.tabSubscription": "Подписка",
+  "botSettings.tabMessages": "Сообщения",
+  "botSettings.serverResponses": "Ответы сервера"
 }
