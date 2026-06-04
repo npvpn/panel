@@ -253,5 +253,6 @@
   "botSettings.tabBotInfo": "اطلاعات ربات",
   "botSettings.tabSubscription": "اشتراک",
   "botSettings.tabMessages": "پیام‌ها",
-  "botSettings.serverResponses": "پاسخ‌های سرور"
+  "botSettings.serverResponses": "پاسخ‌های سرور",
+  "botSettings.announceMessages": "پیام‌های اعلان"
 }

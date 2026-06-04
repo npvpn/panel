@@ -1,9 +1,4 @@
 import {
-  Accordion,
-  AccordionButton,
-  AccordionIcon,
-  AccordionItem,
-  AccordionPanel,
   Box,
   Button,
   FormControl,
@@ -28,6 +23,7 @@ import {
   Textarea,
   useToast,
   VStack,
+  Text as ChakraText,
 } from "@chakra-ui/react";
 import { FC, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -352,7 +348,7 @@ export const BotSettingsDialog: FC = () => {
               <Tab>{t("botSettings.tabMessages")}</Tab>
             </TabList>
             {/*список содержимого*/}
-            <TabPanels minH="400px">
+            <TabPanels minH="400px" pt={2}>
               {/* Вкладка 1: Bot Info */}
               <TabPanel px={0}>
                 <VStack spacing={4} align="stretch">
@@ -408,6 +404,7 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.botUrl")}</FormLabel>
                       <Input
                         value={settings.bot_url}
+                        placeholder="https://t.me/my_vpn_bot"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -423,13 +420,13 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.webUrl")}</FormLabel>
                       <Input
                         value={settings.web_url}
+                        placeholder="https://cabinet.example.com"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
                             web_url: e.target.value,
                           }))
                         }
-                        placeholder="https://cabinet.example.com"
                       />
                       <FormHelperText>
                         {t("botSettings.webUrlHint")}
@@ -447,6 +444,7 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.subSupportUrl")}</FormLabel>
                       <Input
                         value={settings.sub_support_url}
+                        placeholder="https://t.me/support"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -462,6 +460,7 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.subProfileTitle")}</FormLabel>
                       <Input
                         value={settings.sub_profile_title}
+                        placeholder="My VPN"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -480,6 +479,7 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.subProfileUrl")}</FormLabel>
                       <Input
                         value={settings.sub_profile_url}
+                        placeholder="https://example.com/profile"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -515,6 +515,7 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.subRoutingHapp")}</FormLabel>
                       <Input
                         value={settings.sub_routing_happ}
+                        placeholder="happ://"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -529,6 +530,7 @@ export const BotSettingsDialog: FC = () => {
                       </FormLabel>
                       <Input
                         value={settings.sub_routing_v2raytun}
+                        placeholder="v2ray://"
                         onChange={(e) =>
                           setSettings((p) => ({
                             ...p,
@@ -543,6 +545,7 @@ export const BotSettingsDialog: FC = () => {
                     <FormLabel>{t("botSettings.subClientNote")}</FormLabel>
                     <Textarea
                       value={settings.sub_client_note}
+                      placeholder="Текст, который увидит пользователь на странице подписки"
                       onChange={(e) =>
                         setSettings((p) => ({
                           ...p,
@@ -557,54 +560,95 @@ export const BotSettingsDialog: FC = () => {
               {/* Вкладка 3: Messages */}
               <TabPanel px={0}>
                 <VStack spacing={4} align="stretch">
-                  {/* Revoked и Expired */}
-                  <HStack align="start">
-                    <FormControl>
-                      <FormLabel>
-                        {t("botSettings.subRevokedAnnounceText")}
-                      </FormLabel>
-                      <Input
-                        value={settings.sub_revoked_announce_text}
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
-                            sub_revoked_announce_text: e.target.value,
-                          }))
-                        }
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>
-                        {t("botSettings.subExpiredAnnounceText")}
-                      </FormLabel>
-                      <Input
-                        value={settings.sub_expired_announce_text}
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
-                            sub_expired_announce_text: e.target.value,
-                          }))
-                        }
-                      />
-                    </FormControl>
-                  </HStack>
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
+                    <VStack spacing={4} align="stretch">
+                      <ChakraText
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="gray.500"
+                        textTransform="uppercase"
+                        letterSpacing="wide"
+                      >
+                        {t("botSettings.announceMessages")}
+                      </ChakraText>
 
-                  <FormControl>
-                    <FormLabel>
-                      {t("botSettings.subUnsupportedClientAnnounceText")}
-                    </FormLabel>
-                    <Input
-                      value={settings.sub_unsupported_client_announce_text}
-                      onChange={(e) =>
-                        setSettings((p) => ({
-                          ...p,
-                          sub_unsupported_client_announce_text: e.target.value,
-                        }))
-                      }
-                    />
-                  </FormControl>
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subRevokedAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_revoked_announce_text}
+                            placeholder="Подписка была отозвана"
+                            onChange={(e) =>
+                              setSettings((p) => ({
+                                ...p,
+                                sub_revoked_announce_text: e.target.value,
+                              }))
+                            }
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subExpiredAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_expired_announce_text}
+                            placeholder="Срок действия подписки истёк"
+                            onChange={(e) =>
+                              setSettings((p) => ({
+                                ...p,
+                                sub_expired_announce_text: e.target.value,
+                              }))
+                            }
+                          />
+                        </FormControl>
+                      </HStack>
 
-                  {/* Device limit announce + hard mode switch вместе в одном блоке */}
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subUnsupportedClientAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={
+                              settings.sub_unsupported_client_announce_text
+                            }
+                            placeholder="Ваш клиент не поддерживается"
+                            onChange={(e) =>
+                              setSettings((p) => ({
+                                ...p,
+                                sub_unsupported_client_announce_text:
+                                  e.target.value,
+                              }))
+                            }
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subDeviceLimitAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_device_limit_announce_text}
+                            placeholder="Превышен лимит устройств"
+                            onChange={(e) =>
+                              setSettings((p) => ({
+                                ...p,
+                                sub_device_limit_announce_text: e.target.value,
+                              }))
+                            }
+                          />
+                        </FormControl>
+                      </HStack>
+                    </VStack>
+                  </Box>
+
+                  {/* Device limit — в рамке */}
                   <Box
                     border="1px solid"
                     borderColor="inherit"
@@ -626,8 +670,6 @@ export const BotSettingsDialog: FC = () => {
                           }
                         />
                       </FormControl>
-
-                      {/* Switch сразу под своим полем */}
                       <FormControl>
                         <FormLabel>
                           {t("botSettings.subDeviceLimitHardMode")}
@@ -649,9 +691,24 @@ export const BotSettingsDialog: FC = () => {
                     </VStack>
                   </Box>
 
-                  {/* Server Responses */}
-                  <Box pt={2} borderTop="1px solid" borderColor="inherit">
+                  {/* Server Responses — тоже в рамке, с заголовком */}
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
                     <VStack spacing={4} align="stretch">
+                      <ChakraText
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="gray.500"
+                        textTransform="uppercase"
+                        letterSpacing="wide"
+                      >
+                        {t("botSettings.serverResponses")}
+                      </ChakraText>
+
                       <HStack align="start">
                         <FormControl>
                           <FormLabel>

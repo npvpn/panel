@@ -277,5 +277,6 @@
   "botSettings.tabBotInfo": "Bot Info",
   "botSettings.tabSubscription": "Subscription",
   "botSettings.tabMessages": "Messages",
-  "botSettings.serverResponses": "Server Responses"
+  "botSettings.serverResponses": "Server Responses",
+  "botSettings.announceMessages": "Announce Messages"
 }

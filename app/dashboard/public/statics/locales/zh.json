@@ -249,5 +249,6 @@
   "botSettings.tabBotInfo": "基本信息",
   "botSettings.tabSubscription": "订阅设置",
   "botSettings.tabMessages": "消息",
-  "botSettings.serverResponses": "服务器响应"
+  "botSettings.serverResponses": "服务器响应",
+  "botSettings.announceMessages": "公告消息"
 }
