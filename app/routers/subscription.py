@@ -363,19 +363,7 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-    elif re.match(r'^INCY/', user_agent):
-        incy_needs_stub_format = (
-            is_revoked
-            or is_expired
-            or unsupported_blocks
-            or device_limited_hard_for_gen
-            or device_limited
-        )
-        if incy_needs_stub_format:
-            conf = build_subscription("v2ray-json", False, False)
-            return Response(content=conf, media_type="application/json", headers=response_headers)
-        conf = build_subscription("v2ray", True, False)
-        return Response(content=conf, media_type="text/plain", headers=response_headers)
+
 
     else:
         conf = build_subscription("v2ray", True, False)

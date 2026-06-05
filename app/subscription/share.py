@@ -1,5 +1,4 @@
 import base64
-import json
 import random
 import secrets
 from collections import defaultdict
@@ -98,71 +97,6 @@ def generate_v2ray_json_subscription(
     )
 
 
-_STUB_ZERO_ID = "00000000-0000-0000-0000-000000000000"
-_STUB_CONFIG_FORMATS = ("v2ray", "v2ray-json")
-
-
-def _is_full_inactive_subscription(
-        revoked: bool,
-        expired: bool,
-        unsupported_client: bool,
-        device_limited_hard: bool,
-) -> bool:
-    return revoked or expired or unsupported_client or device_limited_hard
-
-
-def _inactive_server_text_list(
-        resolved_settings: dict,
-        revoked: bool,
-        expired: bool,
-        device_limited_hard: bool,
-) -> list:
-    if revoked:
-        return resolved_settings["sub_revoked_server_text"]
-    if expired:
-        return resolved_settings["sub_expired_server_text"]
-    if device_limited_hard:
-        return resolved_settings["sub_device_limit_server_text"]
-    return resolved_settings["sub_unsupported_client_server_text"]
-
-
-def _generate_v2ray_stub_links(text_list: list) -> list:
-    return [
-        V2rayShareLink.vless(
-            remark=remark,
-            address="0.0.0.0",
-            port=0,
-            id=_STUB_ZERO_ID,
-            net="ws",
-            tls="none",
-            path="",
-            host="",
-        )
-        for remark in text_list
-    ]
-
-
-def generate_v2ray_json_placeholder_subscription(text_list: list) -> str:
-    conf = V2rayJsonConfig()
-    for remark in text_list:
-        outbound = {
-            "tag": "proxy",
-            "protocol": "vless",
-            "settings": V2rayJsonConfig.vless_config(
-                address="0.0.0.0",
-                port=0,
-                id=_STUB_ZERO_ID,
-            ),
-            "streamSettings": {
-                "network": "ws",
-                "security": "none",
-                "wsSettings": {},
-            },
-        }
-        conf.add_config(remarks=remark, outbounds=[outbound])
-    return conf.render()
-
-
 def generate_subscription(
         user: "UserResponse",
         config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json"],
@@ -179,35 +113,59 @@ def generate_subscription(
 
     resolved_settings = apply_bot_settings_fallback(settings or DEFAULT_BOT_SETTINGS)
 
-    if (
-        config_format in _STUB_CONFIG_FORMATS
-        and _is_full_inactive_subscription(
-            revoked, expired, unsupported_client, device_limited_hard
-        )
-    ):
-        text_list = _inactive_server_text_list(
-            resolved_settings, revoked, expired, device_limited_hard
-        )
+    # Special handling for inactive tokens: placeholder nodes for V2Ray
+    if config_format == "v2ray" and (revoked or expired or unsupported_client or device_limited_hard):
+        from app.subscription.v2ray import V2rayShareLink
+
+        if revoked:
+            text_list = resolved_settings["sub_revoked_server_text"]
+        elif expired:
+            text_list = resolved_settings["sub_expired_server_text"]
+        elif device_limited_hard:
+            text_list = resolved_settings["sub_device_limit_server_text"]
+        else:
+            text_list = resolved_settings["sub_unsupported_client_server_text"]
+
         if not text_list:
-            if config_format == "v2ray-json":
-                return "[]"
             return base64.b64encode("".encode()).decode()
-        if config_format == "v2ray-json":
-            return generate_v2ray_json_placeholder_subscription(text_list)
-        payload = "\n".join(_generate_v2ray_stub_links(text_list))
+
+        zero_id = "00000000-0000-0000-0000-000000000000"
+        links = [
+            V2rayShareLink.vless(
+                remark=remark,
+                address="0.0.0.0",
+                port=0,
+                id=zero_id,
+                net="ws",
+                tls="none",
+                path="",
+                host="",
+            )
+            for remark in text_list
+        ]
+        payload = "\n".join(links)
         return base64.b64encode(payload.encode()).decode()
 
     device_limit_links = []
-    device_limit_json_configs = []
-    if device_limited and not device_limited_hard:
+    if config_format == "v2ray" and device_limited and not device_limited_hard:
+        from app.subscription.v2ray import V2rayShareLink
+
         device_limit_text = resolved_settings["sub_device_limit_server_text"]
         if device_limit_text:
-            if config_format == "v2ray":
-                device_limit_links = _generate_v2ray_stub_links(device_limit_text)
-            elif config_format == "v2ray-json":
-                device_limit_json_configs = json.loads(
-                    generate_v2ray_json_placeholder_subscription(device_limit_text)
+            zero_id = "00000000-0000-0000-0000-000000000000"
+            device_limit_links = [
+                V2rayShareLink.vless(
+                    remark=remark,
+                    address="0.0.0.0",
+                    port=0,
+                    id=zero_id,
+                    net="ws",
+                    tls="none",
+                    path="",
+                    host="",
                 )
+                for remark in device_limit_text
+            ]
 
     kwargs = {
         "proxies": user.proxies,
@@ -231,15 +189,6 @@ def generate_subscription(
         config = generate_outline_subscription(**kwargs)
     elif config_format == "v2ray-json":
         config = generate_v2ray_json_subscription(**kwargs)
-        if device_limit_json_configs:
-            from app.utils.helpers import UUIDEncoder
-
-            main_configs = json.loads(config)
-            config = json.dumps(
-                device_limit_json_configs + main_configs,
-                indent=4,
-                cls=UUIDEncoder,
-            )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')
 
