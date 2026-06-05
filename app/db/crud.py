@@ -795,6 +795,40 @@ def revoke_user_device(db: Session, dbdevice: UserDevice) -> UserDevice:
     return dbdevice
 
 
+def _unknown_user_agents_match(stored: Optional[str], incoming: Optional[str]) -> bool:
+    def norm(v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        s = v.strip()
+        return s if s else None
+
+    stored_n = norm(stored)
+    incoming_n = norm(incoming)
+    if stored_n == "Неизвестно":
+        stored_n = None
+    if stored_n is None and incoming_n is None:
+        return True
+    if stored_n is None or incoming_n is None:
+        return stored_n == incoming_n
+    return stored_n == incoming_n
+
+
+def _update_unknown_device_metadata(
+    dbdevice: UserDevice,
+    device_os: Optional[str],
+    ver_os: Optional[str],
+    device_model: Optional[str],
+    user_agent: Optional[str],
+) -> None:
+    dbdevice.device_os = device_os or dbdevice.device_os
+    dbdevice.ver_os = ver_os or dbdevice.ver_os
+    dbdevice.device_model = device_model or dbdevice.device_model
+    dbdevice.user_agent = user_agent or dbdevice.user_agent
+    if dbdevice.status == "revoked":
+        dbdevice.status = "active"
+    dbdevice.last_seen = datetime.utcnow()
+
+
 def register_user_device(
     db: Session,
     dbuser: User,
@@ -805,14 +839,15 @@ def register_user_device(
     user_agent: Optional[str],
 ) -> tuple[bool, bool]:
     unknown_hwid = "Неизвестное устройство"
-    unknown_value = "Неизвестно"
     if not hwid:
         dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
         if dbdevice:
-            if dbdevice.status == "revoked":
-                dbdevice.status = "active"
-                dbdevice.last_seen = datetime.utcnow()
+            if _unknown_user_agents_match(dbdevice.user_agent, user_agent):
+                _update_unknown_device_metadata(
+                    dbdevice, device_os, ver_os, device_model, user_agent
+                )
                 db.commit()
+                return True, False
             return False, True
         if dbuser.device_limit:
             current = count_user_devices(db, dbuser)
@@ -821,10 +856,10 @@ def register_user_device(
         dbdevice = UserDevice(
             user_id=dbuser.id,
             hwid=unknown_hwid,
-            device_os=unknown_value,
-            ver_os=unknown_value,
-            device_model=unknown_value,
-            user_agent=unknown_value,
+            device_os=device_os,
+            ver_os=ver_os,
+            device_model=device_model,
+            user_agent=user_agent,
             status="active",
         )
         db.add(dbdevice)
