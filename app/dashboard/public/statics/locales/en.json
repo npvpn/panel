@@ -278,5 +278,8 @@
   "botSettings.tabSubscription": "Subscription",
   "botSettings.tabMessages": "Messages",
   "botSettings.serverResponses": "Server Responses",
-  "botSettings.announceMessages": "Announce Messages"
+  "botSettings.announceMessages": "Announce Messages",
+  "botSettings.draftFound": "Unsaved draft found",
+  "botSettings.draftRestore": "Restore",
+  "botSettings.draftDiscard": "Discard"
 }

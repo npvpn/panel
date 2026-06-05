@@ -278,5 +278,8 @@
   "botSettings.tabSubscription": "Подписка",
   "botSettings.tabMessages": "Сообщения",
   "botSettings.serverResponses": "Ответы сервера",
-  "botSettings.announceMessages": "Сообщения для пользователей"
+  "botSettings.announceMessages": "Сообщения для пользователей",
+  "botSettings.draftFound": "Найден несохранённый черновик",
+  "botSettings.draftRestore": "Восстановить",
+  "botSettings.draftDiscard": "Отклонить"
 }

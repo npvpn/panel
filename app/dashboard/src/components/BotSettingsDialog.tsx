@@ -25,7 +25,7 @@ import {
   VStack,
   Text as ChakraText,
 } from "@chakra-ui/react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDashboard } from "contexts/DashboardContext";
 // import { fetch } from "service/http";
@@ -60,6 +60,11 @@ const emptySettings: BotSettings = {
   sub_unsupported_client_server_text: [],
 };
 
+const [newBotSessionId] = useState(() => `new_${Date.now()}`);
+
+const getDraftKey = (username: string) =>
+  `botSettings_draft_${username || newBotSessionId}`;
+
 // DEV MOCK
 const fetch = <T = any,>(url: string, opts?: any): Promise<T> => {
   if (url === "/bots")
@@ -88,6 +93,8 @@ export const BotSettingsDialog: FC = () => {
   const [botTitle, setBotTitle] = useState("");
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
 
+  const [hasDraft, setHasDraft] = useState(false);
+
   const fetchBots = () => {
     return fetch<Bot[]>("/bots")
       .then((items) => {
@@ -97,6 +104,8 @@ export const BotSettingsDialog: FC = () => {
         setBots([]);
       });
   };
+
+  const saveDraftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isEditingBotSettings) return;
@@ -123,10 +132,37 @@ export const BotSettingsDialog: FC = () => {
     setBotUsername(selected?.username || "");
     setBotTitle(selected?.title || "");
     setLoading(true);
+
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
-      .then(setSettings)
+      .then((serverSettings) => {
+        setSettings(serverSettings);
+        const draft = localStorage.getItem(getDraftKey(selectedBot));
+        if (draft) {
+          setHasDraft(true);
+        }
+      })
       .finally(() => setLoading(false));
   }, [isEditingBotSettings, selectedBot, bots]);
+
+  const saveDraft = (
+    newSettings: BotSettings,
+    newUsername: string,
+    newTitle: string
+  ) => {
+    if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
+    saveDraftTimeout.current = setTimeout(() => {
+      const key = getDraftKey(selectedBot);
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          settings: newSettings,
+          botUsername: newUsername,
+          botTitle: newTitle,
+          savedAt: Date.now(),
+        })
+      );
+    }, 400);
+  };
 
   const close = () => onEditingBotSettings(false);
 
@@ -250,6 +286,8 @@ export const BotSettingsDialog: FC = () => {
         });
       })
       .then(() => {
+        localStorage.removeItem(getDraftKey(selectedBot));
+        setHasDraft(false);
         toast({
           title: t("botSettings.saved"),
           status: "success",
@@ -328,6 +366,23 @@ export const BotSettingsDialog: FC = () => {
       .finally(() => setDeleting(false));
   };
 
+  const restoreDraft = () => {
+    const key = getDraftKey(selectedBot);
+    const draft = localStorage.getItem(key);
+    if (!draft) return;
+    const parsed = JSON.parse(draft);
+    setSettings(parsed.settings);
+    setBotUsername(parsed.botUsername);
+    setBotTitle(parsed.botTitle);
+    localStorage.removeItem(key);
+    setHasDraft(false);
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(getDraftKey(selectedBot));
+    setHasDraft(false);
+  };
+
   return (
     <Modal
       isOpen={isEditingBotSettings}
@@ -347,6 +402,35 @@ export const BotSettingsDialog: FC = () => {
               <Tab>{t("botSettings.tabSubscription")}</Tab>
               <Tab>{t("botSettings.tabMessages")}</Tab>
             </TabList>
+            {hasDraft && (
+              <HStack
+                mt={2}
+                p={3}
+                borderRadius="md"
+                bg="yellow.50"
+                _dark={{ bg: "yellow.900" }}
+                border="1px solid"
+                borderColor="yellow.200"
+                _dark-border={{ borderColor: "yellow.700" }}
+                justify="space-between"
+              >
+                <ChakraText
+                  fontSize="sm"
+                  color="yellow.800"
+                  _dark={{ color: "yellow.200" }}
+                >
+                  {t("botSettings.draftFound")}
+                </ChakraText>
+                <HStack>
+                  <Button size="xs" colorScheme="yellow" onClick={restoreDraft}>
+                    {t("botSettings.draftRestore")}
+                  </Button>
+                  <Button size="xs" variant="ghost" onClick={discardDraft}>
+                    {t("botSettings.draftDiscard")}
+                  </Button>
+                </HStack>
+              </HStack>
+            )}
             {/*список содержимого*/}
             <TabPanels minH="400px" pt={2}>
               {/* Вкладка 1: Bot Info */}
@@ -379,7 +463,10 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
                       <Input
                         value={botUsername}
-                        onChange={(e) => setBotUsername(e.target.value)}
+                        onChange={(e) => {
+                          setBotUsername(e.target.value);
+                          saveDraft(settings, e.target.value, botTitle);
+                        }}
                         placeholder="@my_vpn_bot"
                       />
                       <FormHelperText>
@@ -390,7 +477,10 @@ export const BotSettingsDialog: FC = () => {
                       <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
                       <Input
                         value={botTitle}
-                        onChange={(e) => setBotTitle(e.target.value)}
+                        onChange={(e) => {
+                          setBotTitle(e.target.value);
+                          saveDraft(settings, botUsername, e.target.value);
+                        }}
                         placeholder="My VPN Bot"
                       />
                       <FormHelperText>
@@ -405,12 +495,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.bot_url}
                         placeholder="https://t.me/my_vpn_bot"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const newSettings = {
+                            ...settings,
                             bot_url: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(newSettings);
+                          saveDraft(newSettings, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.botUrlHint")}
@@ -421,12 +513,11 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.web_url}
                         placeholder="https://cabinet.example.com"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
-                            web_url: e.target.value,
-                          }))
-                        }
+                        onChange={(e) => {
+                          const s = { ...settings, web_url: e.target.value };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.webUrlHint")}
@@ -445,12 +536,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.sub_support_url}
                         placeholder="https://t.me/support"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_support_url: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.subSupportUrlHint")}
@@ -461,12 +554,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.sub_profile_title}
                         placeholder="My VPN"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_profile_title: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.subProfileTitleHint")}
@@ -480,12 +575,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.sub_profile_url}
                         placeholder="https://example.com/profile"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_profile_url: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.subProfileUrlHint")}
@@ -497,12 +594,14 @@ export const BotSettingsDialog: FC = () => {
                       </FormLabel>
                       <Input
                         value={settings.sub_update_interval}
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_update_interval: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                       <FormHelperText>
                         {t("botSettings.subUpdateIntervalHint")}
@@ -516,12 +615,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.sub_routing_happ}
                         placeholder="happ://"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_routing_happ: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                     </FormControl>
                     <FormControl>
@@ -531,12 +632,14 @@ export const BotSettingsDialog: FC = () => {
                       <Input
                         value={settings.sub_routing_v2raytun}
                         placeholder="v2ray://"
-                        onChange={(e) =>
-                          setSettings((p) => ({
-                            ...p,
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
                             sub_routing_v2raytun: e.target.value,
-                          }))
-                        }
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
                       />
                     </FormControl>
                   </HStack>
@@ -546,12 +649,14 @@ export const BotSettingsDialog: FC = () => {
                     <Textarea
                       value={settings.sub_client_note}
                       placeholder="Текст, который увидит пользователь на странице подписки"
-                      onChange={(e) =>
-                        setSettings((p) => ({
-                          ...p,
+                      onChange={(e) => {
+                        const s = {
+                          ...settings,
                           sub_client_note: e.target.value,
-                        }))
-                      }
+                        };
+                        setSettings(s);
+                        saveDraft(s, botUsername, botTitle);
+                      }}
                     />
                   </FormControl>
                 </VStack>
@@ -585,12 +690,14 @@ export const BotSettingsDialog: FC = () => {
                           <Input
                             value={settings.sub_revoked_announce_text}
                             placeholder="Подписка была отозвана"
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_revoked_announce_text: e.target.value,
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                         </FormControl>
                         <FormControl>
@@ -600,12 +707,14 @@ export const BotSettingsDialog: FC = () => {
                           <Input
                             value={settings.sub_expired_announce_text}
                             placeholder="Срок действия подписки истёк"
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_expired_announce_text: e.target.value,
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                         </FormControl>
                       </HStack>
@@ -620,13 +729,15 @@ export const BotSettingsDialog: FC = () => {
                               settings.sub_unsupported_client_announce_text
                             }
                             placeholder="Ваш клиент не поддерживается"
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_unsupported_client_announce_text:
                                   e.target.value,
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                         </FormControl>
                         <FormControl>
@@ -636,62 +747,49 @@ export const BotSettingsDialog: FC = () => {
                           <Input
                             value={settings.sub_device_limit_announce_text}
                             placeholder="Превышен лимит устройств"
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_device_limit_announce_text: e.target.value,
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                         </FormControl>
                       </HStack>
                     </VStack>
                   </Box>
 
-                  {/* Device limit — в рамке */}
                   <Box
                     border="1px solid"
                     borderColor="inherit"
                     borderRadius="md"
                     p={4}
                   >
-                    <VStack spacing={3} align="stretch">
-                      <FormControl>
-                        <FormLabel>
-                          {t("botSettings.subDeviceLimitAnnounceText")}
-                        </FormLabel>
-                        <Input
-                          value={settings.sub_device_limit_announce_text}
-                          onChange={(e) =>
-                            setSettings((p) => ({
-                              ...p,
-                              sub_device_limit_announce_text: e.target.value,
-                            }))
-                          }
-                        />
-                      </FormControl>
-                      <FormControl>
-                        <FormLabel>
-                          {t("botSettings.subDeviceLimitHardMode")}
-                        </FormLabel>
-                        <Switch
-                          colorScheme="primary"
-                          isChecked={settings.sub_device_limit_hard_mode}
-                          onChange={(e) =>
-                            setSettings((p) => ({
-                              ...p,
-                              sub_device_limit_hard_mode: e.target.checked,
-                            }))
-                          }
-                        />
-                        <FormHelperText>
-                          {t("botSettings.subDeviceLimitHardModeHint")}
-                        </FormHelperText>
-                      </FormControl>
-                    </VStack>
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.subDeviceLimitHardMode")}
+                      </FormLabel>
+                      <Switch
+                        colorScheme="primary"
+                        isChecked={settings.sub_device_limit_hard_mode}
+                        onChange={(e) => {
+                          const s = {
+                            ...settings,
+                            sub_device_limit_hard_mode: e.target.checked,
+                          };
+                          setSettings(s);
+                          saveDraft(s, botUsername, botTitle);
+                        }}
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subDeviceLimitHardModeHint")}
+                      </FormHelperText>
+                    </FormControl>
                   </Box>
 
-                  {/* Server Responses — тоже в рамке, с заголовком */}
+                  {/* Server Responses */}
                   <Box
                     border="1px solid"
                     borderColor="inherit"
@@ -716,12 +814,14 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFields.sub_revoked_server_text}
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_revoked_server_text: toList(e.target.value),
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                           <FormHelperText>
                             {t("botSettings.serverTextHint")}
@@ -733,12 +833,14 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFields.sub_expired_server_text}
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_expired_server_text: toList(e.target.value),
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                           <FormHelperText>
                             {t("botSettings.serverTextHint")}
@@ -752,14 +854,16 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFields.sub_device_limit_server_text}
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_device_limit_server_text: toList(
                                   e.target.value
                                 ),
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                           <FormHelperText>
                             {t("botSettings.serverTextHint")}
@@ -773,14 +877,16 @@ export const BotSettingsDialog: FC = () => {
                             value={
                               listFields.sub_unsupported_client_server_text
                             }
-                            onChange={(e) =>
-                              setSettings((p) => ({
-                                ...p,
+                            onChange={(e) => {
+                              const s = {
+                                ...settings,
                                 sub_unsupported_client_server_text: toList(
                                   e.target.value
                                 ),
-                              }))
-                            }
+                              };
+                              setSettings(s);
+                              saveDraft(s, botUsername, botTitle);
+                            }}
                           />
                           <FormHelperText>
                             {t("botSettings.serverTextHint")}

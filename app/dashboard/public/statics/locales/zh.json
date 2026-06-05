@@ -250,5 +250,8 @@
   "botSettings.tabSubscription": "订阅设置",
   "botSettings.tabMessages": "消息",
   "botSettings.serverResponses": "服务器响应",
-  "botSettings.announceMessages": "公告消息"
+  "botSettings.announceMessages": "公告消息",
+  "botSettings.draftFound": "发现未保存的草稿",
+  "botSettings.draftRestore": "恢复",
+  "botSettings.draftDiscard": "丢弃"
 }

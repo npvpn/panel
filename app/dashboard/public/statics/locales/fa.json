@@ -254,5 +254,8 @@
   "botSettings.tabSubscription": "اشتراک",
   "botSettings.tabMessages": "پیام‌ها",
   "botSettings.serverResponses": "پاسخ‌های سرور",
-  "botSettings.announceMessages": "پیام‌های اعلان"
+  "botSettings.announceMessages": "پیام‌های اعلان",
+  "botSettings.draftFound": "پیش‌نویس ذخیره‌نشده یافت شد",
+  "botSettings.draftRestore": "بازیابی",
+  "botSettings.draftDiscard": "رد کردن"
 }
