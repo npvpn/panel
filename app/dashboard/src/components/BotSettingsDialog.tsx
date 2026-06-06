@@ -23,14 +23,12 @@ import {
   useToast,
   VStack,
   Text as ChakraText,
-  InputGroup,
-  InputRightElement,
   useOutsideClick,
 } from "@chakra-ui/react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDashboard } from "contexts/DashboardContext";
-// import { fetch } from "service/http";
+import { fetch } from "service/http";
 import { Bot, BotSettings } from "types/Bot";
 
 const toText = (values: string[] = []) => values.join("\n");
@@ -60,29 +58,6 @@ const emptySettings: BotSettings = {
   sub_expired_server_text: [],
   sub_device_limit_server_text: [],
   sub_unsupported_client_server_text: [],
-};
-
-// DEV MOCK
-const fetch = <T = any,>(url: string, opts?: any): Promise<T> => {
-  if (url === "/bots")
-    return Promise.resolve([
-      { id: 1, username: "test_bot", title: "Test Bot" },
-      { id: 2, username: "vpn_main_bot", title: "VPN Assistant" },
-      { id: 3, username: "support_help_bot", title: "Support Team" },
-      { id: 4, username: "payment_bot", title: "Payment Processor" },
-      { id: 5, username: "notification_bot", title: "Notifications" },
-      { id: 6, username: "admin_panel_bot", title: "Admin Control" },
-      { id: 7, username: "user_guide_bot", title: "User Guide" },
-      { id: 8, username: "feedback_bot", title: "Feedback Collector" },
-      { id: 9, username: "analytics_bot", title: "Analytics" },
-      { id: 10, username: "backup_bot", title: "Backup Service" },
-      { id: 11, username: "monitoring_bot", title: "Monitoring" },
-      { id: 12, username: "logs_bot", title: "Logs Viewer" },
-    ] as T);
-  if (url === "/bots/default-settings")
-    return Promise.resolve(emptySettings as T);
-  if (url.endsWith("/settings")) return Promise.resolve(emptySettings as T);
-  return Promise.resolve({} as T);
 };
 
 export const BotSettingsDialog: FC = () => {

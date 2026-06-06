@@ -21,7 +21,7 @@ import { Statistics } from "../components/Statistics";
 
 export const Dashboard: FC = () => {
   useEffect(() => {
-    // useDashboard.getState().refetchUsers();
+    useDashboard.getState().refetchUsers();
     useDashboard.getState().onEditingBotSettings(true);
     fetchInbounds();
   }, []);
@@ -29,7 +29,7 @@ export const Dashboard: FC = () => {
     <VStack justifyContent="space-between" minH="100vh" p="6" rowGap={4}>
       <Box w="full">
         <Header />
-        {/* <Statistics mt="4" />
+        <Statistics mt="4" />
         <Filters />
         <UsersTable />
         <UserDialog />
@@ -42,7 +42,7 @@ export const Dashboard: FC = () => {
         <NodesUsage />
         <ResetAllUsageModal />
         <SyncInboundsModal />
-        <CoreSettingsModal /> */}
+        <CoreSettingsModal />
         <BotSettingsDialog />
       </Box>
       <Footer />

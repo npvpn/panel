@@ -59,12 +59,12 @@ export const Login: FC = () => {
   } = useForm({
     resolver: zodResolver(schema),
   });
-  // useEffect(() => {
-  //   removeAuthToken();
-  //   if (location.pathname !== "/login") {
-  //     navigate("/login", { replace: true });
-  //   }
-  // }, []);
+  useEffect(() => {
+    removeAuthToken();
+    if (location.pathname !== "/login") {
+      navigate("/login", { replace: true });
+    }
+  }, []);
   const login = (values: FieldValues) => {
     setError("");
     const formData = new FormData();
