@@ -13,7 +13,6 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  Select,
   Switch,
   Tab,
   TabList,
@@ -24,6 +23,8 @@ import {
   useToast,
   VStack,
   Text as ChakraText,
+  InputGroup,
+  InputRightElement,
 } from "@chakra-ui/react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,6 +66,17 @@ const fetch = <T = any,>(url: string, opts?: any): Promise<T> => {
   if (url === "/bots")
     return Promise.resolve([
       { id: 1, username: "test_bot", title: "Test Bot" },
+      { id: 2, username: "vpn_main_bot", title: "VPN Assistant" },
+      { id: 3, username: "support_help_bot", title: "Support Team" },
+      { id: 4, username: "payment_bot", title: "Payment Processor" },
+      { id: 5, username: "notification_bot", title: "Notifications" },
+      { id: 6, username: "admin_panel_bot", title: "Admin Control" },
+      { id: 7, username: "user_guide_bot", title: "User Guide" },
+      { id: 8, username: "feedback_bot", title: "Feedback Collector" },
+      { id: 9, username: "analytics_bot", title: "Analytics" },
+      { id: 10, username: "backup_bot", title: "Backup Service" },
+      { id: 11, username: "monitoring_bot", title: "Monitoring" },
+      { id: 12, username: "logs_bot", title: "Logs Viewer" },
     ] as T);
   if (url === "/bots/default-settings")
     return Promise.resolve(emptySettings as T);
@@ -88,7 +100,10 @@ export const BotSettingsDialog: FC = () => {
   const [botTitle, setBotTitle] = useState("");
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
   const [hasDraft, setHasDraft] = useState(false);
+  const [botSearch, setBotSearch] = useState("");
 
+  // Фиксированный ключ для черновика нового бота — не меняется при переоткрытии модалки,
+  // чтобы черновик не терялся между сессиями
   const NEW_BOT_DRAFT_KEY = "botSettings_draft_new";
 
   const getDraftKey = (username: string) =>
@@ -96,6 +111,8 @@ export const BotSettingsDialog: FC = () => {
 
   const saveDraftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // FIX 1: захватываем ключ до setTimeout, чтобы избежать гонки при быстром
+  // переключении ботов — selectedBot мог измениться за 400мс
   const saveDraft = (
     newSettings: BotSettings,
     newUsername: string,
@@ -132,6 +149,7 @@ export const BotSettingsDialog: FC = () => {
       });
   };
 
+  // FIX 3: очищаем таймаут при размонтировании
   useEffect(() => {
     return () => {
       if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
@@ -144,6 +162,7 @@ export const BotSettingsDialog: FC = () => {
     setSelectedBot("");
     setBotUsername("");
     setBotTitle("");
+    setBotSearch("");
     setSettings(emptySettings);
     Promise.all([
       fetchBots(),
@@ -154,12 +173,14 @@ export const BotSettingsDialog: FC = () => {
   useEffect(() => {
     if (!isEditingBotSettings) return;
 
+    // FIX 10б: сбрасываем pending таймаут при любом переключении бота
     if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
 
     if (!selectedBot) {
       setBotUsername("");
       setBotTitle("");
       setSettings(emptySettings);
+      // FIX 5: проверяем черновик для нового бота
       const newDraft = localStorage.getItem(NEW_BOT_DRAFT_KEY);
       setHasDraft(!!newDraft);
       return;
@@ -169,6 +190,7 @@ export const BotSettingsDialog: FC = () => {
     setBotTitle(selected?.title || "");
     setLoading(true);
 
+    // FIX 9: флаг отмены — игнорируем ответ если бот уже сменился
     let cancelled = false;
 
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
@@ -328,6 +350,8 @@ export const BotSettingsDialog: FC = () => {
         })
       )
       .then((updated) => {
+        // FIX 10а: сохраняем updated_at из ответа, чтобы сравнение черновика
+        // работало корректно если пользователь снова начнёт редактировать
         setSettings(updated);
         return fetchBots().then(() => {
           setSelectedBot(targetUsername);
@@ -474,21 +498,114 @@ export const BotSettingsDialog: FC = () => {
                 <VStack spacing={4} align="stretch">
                   <FormControl>
                     <FormLabel>{t("botSettings.bot")}</FormLabel>
-                    <Select
-                      value={selectedBot}
-                      onChange={(e) => setSelectedBot(e.target.value)}
-                      isDisabled={loading}
+
+                    <InputGroup>
+                      <Input
+                        placeholder={t("botSettings.botSearchPlaceholder")}
+                        value={botSearch}
+                        onChange={(e) => setBotSearch(e.target.value)}
+                        isDisabled={loading}
+                        pr="30px"
+                      />
+                      {botSearch && (
+                        <InputRightElement>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => setBotSearch("")}
+                            h="100%"
+                            fontSize="14px"
+                          >
+                            ✕
+                          </Button>
+                        </InputRightElement>
+                      )}
+                    </InputGroup>
+
+                    {/* СПИСОК БОТОВ */}
+                    <Box
+                      border="1px solid"
+                      borderColor="inherit"
+                      borderRadius="md"
+                      maxH="200px"
+                      overflowY="auto"
+                      mt={2}
                     >
-                      <option value="">
+                      {/* Пункт "не выбрано" */}
+                      <Box
+                        px={3}
+                        py={2}
+                        cursor="pointer"
+                        bg={selectedBot === "" ? "primary.50" : undefined}
+                        _hover={{ bg: "gray.50", _dark: { bg: "gray.700" } }}
+                        onClick={() => setSelectedBot("")}
+                        fontSize="sm"
+                        color="gray.500"
+                      >
                         {t("botSettings.emptySelection")}
-                      </option>
-                      {bots.map((bot) => (
-                        <option key={bot.id} value={bot.username}>
-                          @{bot.username}
-                          {bot.title ? ` - ${bot.title}` : ""}
-                        </option>
-                      ))}
-                    </Select>
+                      </Box>
+
+                      {/* Список отфильтрованных ботов */}
+                      {bots
+                        .filter((bot) => {
+                          const q = botSearch.toLowerCase().replace(/^@/, "");
+                          if (!q) return true;
+                          return (
+                            bot.username.toLowerCase().includes(q) ||
+                            (bot.title || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((bot) => (
+                          <Box
+                            key={bot.id}
+                            px={3}
+                            py={2}
+                            cursor="pointer"
+                            bg={
+                              selectedBot === bot.username
+                                ? "primary.50"
+                                : undefined
+                            }
+                            _dark={{
+                              bg:
+                                selectedBot === bot.username
+                                  ? "primary.900"
+                                  : undefined,
+                            }}
+                            _hover={{
+                              bg: "gray.50",
+                              _dark: { bg: "gray.700" },
+                            }}
+                            onClick={() => {
+                              setSelectedBot(bot.username);
+                              setBotSearch("");
+                            }}
+                            fontSize="sm"
+                          >
+                            @{bot.username}
+                            {bot.title && (
+                              <ChakraText as="span" color="gray.500" ml={1}>
+                                — {bot.title}
+                              </ChakraText>
+                            )}
+                          </Box>
+                        ))}
+
+                      {bots.filter((bot) => {
+                        const q = botSearch.toLowerCase().replace(/^@/, "");
+                        if (!q) return true;
+                        return (
+                          bot.username.toLowerCase().startsWith(q) ||
+                          (bot.title || "").toLowerCase().startsWith(q)
+                        );
+                      }).length === 0 &&
+                        botSearch && (
+                          <Box px={3} py={2} fontSize="sm" color="gray.400">
+                            {t("botSettings.botSearchEmpty")}
+                          </Box>
+                        )}
+                    </Box>
+
                     <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
                   </FormControl>
 
