@@ -25,6 +25,7 @@ import {
   Text as ChakraText,
   InputGroup,
   InputRightElement,
+  useOutsideClick,
 } from "@chakra-ui/react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -101,9 +102,14 @@ export const BotSettingsDialog: FC = () => {
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
   const [hasDraft, setHasDraft] = useState(false);
   const [botSearch, setBotSearch] = useState("");
+  const [isBotListOpen, setIsBotListOpen] = useState(false);
+  const botSelectorRef = useRef<HTMLDivElement>(null);
 
-  // Фиксированный ключ для черновика нового бота — не меняется при переоткрытии модалки,
-  // чтобы черновик не терялся между сессиями
+  useOutsideClick({
+    ref: botSelectorRef,
+    handler: () => setIsBotListOpen(false),
+  });
+
   const NEW_BOT_DRAFT_KEY = "botSettings_draft_new";
 
   const getDraftKey = (username: string) =>
@@ -111,8 +117,6 @@ export const BotSettingsDialog: FC = () => {
 
   const saveDraftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // FIX 1: захватываем ключ до setTimeout, чтобы избежать гонки при быстром
-  // переключении ботов — selectedBot мог измениться за 400мс
   const saveDraft = (
     newSettings: BotSettings,
     newUsername: string,
@@ -149,7 +153,6 @@ export const BotSettingsDialog: FC = () => {
       });
   };
 
-  // FIX 3: очищаем таймаут при размонтировании
   useEffect(() => {
     return () => {
       if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
@@ -173,14 +176,12 @@ export const BotSettingsDialog: FC = () => {
   useEffect(() => {
     if (!isEditingBotSettings) return;
 
-    // FIX 10б: сбрасываем pending таймаут при любом переключении бота
     if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
 
     if (!selectedBot) {
       setBotUsername("");
       setBotTitle("");
       setSettings(emptySettings);
-      // FIX 5: проверяем черновик для нового бота
       const newDraft = localStorage.getItem(NEW_BOT_DRAFT_KEY);
       setHasDraft(!!newDraft);
       return;
@@ -190,7 +191,6 @@ export const BotSettingsDialog: FC = () => {
     setBotTitle(selected?.title || "");
     setLoading(true);
 
-    // FIX 9: флаг отмены — игнорируем ответ если бот уже сменился
     let cancelled = false;
 
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
@@ -215,6 +215,15 @@ export const BotSettingsDialog: FC = () => {
       cancelled = true;
     };
   }, [isEditingBotSettings, selectedBot, bots]);
+
+  useEffect(() => {
+    if (!selectedBot) {
+      setBotSearch("");
+      return;
+    }
+
+    setBotSearch(`@${selectedBot}`);
+  }, [selectedBot]);
 
   const restoreDraft = () => {
     const key = getDraftKey(selectedBot);
@@ -350,8 +359,6 @@ export const BotSettingsDialog: FC = () => {
         })
       )
       .then((updated) => {
-        // FIX 10а: сохраняем updated_at из ответа, чтобы сравнение черновика
-        // работало корректно если пользователь снова начнёт редактировать
         setSettings(updated);
         return fetchBots().then(() => {
           setSelectedBot(targetUsername);
@@ -456,7 +463,13 @@ export const BotSettingsDialog: FC = () => {
       <ModalContent maxH="90vh" display="flex" flexDirection="column">
         <ModalHeader flexShrink={0}>{t("botSettings.title")}</ModalHeader>
         <ModalCloseButton />
-        <ModalBody flex="1" minH={0}>
+        <ModalBody
+          flex="1"
+          minH={0}
+          style={{
+            scrollbarGutter: "stable",
+          }}
+        >
           <Tabs variant="enclosed" colorScheme="primary">
             <TabList>
               <Tab>{t("botSettings.tabBotInfo")}</Tab>
@@ -496,115 +509,100 @@ export const BotSettingsDialog: FC = () => {
               {/* Вкладка 1: Bot Info */}
               <TabPanel px={0}>
                 <VStack spacing={4} align="stretch">
-                  <FormControl>
+                  <FormControl position="relative" ref={botSelectorRef}>
                     <FormLabel>{t("botSettings.bot")}</FormLabel>
+                    <Input
+                      placeholder={t("botSettings.botSearchPlaceholder")}
+                      value={botSearch}
+                      onChange={(e) => {
+                        setBotSearch(e.target.value);
+                        setIsBotListOpen(true);
+                      }}
+                      onFocus={() => setIsBotListOpen(true)}
+                    />
 
-                    <InputGroup>
-                      <Input
-                        placeholder={t("botSettings.botSearchPlaceholder")}
-                        value={botSearch}
-                        onChange={(e) => setBotSearch(e.target.value)}
-                        isDisabled={loading}
-                        pr="30px"
-                      />
-                      {botSearch && (
-                        <InputRightElement>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => setBotSearch("")}
-                            h="100%"
-                            fontSize="14px"
-                          >
-                            ✕
-                          </Button>
-                        </InputRightElement>
-                      )}
-                    </InputGroup>
-
-                    {/* СПИСОК БОТОВ */}
-                    <Box
-                      border="1px solid"
-                      borderColor="inherit"
-                      borderRadius="md"
-                      maxH="200px"
-                      overflowY="auto"
-                      mt={2}
-                    >
-                      {/* Пункт "не выбрано" */}
+                    {isBotListOpen && (
                       <Box
-                        px={3}
-                        py={2}
-                        cursor="pointer"
-                        bg={selectedBot === "" ? "primary.50" : undefined}
-                        _hover={{ bg: "gray.50", _dark: { bg: "gray.700" } }}
-                        onClick={() => setSelectedBot("")}
-                        fontSize="sm"
-                        color="gray.500"
+                        position="absolute"
+                        top="70px"
+                        left={0}
+                        right={0}
+                        zIndex={1000}
+                        bg="chakra-body-bg"
+                        border="1px solid"
+                        borderColor="inherit"
+                        borderRadius="md"
+                        boxShadow="lg"
+                        maxH="240px"
+                        overflowY="auto"
                       >
-                        {t("botSettings.emptySelection")}
-                      </Box>
+                        <Box
+                          px={3}
+                          py={2}
+                          cursor="pointer"
+                          color="gray.500"
+                          _hover={{
+                            bg: "gray.50",
+                            _dark: { bg: "gray.700" },
+                          }}
+                          onClick={() => {
+                            setSelectedBot("");
+                            setBotSearch("");
+                            setIsBotListOpen(false);
+                          }}
+                        >
+                          {t("botSettings.emptySelection")}
+                        </Box>
 
-                      {/* Список отфильтрованных ботов */}
-                      {bots
-                        .filter((bot) => {
-                          const q = botSearch.toLowerCase().replace(/^@/, "");
-                          if (!q) return true;
-                          return (
-                            bot.username.toLowerCase().includes(q) ||
-                            (bot.title || "").toLowerCase().includes(q)
-                          );
-                        })
-                        .map((bot) => (
-                          <Box
-                            key={bot.id}
-                            px={3}
-                            py={2}
-                            cursor="pointer"
-                            bg={
-                              selectedBot === bot.username
-                                ? "primary.50"
-                                : undefined
-                            }
-                            _dark={{
-                              bg:
+                        {bots
+                          .filter((bot) => {
+                            const q = botSearch.toLowerCase().replace(/^@/, "");
+
+                            if (!q) return true;
+
+                            return (
+                              bot.username.toLowerCase().includes(q) ||
+                              (bot.title || "").toLowerCase().includes(q)
+                            );
+                          })
+                          .map((bot) => (
+                            <Box
+                              key={bot.id}
+                              px={3}
+                              py={2}
+                              cursor="pointer"
+                              bg={
                                 selectedBot === bot.username
-                                  ? "primary.900"
-                                  : undefined,
-                            }}
-                            _hover={{
-                              bg: "gray.50",
-                              _dark: { bg: "gray.700" },
-                            }}
-                            onClick={() => {
-                              setSelectedBot(bot.username);
-                              setBotSearch("");
-                            }}
-                            fontSize="sm"
-                          >
-                            @{bot.username}
-                            {bot.title && (
-                              <ChakraText as="span" color="gray.500" ml={1}>
-                                — {bot.title}
-                              </ChakraText>
-                            )}
-                          </Box>
-                        ))}
+                                  ? "primary.50"
+                                  : undefined
+                              }
+                              _dark={{
+                                bg:
+                                  selectedBot === bot.username
+                                    ? "primary.900"
+                                    : undefined,
+                              }}
+                              _hover={{
+                                bg: "gray.50",
+                                _dark: { bg: "gray.700" },
+                              }}
+                              onClick={() => {
+                                setSelectedBot(bot.username);
+                                setBotSearch(`@${bot.username}`);
+                                setIsBotListOpen(false);
+                              }}
+                            >
+                              <strong>@{bot.username}</strong>
 
-                      {bots.filter((bot) => {
-                        const q = botSearch.toLowerCase().replace(/^@/, "");
-                        if (!q) return true;
-                        return (
-                          bot.username.toLowerCase().startsWith(q) ||
-                          (bot.title || "").toLowerCase().startsWith(q)
-                        );
-                      }).length === 0 &&
-                        botSearch && (
-                          <Box px={3} py={2} fontSize="sm" color="gray.400">
-                            {t("botSettings.botSearchEmpty")}
-                          </Box>
-                        )}
-                    </Box>
+                              {bot.title && (
+                                <ChakraText as="span" color="gray.500" ml={1}>
+                                  — {bot.title}
+                                </ChakraText>
+                              )}
+                            </Box>
+                          ))}
+                      </Box>
+                    )}
 
                     <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
                   </FormControl>
