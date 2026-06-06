@@ -257,5 +257,7 @@
   "botSettings.announceMessages": "پیام‌های اعلان",
   "botSettings.draftFound": "پیش‌نویس ذخیره‌نشده یافت شد",
   "botSettings.draftRestore": "بازیابی",
-  "botSettings.draftDiscard": "رد کردن"
+  "botSettings.draftDiscard": "رد کردن",
+  "botSettings.botSearchPlaceholder": "جستجوی ربات با نام کاربری یا عنوان",
+  "botSettings.botSearchEmpty": "رباتی یافت نشد"
 }

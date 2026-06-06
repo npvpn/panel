@@ -281,5 +281,7 @@
   "botSettings.announceMessages": "Announce Messages",
   "botSettings.draftFound": "Unsaved draft found",
   "botSettings.draftRestore": "Restore",
-  "botSettings.draftDiscard": "Discard"
+  "botSettings.draftDiscard": "Discard",
+  "botSettings.botSearchPlaceholder": "Search bot by username or title",
+  "botSettings.botSearchEmpty": "No bots found"
 }

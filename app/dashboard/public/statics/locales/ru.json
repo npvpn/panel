@@ -281,5 +281,7 @@
   "botSettings.announceMessages": "Сообщения для пользователей",
   "botSettings.draftFound": "Найден несохранённый черновик",
   "botSettings.draftRestore": "Восстановить",
-  "botSettings.draftDiscard": "Отклонить"
+  "botSettings.draftDiscard": "Отклонить",
+  "botSettings.botSearchPlaceholder": "Поиск бота по username или названию",
+  "botSettings.botSearchEmpty": "Боты не найдены"
 }

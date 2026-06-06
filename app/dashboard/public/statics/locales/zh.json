@@ -253,5 +253,7 @@
   "botSettings.announceMessages": "公告消息",
   "botSettings.draftFound": "发现未保存的草稿",
   "botSettings.draftRestore": "恢复",
-  "botSettings.draftDiscard": "丢弃"
+  "botSettings.draftDiscard": "丢弃",
+  "botSettings.botSearchPlaceholder": "按用户名或名称搜索机器人",
+  "botSettings.botSearchEmpty": "未找到机器人"
 }
