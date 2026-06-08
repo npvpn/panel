@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   FormControl,
   FormHelperText,
@@ -12,13 +13,19 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  Select,
   Switch,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Textarea,
   useToast,
   VStack,
+  Text as ChakraText,
+  useOutsideClick,
 } from "@chakra-ui/react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDashboard } from "contexts/DashboardContext";
 import { fetch } from "service/http";
@@ -53,6 +60,23 @@ const emptySettings: BotSettings = {
   sub_unsupported_client_server_text: [],
 };
 
+type ServerTextField =
+  | "sub_revoked_server_text"
+  | "sub_expired_server_text"
+  | "sub_device_limit_server_text"
+  | "sub_unsupported_client_server_text";
+
+type ListFieldTexts = Record<ServerTextField, string>;
+
+const toListFieldTexts = (settings: BotSettings): ListFieldTexts => ({
+  sub_revoked_server_text: toText(settings.sub_revoked_server_text),
+  sub_expired_server_text: toText(settings.sub_expired_server_text),
+  sub_device_limit_server_text: toText(settings.sub_device_limit_server_text),
+  sub_unsupported_client_server_text: toText(
+    settings.sub_unsupported_client_server_text
+  ),
+});
+
 export const BotSettingsDialog: FC = () => {
   const { isEditingBotSettings, onEditingBotSettings } = useDashboard();
   const { t } = useTranslation();
@@ -63,10 +87,66 @@ export const BotSettingsDialog: FC = () => {
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [defaultSettings, setDefaultSettings] = useState<BotSettings>(emptySettings);
+  const [defaultSettings, setDefaultSettings] =
+    useState<BotSettings>(emptySettings);
   const [botUsername, setBotUsername] = useState("");
   const [botTitle, setBotTitle] = useState("");
   const [settings, setSettings] = useState<BotSettings>(emptySettings);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [botSearch, setBotSearch] = useState("");
+  const [isBotListOpen, setIsBotListOpen] = useState(false);
+  const [listFieldTexts, setListFieldTexts] = useState<ListFieldTexts>(
+    toListFieldTexts(emptySettings)
+  );
+  const botSelectorRef = useRef<HTMLDivElement>(null);
+
+  useOutsideClick({
+    ref: botSelectorRef,
+    handler: () => setIsBotListOpen(false),
+  });
+
+  const NEW_BOT_DRAFT_KEY = "botSettings_draft_new";
+
+  const getDraftKey = (username: string) =>
+    username ? `botSettings_draft_${username}` : NEW_BOT_DRAFT_KEY;
+
+  const saveDraftTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveDraft = (
+    newSettings: BotSettings,
+    newUsername: string,
+    newTitle: string
+  ) => {
+    const key = getDraftKey(selectedBot);
+    if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
+    saveDraftTimeout.current = setTimeout(() => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          settings: newSettings,
+          botUsername: newUsername,
+          botTitle: newTitle,
+          savedAt: Date.now(),
+        })
+      );
+    }, 400);
+  };
+
+  const updateSettings = (patch: Partial<BotSettings>) => {
+    const s = { ...settings, ...patch };
+    setSettings(s);
+    saveDraft(s, botUsername, botTitle);
+  };
+
+  const replaceSettings = (nextSettings: BotSettings) => {
+    setSettings(nextSettings);
+    setListFieldTexts(toListFieldTexts(nextSettings));
+  };
+
+  const updateListField = (field: ServerTextField, value: string) => {
+    setListFieldTexts((current) => ({ ...current, [field]: value }));
+    updateSettings({ [field]: toList(value) });
+  };
 
   const fetchBots = () => {
     return fetch<Bot[]>("/bots")
@@ -79,44 +159,96 @@ export const BotSettingsDialog: FC = () => {
   };
 
   useEffect(() => {
+    return () => {
+      if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isEditingBotSettings) return;
     setLoading(true);
     setSelectedBot("");
     setBotUsername("");
     setBotTitle("");
-    setSettings(emptySettings);
-    Promise.all([fetchBots(), fetch<BotSettings>("/bots/default-settings").then(setDefaultSettings)])
-      .finally(() => setLoading(false));
+    setBotSearch("");
+    replaceSettings(emptySettings);
+    Promise.all([
+      fetchBots(),
+      fetch<BotSettings>("/bots/default-settings").then(setDefaultSettings),
+    ]).finally(() => setLoading(false));
   }, [isEditingBotSettings]);
 
   useEffect(() => {
     if (!isEditingBotSettings) return;
+
+    if (saveDraftTimeout.current) clearTimeout(saveDraftTimeout.current);
+
     if (!selectedBot) {
       setBotUsername("");
       setBotTitle("");
-      setSettings(emptySettings);
+      replaceSettings(emptySettings);
+      const newDraft = localStorage.getItem(NEW_BOT_DRAFT_KEY);
+      setHasDraft(!!newDraft);
       return;
     }
     const selected = bots.find((bot) => bot.username === selectedBot);
     setBotUsername(selected?.username || "");
     setBotTitle(selected?.title || "");
     setLoading(true);
+
+    let cancelled = false;
+
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
-      .then(setSettings)
-      .finally(() => setLoading(false));
+      .then((serverSettings) => {
+        if (cancelled) return;
+        replaceSettings(serverSettings);
+
+        const draftKey = getDraftKey(selectedBot);
+        const draft = localStorage.getItem(draftKey);
+
+        if (draft) {
+          setHasDraft(true);
+        } else {
+          setHasDraft(false);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isEditingBotSettings, selectedBot, bots]);
+
+  useEffect(() => {
+    if (!selectedBot) {
+      setBotSearch("");
+      return;
+    }
+
+    setBotSearch(`@${selectedBot}`);
+  }, [selectedBot]);
+
+  const restoreDraft = () => {
+    const key = getDraftKey(selectedBot);
+    const draft = localStorage.getItem(key);
+    if (!draft) return;
+    const parsed = JSON.parse(draft);
+    replaceSettings(parsed.settings);
+    setBotUsername(parsed.botUsername);
+    setBotTitle(parsed.botTitle);
+    localStorage.removeItem(key);
+    setHasDraft(false);
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(getDraftKey(selectedBot));
+    setHasDraft(false);
+  };
 
   const close = () => onEditingBotSettings(false);
 
-  const listFields = useMemo(
-    () => ({
-      sub_revoked_server_text: toText(settings.sub_revoked_server_text),
-      sub_expired_server_text: toText(settings.sub_expired_server_text),
-      sub_device_limit_server_text: toText(settings.sub_device_limit_server_text),
-      sub_unsupported_client_server_text: toText(settings.sub_unsupported_client_server_text),
-    }),
-    [settings]
-  );
   const selectedBotModel = useMemo(
     () => bots.find((bot) => bot.username === selectedBot),
     [bots, selectedBot]
@@ -124,21 +256,33 @@ export const BotSettingsDialog: FC = () => {
 
   const mergeWithDefaults = (current: BotSettings): BotSettings => {
     return {
-      sub_update_interval: current.sub_update_interval.trim() || defaultSettings.sub_update_interval,
-      sub_support_url: current.sub_support_url.trim() || defaultSettings.sub_support_url,
-      sub_profile_title: current.sub_profile_title.trim() || defaultSettings.sub_profile_title,
-      sub_routing_happ: current.sub_routing_happ.trim() || defaultSettings.sub_routing_happ,
-      sub_routing_v2raytun: current.sub_routing_v2raytun.trim() || defaultSettings.sub_routing_v2raytun,
-      sub_client_note: current.sub_client_note.trim() || defaultSettings.sub_client_note,
-      sub_profile_url: current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
+      sub_update_interval:
+        current.sub_update_interval.trim() ||
+        defaultSettings.sub_update_interval,
+      sub_support_url:
+        current.sub_support_url.trim() || defaultSettings.sub_support_url,
+      sub_profile_title:
+        current.sub_profile_title.trim() || defaultSettings.sub_profile_title,
+      sub_routing_happ:
+        current.sub_routing_happ.trim() || defaultSettings.sub_routing_happ,
+      sub_routing_v2raytun:
+        current.sub_routing_v2raytun.trim() ||
+        defaultSettings.sub_routing_v2raytun,
+      sub_client_note:
+        current.sub_client_note.trim() || defaultSettings.sub_client_note,
+      sub_profile_url:
+        current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
       bot_url: current.bot_url.trim() || defaultSettings.bot_url,
       web_url: current.web_url.trim() || defaultSettings.web_url,
       sub_revoked_announce_text:
-        current.sub_revoked_announce_text.trim() || defaultSettings.sub_revoked_announce_text,
+        current.sub_revoked_announce_text.trim() ||
+        defaultSettings.sub_revoked_announce_text,
       sub_expired_announce_text:
-        current.sub_expired_announce_text.trim() || defaultSettings.sub_expired_announce_text,
+        current.sub_expired_announce_text.trim() ||
+        defaultSettings.sub_expired_announce_text,
       sub_device_limit_announce_text:
-        current.sub_device_limit_announce_text.trim() || defaultSettings.sub_device_limit_announce_text,
+        current.sub_device_limit_announce_text.trim() ||
+        defaultSettings.sub_device_limit_announce_text,
       sub_device_limit_hard_mode: current.sub_device_limit_hard_mode,
       sub_unsupported_client_announce_text:
         current.sub_unsupported_client_announce_text.trim() ||
@@ -172,11 +316,13 @@ export const BotSettingsDialog: FC = () => {
       normalizedTitle !== (selectedBotModel?.title || "");
     const settingsPayload = {
       ...settings,
-      sub_revoked_server_text: toList(listFields.sub_revoked_server_text),
-      sub_expired_server_text: toList(listFields.sub_expired_server_text),
-      sub_device_limit_server_text: toList(listFields.sub_device_limit_server_text),
+      sub_revoked_server_text: toList(listFieldTexts.sub_revoked_server_text),
+      sub_expired_server_text: toList(listFieldTexts.sub_expired_server_text),
+      sub_device_limit_server_text: toList(
+        listFieldTexts.sub_device_limit_server_text
+      ),
       sub_unsupported_client_server_text: toList(
-        listFields.sub_unsupported_client_server_text
+        listFieldTexts.sub_unsupported_client_server_text
       ),
     };
 
@@ -204,12 +350,14 @@ export const BotSettingsDialog: FC = () => {
         })
       )
       .then((updated) => {
-        setSettings(updated);
+        replaceSettings(updated);
         return fetchBots().then(() => {
           setSelectedBot(targetUsername);
         });
       })
       .then(() => {
+        localStorage.removeItem(getDraftKey(targetUsername));
+        setHasDraft(false);
         toast({
           title: t("botSettings.saved"),
           status: "success",
@@ -247,6 +395,8 @@ export const BotSettingsDialog: FC = () => {
         }).then(() => bot);
       })
       .then((bot) => {
+        localStorage.removeItem(NEW_BOT_DRAFT_KEY);
+        setHasDraft(false);
         return fetchBots().then(() => {
           setSelectedBot(bot.username);
         });
@@ -265,13 +415,22 @@ export const BotSettingsDialog: FC = () => {
 
   const deleteBot = () => {
     if (!selectedBot) return;
-    if (!window.confirm(t("botSettings.deleteConfirm", { username: `@${selectedBot}` }))) {
+    if (
+      !window.confirm(
+        t("botSettings.deleteConfirm", { username: `@${selectedBot}` })
+      )
+    ) {
       return;
     }
 
     setDeleting(true);
+    const deletedKey = getDraftKey(selectedBot);
     fetch(`/bots/${selectedBot}`, { method: "DELETE" })
-      .then(() => fetchBots())
+      .then(() => {
+        localStorage.removeItem(deletedKey);
+        setHasDraft(false);
+        return fetchBots();
+      })
       .then(() => {
         toast({
           title: t("botSettings.deleted"),
@@ -285,296 +444,536 @@ export const BotSettingsDialog: FC = () => {
   };
 
   return (
-    <Modal isOpen={isEditingBotSettings} onClose={close} size="4xl">
+    <Modal
+      isOpen={isEditingBotSettings}
+      onClose={close}
+      size="4xl"
+      scrollBehavior="inside"
+    >
       <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-      <ModalContent>
-        <ModalHeader>{t("botSettings.title")}</ModalHeader>
+      <ModalContent maxH="90vh" display="flex" flexDirection="column">
+        <ModalHeader flexShrink={0}>{t("botSettings.title")}</ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
-          <VStack spacing={3} align="stretch">
-            <FormControl>
-              <FormLabel>{t("botSettings.bot")}</FormLabel>
-              <Select
-                value={selectedBot}
-                onChange={(event) => setSelectedBot(event.target.value)}
-                isDisabled={loading}
+        <ModalBody
+          flex="1"
+          minH={0}
+          style={{
+            scrollbarGutter: "stable",
+          }}
+        >
+          <Tabs variant="enclosed" colorScheme="primary">
+            <TabList>
+              <Tab>{t("botSettings.tabBotInfo")}</Tab>
+              <Tab>{t("botSettings.tabSubscription")}</Tab>
+              <Tab>{t("botSettings.tabMessages")}</Tab>
+            </TabList>
+            {hasDraft && (
+              <HStack
+                mt={2}
+                p={3}
+                borderRadius="md"
+                bg="yellow.50"
+                _dark={{ bg: "yellow.900" }}
+                border="1px solid"
+                borderColor="yellow.200"
+                _dark-border={{ borderColor: "yellow.700" }}
+                justify="space-between"
               >
-                <option value="">{t("botSettings.emptySelection")}</option>
-                {bots.map((bot) => (
-                  <option key={bot.id} value={bot.username}>
-                    @{bot.username}
-                    {bot.title ? ` - ${bot.title}` : ""}
-                  </option>
-                ))}
-              </Select>
-              <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
-            </FormControl>
+                <ChakraText
+                  fontSize="sm"
+                  color="yellow.800"
+                  _dark={{ color: "yellow.200" }}
+                >
+                  {t("botSettings.draftFound")}
+                </ChakraText>
+                <HStack>
+                  <Button size="xs" colorScheme="yellow" onClick={restoreDraft}>
+                    {t("botSettings.draftRestore")}
+                  </Button>
+                  <Button size="xs" variant="ghost" onClick={discardDraft}>
+                    {t("botSettings.draftDiscard")}
+                  </Button>
+                </HStack>
+              </HStack>
+            )}
+            <TabPanels minH="400px" pt={2}>
+              {/* Вкладка 1: Bot Info */}
+              <TabPanel px={0}>
+                <VStack spacing={4} align="stretch">
+                  <FormControl position="relative" ref={botSelectorRef}>
+                    <FormLabel>{t("botSettings.bot")}</FormLabel>
+                    <Input
+                      placeholder={t("botSettings.botSearchPlaceholder")}
+                      value={botSearch}
+                      onChange={(e) => {
+                        setBotSearch(e.target.value);
+                        setIsBotListOpen(true);
+                      }}
+                      onFocus={() => setIsBotListOpen(true)}
+                    />
 
-            <FormControl>
-              <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
-              <Input
-                value={botUsername}
-                onChange={(event) => setBotUsername(event.target.value)}
-                placeholder="@my_vpn_bot"
-              />
-              <FormHelperText>{t("botSettings.newBotUsernameHint")}</FormHelperText>
-            </FormControl>
+                    {isBotListOpen && (
+                      <Box
+                        position="absolute"
+                        top="70px"
+                        left={0}
+                        right={0}
+                        zIndex={1000}
+                        bg="chakra-body-bg"
+                        border="1px solid"
+                        borderColor="inherit"
+                        borderRadius="md"
+                        boxShadow="lg"
+                        maxH="240px"
+                        overflowY="auto"
+                      >
+                        <Box
+                          px={3}
+                          py={2}
+                          cursor="pointer"
+                          color="gray.500"
+                          _hover={{
+                            bg: "gray.50",
+                            _dark: { bg: "gray.700" },
+                          }}
+                          onClick={() => {
+                            setSelectedBot("");
+                            setBotSearch("");
+                            setIsBotListOpen(false);
+                          }}
+                        >
+                          {t("botSettings.emptySelection")}
+                        </Box>
 
-            <FormControl>
-              <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
-              <Input
-                value={botTitle}
-                onChange={(event) => setBotTitle(event.target.value)}
-                placeholder="My VPN Bot"
-              />
-              <FormHelperText>{t("botSettings.newBotTitleHint")}</FormHelperText>
-            </FormControl>
+                        {bots
+                          .filter((bot) => {
+                            const q = botSearch.toLowerCase().replace(/^@/, "");
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subSupportUrl")}</FormLabel>
-                <Input
-                  value={settings.sub_support_url}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_support_url: event.target.value,
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.subSupportUrlHint")}</FormHelperText>
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subProfileTitle")}</FormLabel>
-                <Input
-                  value={settings.sub_profile_title}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_profile_title: event.target.value,
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.subProfileTitleHint")}</FormHelperText>
-              </FormControl>
-            </HStack>
+                            if (!q) return true;
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.botUrl")}</FormLabel>
-                <Input
-                  value={settings.bot_url}
-                  onChange={(event) =>
-                    setSettings((prev) => ({ ...prev, bot_url: event.target.value }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.botUrlHint")}</FormHelperText>
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subProfileUrl")}</FormLabel>
-                <Input
-                  value={settings.sub_profile_url}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_profile_url: event.target.value,
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.subProfileUrlHint")}</FormHelperText>
-              </FormControl>
-            </HStack>
+                            return (
+                              bot.username.toLowerCase().includes(q) ||
+                              (bot.title || "").toLowerCase().includes(q)
+                            );
+                          })
+                          .map((bot) => (
+                            <Box
+                              key={bot.id}
+                              px={3}
+                              py={2}
+                              cursor="pointer"
+                              bg={
+                                selectedBot === bot.username
+                                  ? "primary.50"
+                                  : undefined
+                              }
+                              _dark={{
+                                bg:
+                                  selectedBot === bot.username
+                                    ? "primary.900"
+                                    : undefined,
+                              }}
+                              _hover={{
+                                bg: "gray.50",
+                                _dark: { bg: "gray.700" },
+                              }}
+                              onClick={() => {
+                                setSelectedBot(bot.username);
+                                setBotSearch(`@${bot.username}`);
+                                setIsBotListOpen(false);
+                              }}
+                            >
+                              <strong>@{bot.username}</strong>
 
-            <FormControl>
-              <FormLabel>{t("botSettings.webUrl")}</FormLabel>
-              <Input
-                value={settings.web_url}
-                onChange={(event) =>
-                  setSettings((prev) => ({ ...prev, web_url: event.target.value }))
-                }
-                placeholder="https://cabinet.example.com"
-              />
-              <FormHelperText>{t("botSettings.webUrlHint")}</FormHelperText>
-            </FormControl>
+                              {bot.title && (
+                                <ChakraText as="span" color="gray.500" ml={1}>
+                                  — {bot.title}
+                                </ChakraText>
+                              )}
+                            </Box>
+                          ))}
+                      </Box>
+                    )}
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subRoutingHapp")}</FormLabel>
-                <Input
-                  value={settings.sub_routing_happ}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_routing_happ: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subRoutingV2raytun")}</FormLabel>
-                <Input
-                  value={settings.sub_routing_v2raytun}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_routing_v2raytun: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-            </HStack>
+                    <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
+                  </FormControl>
 
-            <FormControl>
-              <FormLabel>{t("botSettings.subClientNote")}</FormLabel>
-              <Textarea
-                value={settings.sub_client_note}
-                onChange={(event) =>
-                  setSettings((prev) => ({ ...prev, sub_client_note: event.target.value }))
-                }
-              />
-            </FormControl>
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
+                      <Input
+                        value={botUsername}
+                        onChange={(e) => {
+                          setBotUsername(e.target.value);
+                          saveDraft(settings, e.target.value, botTitle);
+                        }}
+                        placeholder="@my_vpn_bot"
+                      />
+                      <FormHelperText>
+                        {t("botSettings.newBotUsernameHint")}
+                      </FormHelperText>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>{t("botSettings.newBotTitle")}</FormLabel>
+                      <Input
+                        value={botTitle}
+                        onChange={(e) => {
+                          setBotTitle(e.target.value);
+                          saveDraft(settings, botUsername, e.target.value);
+                        }}
+                        placeholder="My VPN Bot"
+                      />
+                      <FormHelperText>
+                        {t("botSettings.newBotTitleHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </HStack>
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subRevokedAnnounceText")}</FormLabel>
-                <Input
-                  value={settings.sub_revoked_announce_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_revoked_announce_text: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subExpiredAnnounceText")}</FormLabel>
-                <Input
-                  value={settings.sub_expired_announce_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_expired_announce_text: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-            </HStack>
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.botUrl")}</FormLabel>
+                      <Input
+                        value={settings.bot_url}
+                        placeholder="https://t.me/my_vpn_bot"
+                        onChange={(e) =>
+                          updateSettings({ bot_url: e.target.value })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.botUrlHint")}
+                      </FormHelperText>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>{t("botSettings.webUrl")}</FormLabel>
+                      <Input
+                        value={settings.web_url}
+                        placeholder="https://cabinet.example.com"
+                        onChange={(e) =>
+                          updateSettings({ web_url: e.target.value })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.webUrlHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </HStack>
+                </VStack>
+              </TabPanel>
 
-            <FormControl>
-              <FormLabel>{t("botSettings.subDeviceLimitHardMode")}</FormLabel>
-              <Switch
-                colorScheme="primary"
-                isChecked={settings.sub_device_limit_hard_mode}
-                onChange={(event) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    sub_device_limit_hard_mode: event.target.checked,
-                  }))
-                }
-              />
-              <FormHelperText>{t("botSettings.subDeviceLimitHardModeHint")}</FormHelperText>
-            </FormControl>
+              {/* Вкладка 2: Subscription Settings */}
+              <TabPanel px={0}>
+                <VStack spacing={4} align="stretch">
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.subSupportUrl")}</FormLabel>
+                      <Input
+                        value={settings.sub_support_url}
+                        placeholder="https://t.me/support"
+                        onChange={(e) =>
+                          updateSettings({ sub_support_url: e.target.value })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subSupportUrlHint")}
+                      </FormHelperText>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>{t("botSettings.subProfileTitle")}</FormLabel>
+                      <Input
+                        value={settings.sub_profile_title}
+                        placeholder="My VPN"
+                        onChange={(e) =>
+                          updateSettings({ sub_profile_title: e.target.value })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subProfileTitleHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </HStack>
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subDeviceLimitAnnounceText")}</FormLabel>
-                <Input
-                  value={settings.sub_device_limit_announce_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_device_limit_announce_text: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subUnsupportedClientAnnounceText")}</FormLabel>
-                <Input
-                  value={settings.sub_unsupported_client_announce_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_unsupported_client_announce_text: event.target.value,
-                    }))
-                  }
-                />
-              </FormControl>
-            </HStack>
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.subProfileUrl")}</FormLabel>
+                      <Input
+                        value={settings.sub_profile_url}
+                        placeholder="https://example.com/profile"
+                        onChange={(e) =>
+                          updateSettings({ sub_profile_url: e.target.value })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subProfileUrlHint")}
+                      </FormHelperText>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.subUpdateInterval")}
+                      </FormLabel>
+                      <Input
+                        value={settings.sub_update_interval}
+                        onChange={(e) =>
+                          updateSettings({
+                            sub_update_interval: e.target.value,
+                          })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subUpdateIntervalHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </HStack>
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subRevokedServerText")}</FormLabel>
-                <Textarea
-                  value={listFields.sub_revoked_server_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_revoked_server_text: toList(event.target.value),
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subExpiredServerText")}</FormLabel>
-                <Textarea
-                  value={listFields.sub_expired_server_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_expired_server_text: toList(event.target.value),
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
-              </FormControl>
-            </HStack>
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.subRoutingHapp")}</FormLabel>
+                      <Input
+                        value={settings.sub_routing_happ}
+                        placeholder="happ://"
+                        onChange={(e) =>
+                          updateSettings({ sub_routing_happ: e.target.value })
+                        }
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.subRoutingV2raytun")}
+                      </FormLabel>
+                      <Input
+                        value={settings.sub_routing_v2raytun}
+                        placeholder="v2ray://"
+                        onChange={(e) =>
+                          updateSettings({
+                            sub_routing_v2raytun: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </HStack>
 
-            <HStack>
-              <FormControl>
-                <FormLabel>{t("botSettings.subDeviceLimitServerText")}</FormLabel>
-                <Textarea
-                  value={listFields.sub_device_limit_server_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_device_limit_server_text: toList(event.target.value),
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
-              </FormControl>
-              <FormControl>
-                <FormLabel>{t("botSettings.subUnsupportedClientServerText")}</FormLabel>
-                <Textarea
-                  value={listFields.sub_unsupported_client_server_text}
-                  onChange={(event) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      sub_unsupported_client_server_text: toList(event.target.value),
-                    }))
-                  }
-                />
-                <FormHelperText>{t("botSettings.serverTextHint")}</FormHelperText>
-              </FormControl>
-            </HStack>
+                  <FormControl>
+                    <FormLabel>{t("botSettings.subClientNote")}</FormLabel>
+                    <Textarea
+                      value={settings.sub_client_note}
+                      placeholder="Текст, который увидит пользователь на странице подписки"
+                      onChange={(e) =>
+                        updateSettings({ sub_client_note: e.target.value })
+                      }
+                    />
+                  </FormControl>
+                </VStack>
+              </TabPanel>
 
-            <FormControl>
-              <FormLabel>{t("botSettings.subUpdateInterval")}</FormLabel>
-              <Input
-                value={settings.sub_update_interval}
-                onChange={(event) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    sub_update_interval: event.target.value,
-                  }))
-                }
-              />
-              <FormHelperText>{t("botSettings.subUpdateIntervalHint")}</FormHelperText>
-            </FormControl>
-          </VStack>
+              {/* Вкладка 3: Messages */}
+              <TabPanel px={0}>
+                <VStack spacing={4} align="stretch">
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
+                    <VStack spacing={4} align="stretch">
+                      <ChakraText
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="gray.500"
+                        textTransform="uppercase"
+                        letterSpacing="wide"
+                      >
+                        {t("botSettings.announceMessages")}
+                      </ChakraText>
+
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subRevokedAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_revoked_announce_text}
+                            placeholder="Подписка была отозвана"
+                            onChange={(e) =>
+                              updateSettings({
+                                sub_revoked_announce_text: e.target.value,
+                              })
+                            }
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subExpiredAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_expired_announce_text}
+                            placeholder="Срок действия подписки истёк"
+                            onChange={(e) =>
+                              updateSettings({
+                                sub_expired_announce_text: e.target.value,
+                              })
+                            }
+                          />
+                        </FormControl>
+                      </HStack>
+
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subUnsupportedClientAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={
+                              settings.sub_unsupported_client_announce_text
+                            }
+                            placeholder="Ваш клиент не поддерживается"
+                            onChange={(e) =>
+                              updateSettings({
+                                sub_unsupported_client_announce_text:
+                                  e.target.value,
+                              })
+                            }
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subDeviceLimitAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_device_limit_announce_text}
+                            placeholder="Превышен лимит устройств"
+                            onChange={(e) =>
+                              updateSettings({
+                                sub_device_limit_announce_text: e.target.value,
+                              })
+                            }
+                          />
+                        </FormControl>
+                      </HStack>
+                    </VStack>
+                  </Box>
+
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.subDeviceLimitHardMode")}
+                      </FormLabel>
+                      <Switch
+                        colorScheme="primary"
+                        isChecked={settings.sub_device_limit_hard_mode}
+                        onChange={(e) =>
+                          updateSettings({
+                            sub_device_limit_hard_mode: e.target.checked,
+                          })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subDeviceLimitHardModeHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </Box>
+
+                  {/* Server Responses */}
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
+                    <VStack spacing={4} align="stretch">
+                      <ChakraText
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="gray.500"
+                        textTransform="uppercase"
+                        letterSpacing="wide"
+                      >
+                        {t("botSettings.serverResponses")}
+                      </ChakraText>
+
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subRevokedServerText")}
+                          </FormLabel>
+                          <Textarea
+                            value={listFieldTexts.sub_revoked_server_text}
+                            onChange={(e) =>
+                              updateListField(
+                                "sub_revoked_server_text",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormHelperText>
+                            {t("botSettings.serverTextHint")}
+                          </FormHelperText>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subExpiredServerText")}
+                          </FormLabel>
+                          <Textarea
+                            value={listFieldTexts.sub_expired_server_text}
+                            onChange={(e) =>
+                              updateListField(
+                                "sub_expired_server_text",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormHelperText>
+                            {t("botSettings.serverTextHint")}
+                          </FormHelperText>
+                        </FormControl>
+                      </HStack>
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subDeviceLimitServerText")}
+                          </FormLabel>
+                          <Textarea
+                            value={listFieldTexts.sub_device_limit_server_text}
+                            onChange={(e) =>
+                              updateListField(
+                                "sub_device_limit_server_text",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormHelperText>
+                            {t("botSettings.serverTextHint")}
+                          </FormHelperText>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subUnsupportedClientServerText")}
+                          </FormLabel>
+                          <Textarea
+                            value={
+                              listFieldTexts.sub_unsupported_client_server_text
+                            }
+                            onChange={(e) =>
+                              updateListField(
+                                "sub_unsupported_client_server_text",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormHelperText>
+                            {t("botSettings.serverTextHint")}
+                          </FormHelperText>
+                        </FormControl>
+                      </HStack>
+                    </VStack>
+                  </Box>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </ModalBody>
         <ModalFooter>
           <HStack justifyContent="space-between" width="full">

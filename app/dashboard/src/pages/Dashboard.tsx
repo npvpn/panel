@@ -22,6 +22,7 @@ import { Statistics } from "../components/Statistics";
 export const Dashboard: FC = () => {
   useEffect(() => {
     useDashboard.getState().refetchUsers();
+    useDashboard.getState().onEditingBotSettings(true);
     fetchInbounds();
   }, []);
   return (

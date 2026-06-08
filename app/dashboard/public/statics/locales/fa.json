@@ -249,5 +249,15 @@
   "botSettings.subDeviceLimitServerText": "متن سرور محدودیت دستگاه",
   "botSettings.subUnsupportedClientServerText": "متن سرور کلاینت پشتیبانی‌نشده",
   "botSettings.subUpdateInterval": "بازه به‌روزرسانی پروفایل",
-  "botSettings.webUrlHint": "آدرس وب‌کابین برای دکمه صفحه اشتراک. از ربات تلگرام همگام‌سازی می‌شود (web_frontend.domain)."
+  "botSettings.webUrlHint": "آدرس وب‌کابین برای دکمه صفحه اشتراک. از ربات تلگرام همگام‌سازی می‌شود (web_frontend.domain).",
+  "botSettings.tabBotInfo": "اطلاعات ربات",
+  "botSettings.tabSubscription": "اشتراک",
+  "botSettings.tabMessages": "پیام‌ها",
+  "botSettings.serverResponses": "پاسخ‌های سرور",
+  "botSettings.announceMessages": "پیام‌های اعلان",
+  "botSettings.draftFound": "پیش‌نویس ذخیره‌نشده یافت شد",
+  "botSettings.draftRestore": "بازیابی",
+  "botSettings.draftDiscard": "رد کردن",
+  "botSettings.botSearchPlaceholder": "جستجوی ربات با نام کاربری یا عنوان",
+  "botSettings.botSearchEmpty": "رباتی یافت نشد"
 }
