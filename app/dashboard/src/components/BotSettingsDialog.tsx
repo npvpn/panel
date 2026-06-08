@@ -60,6 +60,23 @@ const emptySettings: BotSettings = {
   sub_unsupported_client_server_text: [],
 };
 
+type ServerTextField =
+  | "sub_revoked_server_text"
+  | "sub_expired_server_text"
+  | "sub_device_limit_server_text"
+  | "sub_unsupported_client_server_text";
+
+type ListFieldTexts = Record<ServerTextField, string>;
+
+const toListFieldTexts = (settings: BotSettings): ListFieldTexts => ({
+  sub_revoked_server_text: toText(settings.sub_revoked_server_text),
+  sub_expired_server_text: toText(settings.sub_expired_server_text),
+  sub_device_limit_server_text: toText(settings.sub_device_limit_server_text),
+  sub_unsupported_client_server_text: toText(
+    settings.sub_unsupported_client_server_text
+  ),
+});
+
 export const BotSettingsDialog: FC = () => {
   const { isEditingBotSettings, onEditingBotSettings } = useDashboard();
   const { t } = useTranslation();
@@ -78,6 +95,9 @@ export const BotSettingsDialog: FC = () => {
   const [hasDraft, setHasDraft] = useState(false);
   const [botSearch, setBotSearch] = useState("");
   const [isBotListOpen, setIsBotListOpen] = useState(false);
+  const [listFieldTexts, setListFieldTexts] = useState<ListFieldTexts>(
+    toListFieldTexts(emptySettings)
+  );
   const botSelectorRef = useRef<HTMLDivElement>(null);
 
   useOutsideClick({
@@ -118,6 +138,16 @@ export const BotSettingsDialog: FC = () => {
     saveDraft(s, botUsername, botTitle);
   };
 
+  const replaceSettings = (nextSettings: BotSettings) => {
+    setSettings(nextSettings);
+    setListFieldTexts(toListFieldTexts(nextSettings));
+  };
+
+  const updateListField = (field: ServerTextField, value: string) => {
+    setListFieldTexts((current) => ({ ...current, [field]: value }));
+    updateSettings({ [field]: toList(value) });
+  };
+
   const fetchBots = () => {
     return fetch<Bot[]>("/bots")
       .then((items) => {
@@ -141,7 +171,7 @@ export const BotSettingsDialog: FC = () => {
     setBotUsername("");
     setBotTitle("");
     setBotSearch("");
-    setSettings(emptySettings);
+    replaceSettings(emptySettings);
     Promise.all([
       fetchBots(),
       fetch<BotSettings>("/bots/default-settings").then(setDefaultSettings),
@@ -156,7 +186,7 @@ export const BotSettingsDialog: FC = () => {
     if (!selectedBot) {
       setBotUsername("");
       setBotTitle("");
-      setSettings(emptySettings);
+      replaceSettings(emptySettings);
       const newDraft = localStorage.getItem(NEW_BOT_DRAFT_KEY);
       setHasDraft(!!newDraft);
       return;
@@ -171,7 +201,7 @@ export const BotSettingsDialog: FC = () => {
     fetch<BotSettings>(`/bots/${selectedBot}/settings`)
       .then((serverSettings) => {
         if (cancelled) return;
-        setSettings(serverSettings);
+        replaceSettings(serverSettings);
 
         const draftKey = getDraftKey(selectedBot);
         const draft = localStorage.getItem(draftKey);
@@ -205,7 +235,7 @@ export const BotSettingsDialog: FC = () => {
     const draft = localStorage.getItem(key);
     if (!draft) return;
     const parsed = JSON.parse(draft);
-    setSettings(parsed.settings);
+    replaceSettings(parsed.settings);
     setBotUsername(parsed.botUsername);
     setBotTitle(parsed.botTitle);
     localStorage.removeItem(key);
@@ -218,20 +248,6 @@ export const BotSettingsDialog: FC = () => {
   };
 
   const close = () => onEditingBotSettings(false);
-
-  const listFields = useMemo(
-    () => ({
-      sub_revoked_server_text: toText(settings.sub_revoked_server_text),
-      sub_expired_server_text: toText(settings.sub_expired_server_text),
-      sub_device_limit_server_text: toText(
-        settings.sub_device_limit_server_text
-      ),
-      sub_unsupported_client_server_text: toText(
-        settings.sub_unsupported_client_server_text
-      ),
-    }),
-    [settings]
-  );
 
   const selectedBotModel = useMemo(
     () => bots.find((bot) => bot.username === selectedBot),
@@ -300,13 +316,13 @@ export const BotSettingsDialog: FC = () => {
       normalizedTitle !== (selectedBotModel?.title || "");
     const settingsPayload = {
       ...settings,
-      sub_revoked_server_text: toList(listFields.sub_revoked_server_text),
-      sub_expired_server_text: toList(listFields.sub_expired_server_text),
+      sub_revoked_server_text: toList(listFieldTexts.sub_revoked_server_text),
+      sub_expired_server_text: toList(listFieldTexts.sub_expired_server_text),
       sub_device_limit_server_text: toList(
-        listFields.sub_device_limit_server_text
+        listFieldTexts.sub_device_limit_server_text
       ),
       sub_unsupported_client_server_text: toList(
-        listFields.sub_unsupported_client_server_text
+        listFieldTexts.sub_unsupported_client_server_text
       ),
     };
 
@@ -334,7 +350,7 @@ export const BotSettingsDialog: FC = () => {
         })
       )
       .then((updated) => {
-        setSettings(updated);
+        replaceSettings(updated);
         return fetchBots().then(() => {
           setSelectedBot(targetUsername);
         });
@@ -884,11 +900,12 @@ export const BotSettingsDialog: FC = () => {
                             {t("botSettings.subRevokedServerText")}
                           </FormLabel>
                           <Textarea
-                            value={listFields.sub_revoked_server_text}
+                            value={listFieldTexts.sub_revoked_server_text}
                             onChange={(e) =>
-                              updateSettings({
-                                sub_revoked_server_text: toList(e.target.value),
-                              })
+                              updateListField(
+                                "sub_revoked_server_text",
+                                e.target.value
+                              )
                             }
                           />
                           <FormHelperText>
@@ -900,11 +917,12 @@ export const BotSettingsDialog: FC = () => {
                             {t("botSettings.subExpiredServerText")}
                           </FormLabel>
                           <Textarea
-                            value={listFields.sub_expired_server_text}
+                            value={listFieldTexts.sub_expired_server_text}
                             onChange={(e) =>
-                              updateSettings({
-                                sub_expired_server_text: toList(e.target.value),
-                              })
+                              updateListField(
+                                "sub_expired_server_text",
+                                e.target.value
+                              )
                             }
                           />
                           <FormHelperText>
@@ -918,13 +936,12 @@ export const BotSettingsDialog: FC = () => {
                             {t("botSettings.subDeviceLimitServerText")}
                           </FormLabel>
                           <Textarea
-                            value={listFields.sub_device_limit_server_text}
+                            value={listFieldTexts.sub_device_limit_server_text}
                             onChange={(e) =>
-                              updateSettings({
-                                sub_device_limit_server_text: toList(
-                                  e.target.value
-                                ),
-                              })
+                              updateListField(
+                                "sub_device_limit_server_text",
+                                e.target.value
+                              )
                             }
                           />
                           <FormHelperText>
@@ -937,14 +954,13 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={
-                              listFields.sub_unsupported_client_server_text
+                              listFieldTexts.sub_unsupported_client_server_text
                             }
                             onChange={(e) =>
-                              updateSettings({
-                                sub_unsupported_client_server_text: toList(
-                                  e.target.value
-                                ),
-                              })
+                              updateListField(
+                                "sub_unsupported_client_server_text",
+                                e.target.value
+                              )
                             }
                           />
                           <FormHelperText>
