@@ -336,6 +336,16 @@ _connecting_started_at = {}
 _connecting_nodes_lock = threading.Lock()
 
 
+def _cleanup_node_connection(node) -> None:
+    if node is None:
+        return
+    if hasattr(node, "_reset_local_state"):
+        try:
+            node._reset_local_state(recreate_session=True)
+        except Exception:
+            pass
+
+
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
     now = time.time()
     with _connecting_nodes_lock:
@@ -403,6 +413,7 @@ def connect_node(node_id, config=None, force: bool = False):
 
         for attempt in range(1, retries + 1):
             try:
+                _cleanup_node_connection(node)
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
