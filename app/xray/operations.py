@@ -15,6 +15,7 @@ from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
     XRAY_NODE_CONNECT_STALE_TIMEOUT,
+    XRAY_NODE_MAX_CONCURRENT_CONNECTS,
 )
 from xray_api import XRay as XRayAPI
 from xray_api.types.account import Account, XTLSFlows
@@ -334,6 +335,33 @@ global _connecting_nodes
 _connecting_nodes = set()
 _connecting_started_at = {}
 _connecting_nodes_lock = threading.Lock()
+_connect_semaphore = threading.Semaphore(max(1, XRAY_NODE_MAX_CONCURRENT_CONNECTS))
+
+
+def is_connect_in_progress(node_id: int) -> bool:
+    with _connecting_nodes_lock:
+        return node_id in _connecting_nodes
+
+
+def is_connect_stale(node_id: int) -> bool:
+    with _connecting_nodes_lock:
+        if node_id not in _connecting_nodes:
+            return False
+        age = time.time() - _connecting_started_at.get(node_id, 0)
+        return age >= XRAY_NODE_CONNECT_STALE_TIMEOUT
+
+
+def _cleanup_node_connection(node) -> None:
+    if node is None:
+        return
+    try:
+        node.disconnect()
+    except Exception:
+        if hasattr(node, "_reset_local_state"):
+            try:
+                node._reset_local_state()
+            except Exception:
+                pass
 
 
 def _cleanup_node_connection(node) -> None:
@@ -382,6 +410,13 @@ def _release_connect_slot(node_id: int):
 @threaded_function
 def connect_node(node_id, config=None, force: bool = False):
     if not _acquire_connect_slot(node_id, force=force):
+        return
+
+    if not _connect_semaphore.acquire(blocking=False):
+        logger.debug(
+            f"[connect_node] deferred, max concurrent connects reached, node_id={node_id}"
+        )
+        _release_connect_slot(node_id)
         return
 
     dbnode = None
@@ -452,6 +487,7 @@ def connect_node(node_id, config=None, force: bool = False):
         else:
             logger.warning(f"Unable to connect node_id={node_id}: {type(exc).__name__}: {exc}")
     finally:
+        _connect_semaphore.release()
         _release_connect_slot(node_id)
         if dbnode:
             try:
@@ -509,4 +545,6 @@ __all__ = [
     "remove_node",
     "connect_node",
     "restart_node",
+    "is_connect_in_progress",
+    "is_connect_stale",
 ]

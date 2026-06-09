@@ -8,6 +8,32 @@ from config import JOB_CORE_HEALTH_CHECK_INTERVAL
 from app.xray.node import NodeAPIError
 from xray_api import exc as xray_exc
 
+_error_reconnect_last: dict[int, float] = {}
+
+
+def _quick_node_ready(node) -> bool:
+    """Cached readiness check — no network I/O."""
+    try:
+        if hasattr(node, "_session_id"):
+            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
+        if hasattr(node, "started"):
+            return bool(getattr(node, "started", False))
+    except Exception:
+        pass
+    return False
+
+
+def _should_force_reconnect(node_id: int, status: NodeStatus, now: float) -> bool:
+    if status == NodeStatus.connecting and xray.operations.is_connect_stale(node_id):
+        return True
+    if status != NodeStatus.error:
+        return False
+    last_attempt = _error_reconnect_last.get(node_id, 0)
+    if now - last_attempt >= XRAY_NODE_ERROR_RECONNECT_INTERVAL:
+        _error_reconnect_last[node_id] = now
+        return True
+    return False
+
 
 def _quick_node_ready(node) -> bool:
     try:
@@ -22,6 +48,7 @@ def _quick_node_ready(node) -> bool:
 
 def core_health_check():
     config = None
+    now = time.time()
 
     # main core
     if not xray.core.started:
