@@ -1,7 +1,6 @@
 from functools import lru_cache
 import threading
 import time
-from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -337,27 +336,6 @@ _connecting_started_at = {}
 _connecting_nodes_lock = threading.Lock()
 
 
-def is_connect_in_progress(node_id: int) -> bool:
-    with _connecting_nodes_lock:
-        return node_id in _connecting_nodes
-
-
-def _cleanup_node_connection(node) -> None:
-    """Drop stale local session state without remote /disconnect (avoids stop+full restart storm)."""
-    if node is None:
-        return
-    if hasattr(node, "_reset_local_state"):
-        try:
-            node._reset_local_state(recreate_session=True)
-        except Exception:
-            pass
-    elif hasattr(node, "disconnect"):
-        try:
-            node.disconnect()
-        except Exception:
-            pass
-
-
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
     now = time.time()
     with _connecting_nodes_lock:
@@ -393,21 +371,25 @@ def connect_node(node_id, config=None, force: bool = False):
     if not _acquire_connect_slot(node_id, force=force):
         return
 
-    dbnode_name = None
+    dbnode = None
+    node = None
+
     try:
         with GetDB() as db:
             dbnode = crud.get_node_by_id(db, node_id)
-            if not dbnode:
-                return
 
-            if dbnode.status == NodeStatus.disabled:
-                remove_node(dbnode.id)
-                logger.info(f"[connect_node] skip disabled node_id={dbnode.id}")
-                return
+        if not dbnode:
+            return
 
-            dbnode_name = dbnode.name
-            if dbnode.status != NodeStatus.connecting:
-                crud.update_node_status(db, dbnode, NodeStatus.connecting)
+        if dbnode.status == NodeStatus.disabled:
+            remove_node(dbnode.id)
+            logger.info(f"[connect_node] skip disabled node_id={dbnode.id}")
+            return
+
+        status_changed = _change_node_status(node_id, NodeStatus.connecting)
+        if not status_changed:
+            logger.info(f"[connect_node] status update rejected for node_id={node_id}")
+            return
 
         if config is None:
             config = xray.config.include_db_users()
@@ -415,33 +397,19 @@ def connect_node(node_id, config=None, force: bool = False):
         retry_delay = max(0, XRAY_NODE_CONNECT_RETRY_DELAY)
         last_exc = None
         try:
-            node = xray.nodes[node_id]
+            node = xray.nodes[dbnode.id]
         except KeyError:
-            with GetDB() as db:
-                dbnode = crud.get_node_by_id(db, node_id)
-            if not dbnode:
-                return
-            node = add_node(dbnode)
+            node = xray.operations.add_node(dbnode)
 
         for attempt in range(1, retries + 1):
             try:
                 logger.info(
-                    f"Connecting to \"{dbnode_name}\" node (attempt {attempt}/{retries})"
+                    f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
-                if attempt == 1 and hasattr(node, "try_restore") and node.try_restore():
-                    logger.info(
-                        f"Restored session for \"{dbnode_name}\" node without full start"
-                    )
-                else:
-                    _cleanup_node_connection(node)
-                    node_config = deepcopy(config)
-                    try:
-                        node.start(node_config)
-                    finally:
-                        del node_config
+                node.start(config)
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
-                logger.info(f"Connected to \"{dbnode_name}\" node, xray run on v{version}")
+                logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
                 return
             except Exception as exc:
                 last_exc = exc
@@ -449,7 +417,7 @@ def connect_node(node_id, config=None, force: bool = False):
                     delay = retry_delay * attempt
                     logger.warning(
                         f"[connect_node] attempt {attempt}/{retries} failed for "
-                        f"node_id={node_id} ({dbnode_name}): {type(exc).__name__}: {exc}. "
+                        f"node_id={node_id} ({dbnode.name}): {type(exc).__name__}: {exc}. "
                         f"retry in {delay}s"
                     )
                     if delay:
@@ -465,16 +433,17 @@ def connect_node(node_id, config=None, force: bool = False):
                 f"[connect_node] failed to mark node_id={node_id} as error: "
                 f"{type(status_exc).__name__}: {status_exc}"
             )
-        if dbnode_name:
-            logger.warning(
-                f"Unable to connect to \"{dbnode_name}\" node: {type(exc).__name__}: {exc}"
-            )
+        if dbnode:
+            logger.warning(f"Unable to connect to \"{dbnode.name}\" node: {type(exc).__name__}: {exc}")
         else:
             logger.warning(f"Unable to connect node_id={node_id}: {type(exc).__name__}: {exc}")
     finally:
         _release_connect_slot(node_id)
-        if dbnode_name:
-            logger.debug(f"[connect_node] released lock for node_id={node_id} ({dbnode_name})")
+        if dbnode:
+            try:
+                logger.debug(f"[connect_node] released lock for node_id={node_id} ({dbnode.name})")
+            except Exception:
+                logger.debug(f"[connect_node] released lock for node_id={node_id}")
         else:
             logger.debug(f"[connect_node] released lock for node_id={node_id}")
 
@@ -526,5 +495,4 @@ __all__ = [
     "remove_node",
     "connect_node",
     "restart_node",
-    "is_connect_in_progress",
 ]

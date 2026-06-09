@@ -1,41 +1,11 @@
 import time
 import traceback
-from datetime import datetime, timedelta, timezone
 
 from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
-from config import (
-    JOB_CORE_HEALTH_CHECK_INTERVAL,
-    XRAY_HEALTH_CHECK_STARTUP_DELAY,
-    XRAY_NODE_ERROR_RECONNECT_INTERVAL,
-)
-from app.xray.node import NodeAPIError
+from config import JOB_CORE_HEALTH_CHECK_INTERVAL
 from xray_api import exc as xray_exc
-
-_reconnect_last_attempt = {}
-
-
-def _should_reconnect_node(node_id: int) -> bool:
-    if xray.operations.is_connect_in_progress(node_id):
-        return False
-    now = time.time()
-    last = _reconnect_last_attempt.get(node_id, 0)
-    if now - last < XRAY_NODE_ERROR_RECONNECT_INTERVAL:
-        return False
-    _reconnect_last_attempt[node_id] = now
-    return True
-
-
-def _quick_node_ready(node) -> bool:
-    try:
-        if hasattr(node, "_session_id"):
-            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
-        if hasattr(node, "started"):
-            return bool(getattr(node, "started", False))
-    except Exception:
-        pass
-    return False
 
 
 def core_health_check():
@@ -43,38 +13,25 @@ def core_health_check():
 
     # main core
     if not xray.core.started:
-        config = xray.config.include_db_users()
-        xray.core.restart(config)
-
-    with GetDB() as db:
-        dbnodes = crud.get_nodes(db=db, enabled=True)
-        db_status = {dbnode.id: dbnode.status for dbnode in dbnodes}
-
-    for node_id, node in list(xray.nodes.items()):
-        if xray.operations.is_connect_in_progress(node_id):
-            continue
-
-        status = db_status.get(node_id)
-
-        if status == NodeStatus.connected and _quick_node_ready(node):
-            try:
-                node.api.get_sys_stats(timeout=2)
-            except (ConnectionError, NodeAPIError, xray_exc.XrayError):
-                if not _should_reconnect_node(node_id):
-                    continue
-                if not config:
-                    config = xray.config.include_db_users()
-                xray.operations.connect_node(node_id, config)
-            continue
-
-        if status not in (NodeStatus.error, NodeStatus.connecting):
-            continue
-
-        if not _should_reconnect_node(node_id):
-            continue
         if not config:
             config = xray.config.include_db_users()
-        xray.operations.connect_node(node_id, config)
+        xray.core.restart(config)
+
+    # nodes' core
+    for node_id, node in list(xray.nodes.items()):
+        if node.connected:
+            try:
+                assert node.started
+                node.api.get_sys_stats(timeout=2)
+            except (ConnectionError, xray_exc.XrayError, AssertionError):
+                if not config:
+                    config = xray.config.include_db_users()
+                xray.operations.restart_node(node_id, config)
+
+        if not node.connected:
+            if not config:
+                config = xray.config.include_db_users()
+            xray.operations.connect_node(node_id, config)
 
 
 @app.on_event("startup")
@@ -103,20 +60,9 @@ def start_core():
     for node_id in node_ids:
         xray.operations.connect_node(node_id, config)
 
-    health_check_delay = max(0, XRAY_HEALTH_CHECK_STARTUP_DELAY)
-    next_run = datetime.now(timezone.utc) + timedelta(seconds=health_check_delay)
-    scheduler.add_job(
-        core_health_check,
-        'interval',
-        seconds=JOB_CORE_HEALTH_CHECK_INTERVAL,
-        coalesce=True,
-        max_instances=1,
-        next_run_time=next_run,
-    )
-    logger.info(
-        "Node health check scheduled; first run in %ds (startup delay)",
-        health_check_delay,
-    )
+    scheduler.add_job(core_health_check, 'interval',
+                      seconds=JOB_CORE_HEALTH_CHECK_INTERVAL,
+                      coalesce=True, max_instances=1)
 
 
 @app.on_event("shutdown")
