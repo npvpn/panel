@@ -25,6 +25,13 @@ if TYPE_CHECKING:
     from app.db.models import Node as DBNode
 
 
+def _is_closed_grpc_channel_error(exc: Exception) -> bool:
+    if not isinstance(exc, ValueError):
+        return False
+    msg = str(exc).lower()
+    return "closed channel" in msg or "channel closed" in msg
+
+
 def _get_ready_nodes():
     """Return nodes that look ready based on cached flags only — no network calls.
 
@@ -70,7 +77,10 @@ def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
 
 
 @threaded_function
@@ -83,7 +93,10 @@ def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
 
 
 @threaded_function
@@ -96,13 +109,19 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
 
 
 def add_user(dbuser: "DBUser"):
