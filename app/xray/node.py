@@ -40,6 +40,26 @@ def string_to_temp_file(content: str):
     return file
 
 
+def _close_temp_file(file_obj):
+    if file_obj is None:
+        return
+    try:
+        file_obj.close()
+    except Exception:
+        pass
+
+
+def _close_grpc_api(api):
+    if api is None:
+        return
+    channel = getattr(api, '_channel', None)
+    if channel is not None:
+        try:
+            channel.close()
+        except Exception:
+            pass
+
+
 class SANIgnoringAdaptor(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False):
         self.poolmanager = PoolManager(num_pools=connections,
@@ -136,11 +156,18 @@ class ReSTXRayNode:
         self.session.cert = (self._certfile.name, self._keyfile.name)
 
     def _reset_local_state(self, recreate_session: bool = True):
+        _close_grpc_api(self._api)
         self._session_id = None
         self._api = None
         self._started = False
         if recreate_session:
             self._recreate_session()
+
+    def _set_node_cert(self, cert_pem: str):
+        _close_temp_file(getattr(self, '_node_certfile', None))
+        self._node_cert = cert_pem
+        self._node_certfile = string_to_temp_file(cert_pem)
+        self.session.verify = self._node_certfile.name
 
     def _reset_http_session(self):
         """Drop stale connections from the requests pool; keep session_id."""
@@ -268,8 +295,7 @@ class ReSTXRayNode:
         self._node_cert = fetch_server_certificate(
             self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
         )
-        self._node_certfile = string_to_temp_file(self._node_cert)
-        self.session.verify = self._node_certfile.name
+        self._set_node_cert(self._node_cert)
 
         res = self.make_request("/connect", timeout=XRAY_NODE_REST_CONNECT_TIMEOUT)
         self._session_id = res['session_id']
@@ -308,6 +334,7 @@ class ReSTXRayNode:
 
         self._started = True
 
+        _close_grpc_api(self._api)
         self._api = XRayAPI(
             address=self.address,
             port=self.api_port,
@@ -324,6 +351,7 @@ class ReSTXRayNode:
             self.connect()
 
         self.make_request('/stop', timeout=XRAY_NODE_REST_STOP_TIMEOUT)
+        _close_grpc_api(self._api)
         self._api = None
         self._started = False
 
@@ -342,6 +370,7 @@ class ReSTXRayNode:
 
         self._started = True
 
+        _close_grpc_api(self._api)
         self._api = XRayAPI(
             address=self.address,
             port=self.api_port,
@@ -464,6 +493,7 @@ class RPyCXRayNode:
             self._node_cert = fetch_server_certificate(
                 self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
             )
+            _close_temp_file(getattr(self, '_node_certfile', None))
             self._node_certfile = string_to_temp_file(self._node_cert)
             conn = rpyc.ssl_connect(self.address,
                                     self.port,
@@ -538,6 +568,7 @@ class RPyCXRayNode:
         self.started = True
 
         # connect to API
+        _close_grpc_api(self._api)
         self._api = XRayAPI(
             address=self.address,
             port=self.api_port,
@@ -566,6 +597,7 @@ class RPyCXRayNode:
     def stop(self):
         self.remote.stop()
         self.started = False
+        _close_grpc_api(self._api)
         self._api = None
 
     def restart(self, config: XRayConfig):
