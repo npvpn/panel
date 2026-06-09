@@ -5,6 +5,7 @@
     --green: #2fc26e;
     --white: #ffffff;
     --black: #141413;
+    --light-gray: #f6f6f6;
 
     /* TEXT */
     --text-primary: #141413;
@@ -37,6 +38,7 @@
 :root[data-theme='dark'] {
     --text-primary: #ffffff;
     --text-secondary: #cfcfcf;
+    --light-gray: #343434;
 
     --bg: #232323;
     --surface: #2b2b2b;
