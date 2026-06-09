@@ -368,20 +368,27 @@ def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
     now = time.time()
     with _connecting_nodes_lock:
         if node_id in _connecting_nodes:
-            started_at = _connecting_started_at.get(node_id, now)
-            age = now - started_at
-
-            if force and age >= XRAY_NODE_CONNECT_STALE_TIMEOUT:
+            if force:
                 logger.warning(
-                    f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s"
+                    f"[connect_node] force-acquire for node_id={node_id}"
                 )
                 _connecting_nodes.discard(node_id)
                 _connecting_started_at.pop(node_id, None)
             else:
-                logger.debug(
-                    f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s"
-                )
-                return False
+                started_at = _connecting_started_at.get(node_id, now)
+                age = now - started_at
+
+                if age >= XRAY_NODE_CONNECT_STALE_TIMEOUT:
+                    logger.warning(
+                        f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s"
+                    )
+                    _connecting_nodes.discard(node_id)
+                    _connecting_started_at.pop(node_id, None)
+                else:
+                    logger.debug(
+                        f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s"
+                    )
+                    return False
 
         _connecting_nodes.add(node_id)
         _connecting_started_at[node_id] = now
@@ -399,15 +406,9 @@ def connect_node(node_id, config=None, force: bool = False):
     if not _acquire_connect_slot(node_id, force=force):
         return
 
-    if not _connect_semaphore.acquire(blocking=False):
-        logger.debug(
-            f"[connect_node] deferred, max concurrent connects reached, node_id={node_id}"
-        )
-        _release_connect_slot(node_id)
-        return
-
     dbnode = None
     node = None
+    last_exc = None
 
     try:
         with GetDB() as db:
@@ -430,13 +431,13 @@ def connect_node(node_id, config=None, force: bool = False):
             config = xray.config.include_db_users()
         retries = max(1, XRAY_NODE_CONNECT_RETRIES)
         retry_delay = max(0, XRAY_NODE_CONNECT_RETRY_DELAY)
-        last_exc = None
         try:
             node = xray.nodes[dbnode.id]
         except KeyError:
             node = xray.operations.add_node(dbnode)
 
         for attempt in range(1, retries + 1):
+            _connect_semaphore.acquire()
             try:
                 _cleanup_node_connection(node)
                 logger.info(
@@ -456,10 +457,16 @@ def connect_node(node_id, config=None, force: bool = False):
                         f"node_id={node_id} ({dbnode.name}): {type(exc).__name__}: {exc}. "
                         f"retry in {delay}s"
                     )
-                    if delay:
-                        time.sleep(delay)
-                    continue
-                raise last_exc
+            finally:
+                _connect_semaphore.release()
+
+            if attempt < retries:
+                delay = retry_delay * attempt
+                if delay:
+                    time.sleep(delay)
+
+        if last_exc:
+            raise last_exc
 
     except Exception as exc:
         try:
@@ -474,7 +481,6 @@ def connect_node(node_id, config=None, force: bool = False):
         else:
             logger.warning(f"Unable to connect node_id={node_id}: {type(exc).__name__}: {exc}")
     finally:
-        _connect_semaphore.release()
         _release_connect_slot(node_id)
         if dbnode:
             try:

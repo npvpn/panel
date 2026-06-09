@@ -218,6 +218,15 @@ class ReSTXRayNode:
 
         return self._api
 
+    def _setup_api(self):
+        self._api = XRayAPI(
+            address=self.address,
+            port=self.api_port,
+            ssl_cert=self._node_cert.encode(),
+            ssl_target_name="Gozargah"
+        )
+        wait_for_grpc_ready(self._api)
+
     def connect(self):
         if self._session_id:
             try:
@@ -249,8 +258,22 @@ class ReSTXRayNode:
         return res.get('core_version')
 
     def start(self, config: XRayConfig):
-        if not self.connected:
+        if not self._session_id:
             self.connect()
+        else:
+            try:
+                self.make_request("/ping", timeout=XRAY_NODE_REST_PING_TIMEOUT)
+            except NodeAPIError:
+                self.connect()
+
+        try:
+            info = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
+            if info.get('started'):
+                self._started = True
+                self._setup_api()
+                return info
+        except NodeAPIError:
+            pass
 
         config = self._prepare_config(config)
         json_config = config.to_json()
@@ -263,20 +286,14 @@ class ReSTXRayNode:
             )
         except NodeAPIError as exc:
             if exc.detail == 'Xray is started already':
-                return self.restart(config)
+                self._started = True
+                self._setup_api()
+                return {"started": True}
             else:
                 raise exc
 
         self._started = True
-
-        self._api = XRayAPI(
-            address=self.address,
-            port=self.api_port,
-            ssl_cert=self._node_cert.encode(),
-            ssl_target_name="Gozargah"
-        )
-
-        wait_for_grpc_ready(self._api)
+        self._setup_api()
 
         return res
 
@@ -302,15 +319,7 @@ class ReSTXRayNode:
         )
 
         self._started = True
-
-        self._api = XRayAPI(
-            address=self.address,
-            port=self.api_port,
-            ssl_cert=self._node_cert.encode(),
-            ssl_target_name="Gozargah"
-        )
-
-        wait_for_grpc_ready(self._api)
+        self._setup_api()
 
         return res
 
