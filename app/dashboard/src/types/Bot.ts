@@ -23,4 +23,5 @@ export type BotSettings = {
   sub_expired_server_text: string[];
   sub_device_limit_server_text: string[];
   sub_unsupported_client_server_text: string[];
+  updated_at?: string;
 };

@@ -137,6 +137,13 @@
 }
 
 /* Заголовок страницы */
+.page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
 .page-title {
     font-family: var(--third-family);
     font-size: 32px;
@@ -144,7 +151,7 @@
     line-height: 113%;
     letter-spacing: -0.04em;
     margin: 0;
-    text-align: center;
+    text-align: left;
 }
 
 /* Подзаголовок */
@@ -154,7 +161,7 @@
     font-size: 16px;
     line-height: 125%;
     letter-spacing: -0.04em;
-    text-align: center;
+    text-align: left;
     color: var(--gray-4);
     max-width: 260px;
     margin: 0;
@@ -316,3 +323,36 @@
       height: 20px;
     }
   }
+
+.platforms-list {
+    display: flex;
+    gap: 8px;
+    font-weight: 400;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.platform-btn {
+    border: none;
+    cursor: pointer;
+
+    border-radius: 16px;
+    padding: 8px 12px;
+    height: 36px;
+
+    background: var(--light-gray);
+
+    font-family: var(--font-family);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+
+    color: var(--text-primary);
+
+    transition: all 0.2s ease;
+}
+
+.platform-btn--active {
+    background: var(--black);
+    color: var(--white);
+}
