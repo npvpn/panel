@@ -64,6 +64,15 @@ def core_health_check():
                 xray.operations.restart_node(node_id, config)
             continue
 
+        if dbnode.status == NodeStatus.connecting:
+            if xray.operations.is_connect_in_progress(node_id):
+                continue
+            if not xray.operations.is_connect_stale(node_id):
+                continue
+
+        if dbnode.status not in (NodeStatus.error, NodeStatus.connecting):
+            continue
+
         if not config:
             config = xray.config.include_db_users()
 

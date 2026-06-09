@@ -352,16 +352,19 @@ def is_connect_stale(node_id: int) -> bool:
 
 
 def _cleanup_node_connection(node) -> None:
+    """Reset local session only — do not call remote /disconnect (it stops Xray and forces full /start)."""
     if node is None:
         return
-    try:
-        node.disconnect()
-    except Exception:
-        if hasattr(node, "_reset_local_state"):
-            try:
-                node._reset_local_state()
-            except Exception:
-                pass
+    if hasattr(node, "_reset_local_state"):
+        try:
+            node._reset_local_state(recreate_session=True)
+        except Exception:
+            pass
+    elif hasattr(node, "disconnect"):
+        try:
+            node.disconnect()
+        except Exception:
+            pass
 
 
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
