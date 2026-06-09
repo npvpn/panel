@@ -136,7 +136,7 @@ def resolve_device_limit_subscription_state(
         )
         hard_device_limited = not registered and not unsupported_client
         device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
-    unsupported_blocks = unsupported_client and bool(dbuser.device_limit)
+    unsupported_blocks = unsupported_client
     hard_mode = bool(bot_settings.get("sub_device_limit_hard_mode"))
     if (
         is_revoked
