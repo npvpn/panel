@@ -6,6 +6,7 @@ import threading
 import time
 from collections import deque
 from contextlib import contextmanager
+from copy import deepcopy
 from typing import List
 
 import grpc
@@ -126,6 +127,25 @@ class ReSTXRayNode:
         self._api = None
         self._started = False
 
+    def _close_temp_file(self, file_obj):
+        if file_obj is None:
+            return
+        try:
+            file_obj.close()
+        except Exception:
+            pass
+
+    def _close_api(self):
+        api = self._api
+        self._api = None
+        if api is not None:
+            channel = getattr(api, '_channel', None)
+            if channel is not None:
+                try:
+                    channel.close()
+                except Exception:
+                    pass
+
     def _recreate_session(self):
         try:
             self.session.close()
@@ -136,11 +156,36 @@ class ReSTXRayNode:
         self.session.cert = (self._certfile.name, self._keyfile.name)
 
     def _reset_local_state(self, recreate_session: bool = True):
+        self._close_api()
         self._session_id = None
-        self._api = None
         self._started = False
         if recreate_session:
             self._recreate_session()
+
+    def _reset_http_session(self):
+        """Reset HTTP pool only; keep session_id for a light transport retry."""
+        self._recreate_session()
+        node_certfile = getattr(self, '_node_certfile', None)
+        if node_certfile is not None:
+            self.session.verify = node_certfile.name
+
+    def _set_node_cert(self, cert_pem: str):
+        self._close_temp_file(getattr(self, '_node_certfile', None))
+        self._node_cert = cert_pem
+        self._node_certfile = string_to_temp_file(cert_pem)
+        self.session.verify = self._node_certfile.name
+
+    def _setup_api(self):
+        self._close_api()
+        if not self._session_id or not self._started:
+            return
+        self._api = XRayAPI(
+            address=self.address,
+            port=self.api_port,
+            ssl_cert=self._node_cert.encode(),
+            ssl_target_name="Gozargah"
+        )
+        wait_for_grpc_ready(self._api)
 
     @staticmethod
     def _is_transport_error(exc: Exception) -> bool:
@@ -186,27 +231,36 @@ class ReSTXRayNode:
         return config
 
     def make_request(self, path: str, timeout: int, **params):
-        try:
-            req_timeout = max(1, int(timeout))
-            connect_timeout = min(10, req_timeout)
-            res = self.session.post(
-                self._rest_api_url + path,
-                timeout=(connect_timeout, req_timeout),
-                headers={'Connection': 'close'},
-                json={"session_id": self._session_id, **params},
-            )
-            data = res.json()
-        except Exception as e:
-            if self._is_transport_error(e):
-                self._reset_local_state()
-            exc = NodeAPIError(0, str(e))
-            raise exc
+        last_exc = None
+        for http_retry in range(2):
+            try:
+                req_timeout = max(1, int(timeout))
+                connect_timeout = min(10, req_timeout)
+                res = self.session.post(
+                    self._rest_api_url + path,
+                    timeout=(connect_timeout, req_timeout),
+                    headers={'Connection': 'close'},
+                    json={"session_id": self._session_id, **params},
+                )
+                data = res.json()
+            except Exception as e:
+                last_exc = e
+                if self._is_transport_error(e):
+                    if http_retry == 0:
+                        self._reset_http_session()
+                        continue
+                    self._reset_local_state()
+                exc = NodeAPIError(0, str(e))
+                raise exc
 
-        if res.status_code == 200:
-            return data
-        else:
-            exc = NodeAPIError(res.status_code, data['detail'])
-            raise exc
+            if res.status_code == 200:
+                return data
+            else:
+                exc = NodeAPIError(res.status_code, data['detail'])
+                raise exc
+
+        exc = NodeAPIError(0, str(last_exc))
+        raise exc
 
     @property
     def connected(self):
@@ -228,16 +282,11 @@ class ReSTXRayNode:
         if not self._session_id:
             raise ConnectionError("Node is not connected")
 
+        if not self._started:
+            raise ConnectionError("Node is not started")
+
         if not self._api:
-            if self._started is True:
-                self._api = XRayAPI(
-                    address=self.address,
-                    port=self.api_port,
-                    ssl_cert=self._node_cert.encode(),
-                    ssl_target_name="Gozargah"
-                )
-            else:
-                raise ConnectionError("Node is not started")
+            self._setup_api()
 
         return self._api
 
@@ -252,8 +301,7 @@ class ReSTXRayNode:
         self._node_cert = fetch_server_certificate(
             self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
         )
-        self._node_certfile = string_to_temp_file(self._node_cert)
-        self.session.verify = self._node_certfile.name
+        self._set_node_cert(self._node_cert)
 
         res = self.make_request("/connect", timeout=XRAY_NODE_REST_CONNECT_TIMEOUT)
         self._session_id = res['session_id']
@@ -271,12 +319,39 @@ class ReSTXRayNode:
         res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
         return res.get('core_version')
 
+    def try_restore(self) -> bool:
+        """Restore gRPC/API when REST session and Xray on the node are still alive."""
+        if not self._session_id:
+            return False
+        try:
+            self.make_request("/ping", timeout=XRAY_NODE_REST_PING_TIMEOUT)
+            info = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
+        except NodeAPIError:
+            return False
+
+        if not info.get('started'):
+            return False
+
+        self._started = True
+        self._setup_api()
+        return True
+
     def start(self, config: XRayConfig):
         if not self.connected:
             self.connect()
 
-        config = self._prepare_config(config)
+        try:
+            info = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
+            if info.get('started'):
+                self._started = True
+                self._setup_api()
+                return info
+        except NodeAPIError:
+            pass
+
+        config = self._prepare_config(deepcopy(config))
         json_config = config.to_json()
+        del config
 
         try:
             res = self.make_request(
@@ -286,20 +361,14 @@ class ReSTXRayNode:
             )
         except NodeAPIError as exc:
             if exc.detail == 'Xray is started already':
-                return self.restart(config)
+                return self.restart(json_config)
             else:
                 raise exc
+        finally:
+            del json_config
 
         self._started = True
-
-        self._api = XRayAPI(
-            address=self.address,
-            port=self.api_port,
-            ssl_cert=self._node_cert.encode(),
-            ssl_target_name="Gozargah"
-        )
-
-        wait_for_grpc_ready(self._api)
+        self._setup_api()
 
         return res
 
@@ -308,32 +377,33 @@ class ReSTXRayNode:
             self.connect()
 
         self.make_request('/stop', timeout=XRAY_NODE_REST_STOP_TIMEOUT)
-        self._api = None
+        self._close_api()
         self._started = False
 
-    def restart(self, config: XRayConfig):
+    def restart(self, config):
         if not self.connected:
             self.connect()
 
-        config = self._prepare_config(config)
-        json_config = config.to_json()
+        prepared = not isinstance(config, str)
+        if prepared:
+            node_config = self._prepare_config(deepcopy(config))
+            json_config = node_config.to_json()
+            del node_config
+        else:
+            json_config = config
 
-        res = self.make_request(
-            "/restart",
-            timeout=XRAY_NODE_REST_RESTART_TIMEOUT,
-            config=json_config
-        )
+        try:
+            res = self.make_request(
+                "/restart",
+                timeout=XRAY_NODE_REST_RESTART_TIMEOUT,
+                config=json_config
+            )
+        finally:
+            if prepared:
+                del json_config
 
         self._started = True
-
-        self._api = XRayAPI(
-            address=self.address,
-            port=self.api_port,
-            ssl_cert=self._node_cert.encode(),
-            ssl_target_name="Gozargah"
-        )
-
-        wait_for_grpc_ready(self._api)
+        self._setup_api()
 
         return res
 

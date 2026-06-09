@@ -4,9 +4,22 @@ import traceback
 from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
-from config import JOB_CORE_HEALTH_CHECK_INTERVAL
+from config import JOB_CORE_HEALTH_CHECK_INTERVAL, XRAY_NODE_ERROR_RECONNECT_INTERVAL
 from app.xray.node import NodeAPIError
 from xray_api import exc as xray_exc
+
+_error_reconnect_last_attempt = {}
+
+
+def _should_reconnect_error_node(node_id: int) -> bool:
+    if xray.operations.is_connect_in_progress(node_id):
+        return False
+    now = time.time()
+    last = _error_reconnect_last_attempt.get(node_id, 0)
+    if now - last < XRAY_NODE_ERROR_RECONNECT_INTERVAL:
+        return False
+    _error_reconnect_last_attempt[node_id] = now
+    return True
 
 
 def _quick_node_ready(node) -> bool:
@@ -38,6 +51,8 @@ def core_health_check():
 
         # DB says error/connecting but in-memory session may look fine — reconnect anyway.
         if status in (NodeStatus.error, NodeStatus.connecting):
+            if not _should_reconnect_error_node(node_id):
+                continue
             if not config:
                 config = xray.config.include_db_users()
             xray.operations.connect_node(node_id, config)
@@ -47,6 +62,8 @@ def core_health_check():
             try:
                 node.api.get_sys_stats(timeout=2)
             except (ConnectionError, NodeAPIError, xray_exc.XrayError):
+                if xray.operations.is_connect_in_progress(node_id):
+                    continue
                 if not config:
                     config = xray.config.include_db_users()
                 xray.operations.connect_node(node_id, config)

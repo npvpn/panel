@@ -1,6 +1,7 @@
 from functools import lru_cache
 import threading
 import time
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -336,17 +337,25 @@ _connecting_started_at = {}
 _connecting_nodes_lock = threading.Lock()
 
 
+def is_connect_in_progress(node_id: int) -> bool:
+    with _connecting_nodes_lock:
+        return node_id in _connecting_nodes
+
+
 def _cleanup_node_connection(node) -> None:
+    """Drop stale local session state without remote /disconnect (avoids stop+full restart storm)."""
     if node is None:
         return
-    try:
-        node.disconnect()
-    except Exception:
-        if hasattr(node, "_reset_local_state"):
-            try:
-                node._reset_local_state()
-            except Exception:
-                pass
+    if hasattr(node, "_reset_local_state"):
+        try:
+            node._reset_local_state(recreate_session=True)
+        except Exception:
+            pass
+    elif hasattr(node, "disconnect"):
+        try:
+            node.disconnect()
+        except Exception:
+            pass
 
 
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
@@ -416,11 +425,20 @@ def connect_node(node_id, config=None, force: bool = False):
 
         for attempt in range(1, retries + 1):
             try:
-                _cleanup_node_connection(node)
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
-                node.start(config)
+                if attempt == 1 and hasattr(node, "try_restore") and node.try_restore():
+                    logger.info(
+                        f"Restored session for \"{dbnode.name}\" node without full start"
+                    )
+                else:
+                    _cleanup_node_connection(node)
+                    node_config = deepcopy(config)
+                    try:
+                        node.start(node_config)
+                    finally:
+                        del node_config
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
                 logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
@@ -509,4 +527,5 @@ __all__ = [
     "remove_node",
     "connect_node",
     "restart_node",
+    "is_connect_in_progress",
 ]

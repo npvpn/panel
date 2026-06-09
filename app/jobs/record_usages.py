@@ -133,12 +133,21 @@ def get_outbounds_stats(api: XRayAPI):
         return []
 
 
+def _node_ready_for_api(node) -> bool:
+    try:
+        if hasattr(node, "_session_id"):
+            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
+        return bool(node.connected and node.started)
+    except Exception:
+        return False
+
+
 def record_user_usages():
     api_instances = {None: xray.api}
     usage_coefficient = {None: 1}  # default usage coefficient for the main api instance
 
     for node_id, node in list(xray.nodes.items()):
-        if node.connected and node.started:
+        if _node_ready_for_api(node):
             api_instances[node_id] = node.api
             usage_coefficient[node_id] = node.usage_coefficient  # fetch the usage coefficient
 
