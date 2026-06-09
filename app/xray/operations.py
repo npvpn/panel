@@ -404,8 +404,7 @@ def _release_connect_slot(node_id: int):
         _connecting_started_at.pop(node_id, None)
 
 
-@threaded_function
-def connect_node(node_id, config=None, force: bool = False):
+def _connect_node_impl(node_id, config=None, force: bool = False):
     if not _acquire_connect_slot(node_id, force=force):
         return
 
@@ -432,7 +431,9 @@ def connect_node(node_id, config=None, force: bool = False):
 
         if config is None:
             config = xray.config.include_db_users()
-        retries = max(1, XRAY_NODE_CONNECT_RETRIES)
+        # Background/health-check reconnects: one attempt per call; health check retries later.
+        # Manual Reconnect (force=True): full in-process retry loop.
+        retries = max(1, XRAY_NODE_CONNECT_RETRIES) if force else 1
         retry_delay = max(0, XRAY_NODE_CONNECT_RETRY_DELAY)
         try:
             node = xray.nodes[dbnode.id]
@@ -492,6 +493,11 @@ def connect_node(node_id, config=None, force: bool = False):
                 logger.debug(f"[connect_node] released lock for node_id={node_id}")
         else:
             logger.debug(f"[connect_node] released lock for node_id={node_id}")
+
+
+@threaded_function
+def connect_node(node_id, config=None, force: bool = False):
+    _connect_node_impl(node_id, config, force)
 
 
 @threaded_function

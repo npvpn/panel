@@ -135,9 +135,32 @@ class ReSTXRayNode:
         self.session.mount('https://', SANIgnoringAdaptor())
         self.session.cert = (self._certfile.name, self._keyfile.name)
 
-    def _reset_local_state(self, recreate_session: bool = True):
-        self._session_id = None
+    def _close_grpc_api(self):
+        api = self._api
         self._api = None
+        if api is None:
+            return
+        try:
+            channel = getattr(api, "_channel", None)
+            if channel is not None:
+                channel.close()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _close_temp_file(file_obj):
+        if file_obj is None:
+            return
+        try:
+            file_obj.close()
+        except Exception:
+            pass
+
+    def _reset_local_state(self, recreate_session: bool = True):
+        self._close_grpc_api()
+        self._close_temp_file(getattr(self, "_node_certfile", None))
+        self._node_certfile = None
+        self._session_id = None
         self._started = False
         if recreate_session:
             self._recreate_session()
@@ -235,6 +258,7 @@ class ReSTXRayNode:
                 pass
         self._reset_local_state()
 
+        self._close_temp_file(getattr(self, "_node_certfile", None))
         self._node_cert = fetch_server_certificate(
             self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
         )
