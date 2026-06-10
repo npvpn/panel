@@ -4,7 +4,11 @@ import traceback
 from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
-from config import JOB_CORE_HEALTH_CHECK_INTERVAL, XRAY_NODE_ERROR_RECONNECT_INTERVAL
+from config import (
+    JOB_CORE_HEALTH_CHECK_INTERVAL,
+    XRAY_NODE_ERROR_RECONNECT_INTERVAL,
+    XRAY_NODE_MAX_CONCURRENT_CONNECTS,
+)
 from xray_api import exc as xray_exc
 
 _error_reconnect_last: dict[int, float] = {}
@@ -47,6 +51,9 @@ def core_health_check():
     with GetDB() as db:
         dbnodes = crud.get_nodes(db=db, enabled=True)
 
+    reconnects_scheduled = 0
+    max_reconnects = max(1, XRAY_NODE_MAX_CONCURRENT_CONNECTS)
+
     for dbnode in dbnodes:
         node_id = dbnode.id
 
@@ -64,6 +71,18 @@ def core_health_check():
                 xray.operations.restart_node(node_id, config)
             continue
 
+        if dbnode.status == NodeStatus.connecting:
+            if xray.operations.is_connect_in_progress(node_id):
+                continue
+            if not xray.operations.is_connect_stale(node_id):
+                continue
+
+        if dbnode.status not in (NodeStatus.error, NodeStatus.connecting):
+            continue
+
+        if reconnects_scheduled >= max_reconnects:
+            break
+
         if not config:
             config = xray.config.include_db_users()
 
@@ -72,6 +91,7 @@ def core_health_check():
             continue
 
         xray.operations.connect_node(node_id, config, force=force)
+        reconnects_scheduled += 1
 
 
 @app.on_event("startup")

@@ -25,6 +25,13 @@ if TYPE_CHECKING:
     from app.db.models import Node as DBNode
 
 
+def _is_closed_grpc_channel_error(exc: Exception) -> bool:
+    if not isinstance(exc, ValueError):
+        return False
+    msg = str(exc).lower()
+    return "closed channel" in msg or "channel closed" in msg
+
+
 def _get_ready_nodes():
     """Return nodes that look ready based on cached flags only — no network calls.
 
@@ -70,7 +77,10 @@ def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
 
 
 @threaded_function
@@ -83,7 +93,10 @@ def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
 
 
 @threaded_function
@@ -96,13 +109,19 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
         logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
     except Exception as e:
-        logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        if _is_closed_grpc_channel_error(e):
+            logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        else:
+            logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
 
 
 def add_user(dbuser: "DBUser"):
@@ -352,36 +371,46 @@ def is_connect_stale(node_id: int) -> bool:
 
 
 def _cleanup_node_connection(node) -> None:
+    """Reset local session only — do not call remote /disconnect (it stops Xray and forces full /start)."""
     if node is None:
         return
-    try:
-        node.disconnect()
-    except Exception:
-        if hasattr(node, "_reset_local_state"):
-            try:
-                node._reset_local_state()
-            except Exception:
-                pass
+    if hasattr(node, "_reset_local_state"):
+        try:
+            node._reset_local_state(recreate_session=True)
+        except Exception:
+            pass
+    elif hasattr(node, "disconnect"):
+        try:
+            node.disconnect()
+        except Exception:
+            pass
 
 
 def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
     now = time.time()
     with _connecting_nodes_lock:
         if node_id in _connecting_nodes:
-            started_at = _connecting_started_at.get(node_id, now)
-            age = now - started_at
-
-            if force and age >= XRAY_NODE_CONNECT_STALE_TIMEOUT:
+            if force:
                 logger.warning(
-                    f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s"
+                    f"[connect_node] force-acquire for node_id={node_id}"
                 )
                 _connecting_nodes.discard(node_id)
                 _connecting_started_at.pop(node_id, None)
             else:
-                logger.debug(
-                    f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s"
-                )
-                return False
+                started_at = _connecting_started_at.get(node_id, now)
+                age = now - started_at
+
+                if age >= XRAY_NODE_CONNECT_STALE_TIMEOUT:
+                    logger.warning(
+                        f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s"
+                    )
+                    _connecting_nodes.discard(node_id)
+                    _connecting_started_at.pop(node_id, None)
+                else:
+                    logger.debug(
+                        f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s"
+                    )
+                    return False
 
         _connecting_nodes.add(node_id)
         _connecting_started_at[node_id] = now
@@ -394,20 +423,13 @@ def _release_connect_slot(node_id: int):
         _connecting_started_at.pop(node_id, None)
 
 
-@threaded_function
-def connect_node(node_id, config=None, force: bool = False):
+def _connect_node_impl(node_id, config=None, force: bool = False):
     if not _acquire_connect_slot(node_id, force=force):
-        return
-
-    if not _connect_semaphore.acquire(blocking=False):
-        logger.debug(
-            f"[connect_node] deferred, max concurrent connects reached, node_id={node_id}"
-        )
-        _release_connect_slot(node_id)
         return
 
     dbnode = None
     node = None
+    last_exc = None
 
     try:
         with GetDB() as db:
@@ -428,15 +450,17 @@ def connect_node(node_id, config=None, force: bool = False):
 
         if config is None:
             config = xray.config.include_db_users()
-        retries = max(1, XRAY_NODE_CONNECT_RETRIES)
+        # Background/health-check reconnects: one attempt per call; health check retries later.
+        # Manual Reconnect (force=True): full in-process retry loop.
+        retries = max(1, XRAY_NODE_CONNECT_RETRIES) if force else 1
         retry_delay = max(0, XRAY_NODE_CONNECT_RETRY_DELAY)
-        last_exc = None
         try:
             node = xray.nodes[dbnode.id]
         except KeyError:
             node = xray.operations.add_node(dbnode)
 
         for attempt in range(1, retries + 1):
+            _connect_semaphore.acquire()
             try:
                 _cleanup_node_connection(node)
                 logger.info(
@@ -456,10 +480,16 @@ def connect_node(node_id, config=None, force: bool = False):
                         f"node_id={node_id} ({dbnode.name}): {type(exc).__name__}: {exc}. "
                         f"retry in {delay}s"
                     )
-                    if delay:
-                        time.sleep(delay)
-                    continue
-                raise last_exc
+            finally:
+                _connect_semaphore.release()
+
+            if attempt < retries:
+                delay = retry_delay * attempt
+                if delay:
+                    time.sleep(delay)
+
+        if last_exc:
+            raise last_exc
 
     except Exception as exc:
         try:
@@ -474,7 +504,6 @@ def connect_node(node_id, config=None, force: bool = False):
         else:
             logger.warning(f"Unable to connect node_id={node_id}: {type(exc).__name__}: {exc}")
     finally:
-        _connect_semaphore.release()
         _release_connect_slot(node_id)
         if dbnode:
             try:
@@ -483,6 +512,11 @@ def connect_node(node_id, config=None, force: bool = False):
                 logger.debug(f"[connect_node] released lock for node_id={node_id}")
         else:
             logger.debug(f"[connect_node] released lock for node_id={node_id}")
+
+
+@threaded_function
+def connect_node(node_id, config=None, force: bool = False):
+    _connect_node_impl(node_id, config, force)
 
 
 @threaded_function
