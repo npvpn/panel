@@ -18,6 +18,7 @@ from app.db.models import (
     AdminUsageLogs,
     Bot,
     BotSettings,
+    CascadeRoute,
     NextPlan,
     Node,
     NodeUsage,
@@ -34,7 +35,8 @@ from app.db.models import (
     UserDevice,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
-from app.models.node import NodeCreate, NodeModify, NodeStatus, NodeUsageResponse
+from app.models.node import NodeCreate, NodeModify, NodeRole, NodeStatus, NodeUsageResponse
+from app.xray.cascade_keys import generate_cascade_params
 from app.models.proxy import ProxyHost as ProxyHostModify
 from app.models.user import (
     ReminderType,
@@ -1695,6 +1697,24 @@ def get_nodes_usage(db: Session, start: datetime, end: datetime) -> List[NodeUsa
     return list(usages.values())
 
 
+def _sync_cascade_routes(db: Session, dbnode: Node, routes) -> None:
+    """Переписать cascade_routes входной ноды из API-моделей CascadeRouteModel."""
+    dbnode.cascade_routes = [
+        CascadeRoute(
+            exit_node_id=r.exit_node_id,
+            entry_inbound_tag=get_or_create_inbound(db, r.entry_inbound_tag).tag,
+        )
+        for r in routes
+    ]
+
+
+def _apply_node_role(dbnode: Node, role: NodeRole) -> None:
+    """Установить роль; для exit сгенерировать cascade_params один раз (идемпотентно)."""
+    dbnode.role = role
+    if role == NodeRole.exit and not dbnode.cascade_params:
+        dbnode.cascade_params = generate_cascade_params()
+
+
 def create_node(db: Session, node: NodeCreate) -> Node:
     """
     Creates a new node in the database.
@@ -1714,6 +1734,10 @@ def create_node(db: Session, node: NodeCreate) -> Node:
 
     if node.inbounds is not None:
         dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in node.inbounds]
+
+    _apply_node_role(dbnode, node.role)
+    if node.cascade_routes is not None:
+        _sync_cascade_routes(db, dbnode, node.cascade_routes)
 
     db.add(dbnode)
     db.commit()
@@ -1776,6 +1800,12 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.inbounds is not None:
         dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in modify.inbounds]
+
+    if modify.role is not None:
+        _apply_node_role(dbnode, modify.role)
+
+    if modify.cascade_routes is not None:
+        _sync_cascade_routes(db, dbnode, modify.cascade_routes)
 
     db.commit()
     db.refresh(dbnode)
