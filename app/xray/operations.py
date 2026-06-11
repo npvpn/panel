@@ -12,6 +12,7 @@ from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
 from app.xray.inbound_filter import filtered_inbounds
+from app.xray.cascade_config import cascade_config
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -300,6 +301,35 @@ def update_user_by_id(user_id: int):
             raise
 
 
+def _cascade_kwargs(dbnode) -> dict:
+    """Собрать kwargs для cascade_config из dbnode. Вызывать в открытой DB-сессии:
+    резолвит cascade_routes/exit_node/cascade_params в plain-данные (без ORM-ссылок),
+    чтобы не словить DetachedInstanceError после закрытия сессии.
+    """
+    role = dbnode.role.value if dbnode.role else "direct"
+    if role == "exit":
+        return {"role": "exit", "exit_params": dict(dbnode.cascade_params or {})}
+    if role == "entry":
+        routes = []
+        for r in dbnode.cascade_routes:
+            params = (r.exit_node.cascade_params or {}) if r.exit_node else {}
+            if not params:
+                continue  # выходная ещё без cascade_params — пропускаем маршрут
+            routes.append({
+                "entry_inbound_tag": r.entry_inbound_tag,
+                "exit_node_id": r.exit_node_id,
+                "exit_address": r.exit_node.address,
+                "port": params["port"],
+                "uuid": params["uuid"],
+                "public_key": params["public_key"],
+                "short_id": params["short_id"],
+                "sni": params["sni"],
+                "fingerprint": params.get("fingerprint", "chrome"),
+            })
+        return {"role": "entry", "entry_routes": routes}
+    return {"role": "direct"}
+
+
 def _node_specific_config(base_config, node_inbound_tags):
     """Вернуть конфиг для конкретной ноды.
 
@@ -455,12 +485,14 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
     last_exc = None
 
     node_inbound_tags = []
+    cascade_kwargs = {"role": "direct"}
     try:
         with GetDB() as db:
             dbnode = crud.get_node_by_id(db, node_id)
             if dbnode:
                 # читаем в открытой сессии, чтобы не словить DetachedInstanceError
                 node_inbound_tags = [i.tag for i in dbnode.inbounds]
+                cascade_kwargs = _cascade_kwargs(dbnode)
 
         if not dbnode:
             return
@@ -493,7 +525,11 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
-                node.start(_node_specific_config(config, node_inbound_tags))
+                node.start(
+                    cascade_config(
+                        _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+                    )
+                )
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
                 logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
@@ -549,10 +585,12 @@ def connect_node(node_id, config=None, force: bool = False):
 @threaded_function
 def restart_node(node_id, config=None):
     node_inbound_tags = []
+    cascade_kwargs = {"role": "direct"}
     with GetDB() as db:
         dbnode = crud.get_node_by_id(db, node_id)
         if dbnode:
             node_inbound_tags = [i.tag for i in dbnode.inbounds]
+            cascade_kwargs = _cascade_kwargs(dbnode)
 
     if not dbnode:
         return
@@ -571,7 +609,11 @@ def restart_node(node_id, config=None):
         if config is None:
             config = xray.config.include_db_users()
 
-        node.restart(_node_specific_config(config, node_inbound_tags))
+        node.restart(
+            cascade_config(
+                _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+            )
+        )
         logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
     except Exception as e:
         try:
