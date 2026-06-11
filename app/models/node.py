@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import ConfigDict, BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 
 
 class NodeStatus(str, Enum):
@@ -28,6 +28,7 @@ class Node(BaseModel):
     api_port: int = 62051
     protocol: NodeProtocol = NodeProtocol.rest
     usage_coefficient: float = Field(gt=0, default=1.0)
+    inbounds: Optional[List[str]] = None
 
 
 class NodeCreate(Node):
@@ -53,6 +54,7 @@ class NodeModify(Node):
     protocol: Optional[NodeProtocol] = Field(None, nullable=True)
     status: Optional[NodeStatus] = Field(None, nullable=True)
     usage_coefficient: Optional[float] = Field(None, nullable=True)
+    inbounds: Optional[List[str]] = Field(None, nullable=True)
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "DE node",
@@ -71,7 +73,17 @@ class NodeResponse(Node):
     xray_version: Optional[str] = None
     status: NodeStatus
     message: Optional[str] = None
+    inbounds: List[str] = []
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("inbounds", mode="before")
+    @classmethod
+    def _inbounds_to_tags(cls, v):
+        if not v:
+            return []
+        if isinstance(v[0], str):
+            return v
+        return [i.tag for i in v]
 
 
 class NodeUsageResponse(BaseModel):

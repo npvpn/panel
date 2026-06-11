@@ -1712,6 +1712,9 @@ def create_node(db: Session, node: NodeCreate) -> Node:
                   api_port=node.api_port,
                   protocol=node.protocol)
 
+    if node.inbounds is not None:
+        dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in node.inbounds]
+
     db.add(dbnode)
     db.commit()
     db.refresh(dbnode)
@@ -1770,6 +1773,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.usage_coefficient:
         dbnode.usage_coefficient = modify.usage_coefficient
+
+    if modify.inbounds is not None:
+        dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in modify.inbounds]
 
     db.commit()
     db.refresh(dbnode)
