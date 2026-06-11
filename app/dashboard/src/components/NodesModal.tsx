@@ -327,9 +327,13 @@ const NodeForm: NodeFormType = ({
 }) => {
   const { t } = useTranslation();
   const { inbounds: allInbounds } = useDashboard();
-  const inboundTags: string[] = Array.from(allInbounds.values())
-    .flat()
-    .map((i) => i.tag);
+  const inboundTags: string[] = Array.from(
+    new Set(
+      Array.from(allInbounds.values())
+        .flat()
+        .map((i) => i.tag)
+    )
+  );
   const [showCertificate, setShowCertificate] = useState(false);
   const { data: nodeSettings, isLoading: nodeSettingsLoading } = useQuery({
     queryKey: "node-settings",

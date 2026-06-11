@@ -311,6 +311,9 @@ def _node_specific_config(base_config, node_inbound_tags):
     if not node_inbound_tags:
         return base_config
     node_config = base_config.copy()  # deepcopy → остаётся XRayConfig с to_json()
+    # managed_tags — только прокси-инбаунды (inbounds_by_tag). Инфраструктурные
+    # инбаунды (API_INBOUND, fallback, XRAY_EXCLUDE_INBOUND_TAGS) в managed не входят,
+    # поэтому остаются на каждой ноде всегда, независимо от назначений.
     node_config["inbounds"] = filtered_inbounds(
         node_config["inbounds"],
         managed_tags=set(base_config.inbounds_by_tag.keys()),
