@@ -25,6 +25,7 @@ export const NodeSchema = z.object({
   message: z.string().nullable().optional(),
   add_as_new_host: z.boolean().optional(),
   usage_coefficient: z.number().or(z.string().transform((v) => parseFloat(v))),
+  inbounds: z.array(z.string()).optional(),
 });
 
 export type NodeType = z.infer<typeof NodeSchema>;
@@ -37,6 +38,7 @@ export const getNodeDefaultValues = (): NodeType => ({
   protocol: "rest",
   xray_version: "",
   usage_coefficient: 1,
+  inbounds: [],
 });
 
 export const FetchNodesQueryKey = "fetch-nodes-query-key";

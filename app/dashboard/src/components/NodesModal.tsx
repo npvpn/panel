@@ -326,6 +326,10 @@ const NodeForm: NodeFormType = ({
   addAsHost = false,
 }) => {
   const { t } = useTranslation();
+  const { inbounds: allInbounds } = useDashboard();
+  const inboundTags: string[] = Array.from(allInbounds.values())
+    .flat()
+    .map((i) => i.tag);
   const [showCertificate, setShowCertificate] = useState(false);
   const { data: nodeSettings, isLoading: nodeSettingsLoading } = useQuery({
     queryKey: "node-settings",
@@ -522,6 +526,41 @@ const NodeForm: NodeFormType = ({
             />
           </Box>
         </HStack>
+        {inboundTags.length > 0 && (
+          <FormControl py={1}>
+            <FormLabel>{t("nodes.inbounds")}</FormLabel>
+            <Text fontSize="xs" opacity={0.7} mb={2}>
+              {t("nodes.inboundsHint")}
+            </Text>
+            <Controller
+              name="inbounds"
+              control={form.control}
+              render={({ field }) => {
+                const selected: string[] = field.value || [];
+                const toggle = (tag: string, checked: boolean) => {
+                  field.onChange(
+                    checked
+                      ? [...selected, tag]
+                      : selected.filter((t) => t !== tag)
+                  );
+                };
+                return (
+                  <VStack align="flex-start" spacing={1}>
+                    {inboundTags.map((tag) => (
+                      <Checkbox
+                        key={tag}
+                        isChecked={selected.includes(tag)}
+                        onChange={(e) => toggle(tag, e.target.checked)}
+                      >
+                        <Text fontSize="sm">{tag}</Text>
+                      </Checkbox>
+                    ))}
+                  </VStack>
+                );
+              }}
+            />
+          </FormControl>
+        )}
         {addAsHost && (
           <FormControl py={1}>
             <Checkbox {...form.register("add_as_new_host")}>
