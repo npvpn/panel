@@ -27,6 +27,12 @@ class NodeSettings(BaseModel):
     certificate: str
 
 
+class CascadeRouteModel(BaseModel):
+    exit_node_id: int
+    entry_inbound_tag: str
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Node(BaseModel):
     name: str
     address: str
@@ -35,6 +41,8 @@ class Node(BaseModel):
     protocol: NodeProtocol = NodeProtocol.rest
     usage_coefficient: float = Field(gt=0, default=1.0)
     inbounds: Optional[List[str]] = None
+    role: NodeRole = NodeRole.direct
+    cascade_routes: Optional[List[CascadeRouteModel]] = None
 
 
 class NodeCreate(Node):
@@ -61,6 +69,8 @@ class NodeModify(Node):
     status: Optional[NodeStatus] = Field(None, nullable=True)
     usage_coefficient: Optional[float] = Field(None, nullable=True)
     inbounds: Optional[List[str]] = Field(None, nullable=True)
+    role: Optional[NodeRole] = Field(None, nullable=True)
+    cascade_routes: Optional[List[CascadeRouteModel]] = Field(None, nullable=True)
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "DE node",
@@ -80,6 +90,8 @@ class NodeResponse(Node):
     status: NodeStatus
     message: Optional[str] = None
     inbounds: List[str] = []
+    role: NodeRole = NodeRole.direct
+    cascade_routes: List[CascadeRouteModel] = []
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("inbounds", mode="before")
