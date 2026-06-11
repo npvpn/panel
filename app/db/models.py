@@ -22,7 +22,7 @@ from sqlalchemy.sql.expression import select, text
 
 from app import xray
 from app.db.base import Base
-from app.models.node import NodeProtocol, NodeStatus
+from app.models.node import NodeProtocol, NodeRole, NodeStatus
 from app.models.proxy import (
     ProxyHostALPN,
     ProxyHostFingerprint,
@@ -229,6 +229,24 @@ node_inbounds_association = Table(
 )
 
 
+class CascadeRoute(Base):
+    """Связь входной ноды с выходной по конкретному инбаунду (NPVPN-1472).
+
+    entry_node → exit_node: трафик с entry_inbound_tag на входной заворачивается
+    в cascade-outbound на exit_node. Одна входная → N строк (1→N).
+    """
+    __tablename__ = "cascade_routes"
+
+    id = Column(Integer, primary_key=True)
+    entry_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    exit_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    entry_inbound_tag = Column(
+        String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False
+    )
+
+    exit_node = relationship("Node", foreign_keys=[exit_node_id])
+
+
 class NextPlan(Base):
     __tablename__ = 'next_plans'
 
@@ -395,6 +413,19 @@ class Node(Base):
     inbounds = relationship(
         "ProxyInbound",
         secondary=node_inbounds_association,
+        passive_deletes=True,
+    )
+    role = Column(
+        Enum(NodeRole),
+        nullable=False,
+        default=NodeRole.direct,
+        server_default=NodeRole.direct.value,
+    )
+    cascade_params = Column(JSON, nullable=True)
+    cascade_routes = relationship(
+        "CascadeRoute",
+        foreign_keys="CascadeRoute.entry_node_id",
+        cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
