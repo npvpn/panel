@@ -16,6 +16,12 @@ class NodeProtocol(str, Enum):
     rpyc = "rpyc"
 
 
+class NodeRole(str, Enum):
+    entry = "entry"
+    exit = "exit"
+    direct = "direct"
+
+
 class NodeSettings(BaseModel):
     min_node_version: str = "v0.2.0"
     certificate: str
