@@ -52,6 +52,42 @@
     width: 214px;
 }
 
+.btn-secondary {
+    font-family: var(--third-family);
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    border-radius: var(--small-border);
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 150%;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    background-color: #f6f6f6;
+    color: var(--text-primary);
+}
+
+.btn-tertiary {
+    background-color: transparent;
+    font-family: var(--third-family);
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    border-radius: var(--small-border);
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 150%;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    color: #ef3124;
+}
+
 .font-primary {
     font-family: var(--font-family);
 }
@@ -441,6 +477,13 @@
     font-weight: 600;
     color: var(--text-primary);
     word-break: break-word;
+}
+
+.modal-device-info {
+    margin: 4px 0 0;
+    color: #7b7b7b;
+    font-size: 14px;
+    line-height: 1.4;
 }
 
 .modal-actions {
