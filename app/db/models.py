@@ -233,7 +233,8 @@ class CascadeRoute(Base):
     """Связь входной ноды с выходной по конкретному инбаунду (NPVPN-1472).
 
     entry_node → exit_node: трафик с entry_inbound_tag на входной заворачивается
-    в cascade-outbound на exit_node. Одна входная → N строк (1→N).
+    в cascade-outbound на exit_node через cascade_inbound_tag (каталожный инбаунд
+    выходной). Одна входная → N строк (1→N).
     """
     __tablename__ = "cascade_routes"
 
@@ -241,6 +242,9 @@ class CascadeRoute(Base):
     entry_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
     exit_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
     entry_inbound_tag = Column(
+        String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False
+    )
+    cascade_inbound_tag = Column(
         String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False
     )
 
