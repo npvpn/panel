@@ -1,68 +1,53 @@
-"""Чистая генерация каскадной части конфига под роль ноды (NPVPN-1472).
+"""Чистая генерация каскадной части конфига под роль ноды (NPVPN-1472 v2).
+
+Связка вход→выход строится поверх обычного VLESS+TCP+REALITY инбаунда из каталога
+xray_config.json (а не служебного сгенерённого инбаунда). На выходной — в выбранный
+инбаунд дописывается служебный cascade-client; на входной — outbound на этот инбаунд
+с параметрами, прочитанными из его определения (резолвинг — в operations.py).
 
 Без тяжёлых импортов (app.db, config, xray_api), чтобы покрываться pytest без БД.
-Все builder'ы возвращают новые dict'ы; cascade_config копирует входной конфиг
-(base_config.copy() → deepcopy у XRayConfig) и не мутирует оригинал.
+cascade_config копирует входной конфиг (base_config.copy() → deepcopy у XRayConfig)
+и не мутирует оригинал.
 """
 from __future__ import annotations
 
-CASCADE_INBOUND_TAG = "CASCADE_IN"
+CASCADE_CLIENT_FLOW = "xtls-rprx-vision"
+CASCADE_FINGERPRINT = "chrome"
 
 
-def cascade_outbound_tag(exit_node_id: int) -> str:
-    return f"CASCADE_OUT_{exit_node_id}"
+def cascade_outbound_tag(exit_node_id: int, cascade_inbound_tag: str) -> str:
+    return f"CASCADE_OUT_{exit_node_id}_{cascade_inbound_tag}"
 
 
-def build_receiving_inbound(exit_params: dict) -> dict:
-    """Принимающий vless+TCP+REALITY инбаунд на выходной ноде.
-
-    Структура соответствует проверенному на стейдже inbound'у VLESS TCP REALITY
-    (dest+serverNames, xver, fingerprint, sniffing).
-    """
-    return {
-        "tag": CASCADE_INBOUND_TAG,
-        "listen": "0.0.0.0",
-        "port": exit_params["port"],
-        "protocol": "vless",
-        "settings": {
-            "clients": [{"id": exit_params["uuid"], "flow": "xtls-rprx-vision"}],
-            "decryption": "none",
-        },
-        "streamSettings": {
-            "network": "tcp",
-            "tcpSettings": {},
-            "security": "reality",
-            "realitySettings": {
-                "show": False,
-                "dest": exit_params["dest"],
-                "xver": 0,
-                "serverNames": [exit_params["sni"]],
-                "privateKey": exit_params["private_key"],
-                "shortIds": [exit_params["short_id"]],
-                "fingerprint": exit_params["fingerprint"],
-            },
-        },
-        "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"]},
-    }
+def _inject_cascade_client(inbound: dict, uuid: str) -> dict:
+    """Копия инбаунда с дописанным служебным cascade-клиентом (идемпотентно)."""
+    new_inbound = dict(inbound)
+    settings = dict(new_inbound.get("settings") or {})
+    clients = list(settings.get("clients") or [])
+    if not any(c.get("id") == uuid for c in clients):
+        clients = clients + [{"id": uuid, "flow": CASCADE_CLIENT_FLOW}]
+    settings["clients"] = clients
+    new_inbound["settings"] = settings
+    return new_inbound
 
 
 def build_cascade_outbound(route: dict) -> dict:
-    """vless+TCP+REALITY outbound с входной ноды на принимающий инбаунд выходной.
+    """vless+TCP+REALITY outbound с входной ноды на каталожный инбаунд выходной.
 
-    Структура соответствует проверенному на стейдже outbound'у OUT_TO_NL_TEST
-    (flow vision, encryption none, fingerprint/serverName/publicKey/shortId).
+    Параметры REALITY (publicKey/shortId/serverName) и port уже разрешены в operations.py
+    из определения cascade-инбаунда.
     """
     return {
-        "tag": cascade_outbound_tag(route["exit_node_id"]),
+        "tag": cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"]),
         "protocol": "vless",
         "settings": {
             "vnext": [{
-                "address": route["exit_address"],
+                "address": route["address"],
                 "port": route["port"],
                 "users": [{
                     "id": route["uuid"],
                     "encryption": "none",
-                    "flow": "xtls-rprx-vision",
+                    "flow": CASCADE_CLIENT_FLOW,
                 }],
             }],
         },
@@ -71,7 +56,7 @@ def build_cascade_outbound(route: dict) -> dict:
             "security": "reality",
             "realitySettings": {
                 "show": False,
-                "fingerprint": route["fingerprint"],
+                "fingerprint": CASCADE_FINGERPRINT,
                 "serverName": route["sni"],
                 "publicKey": route["public_key"],
                 "shortId": route["short_id"],
@@ -85,28 +70,37 @@ def build_routing_rule(route: dict) -> dict:
     return {
         "type": "field",
         "inboundTag": [route["entry_inbound_tag"]],
-        "outboundTag": cascade_outbound_tag(route["exit_node_id"]),
+        "outboundTag": cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"]),
     }
 
 
-def cascade_config(base_config, *, role, exit_params=None, entry_routes=None):
+def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None):
     """Добавить каскадную часть конфига по роли ноды.
 
-    role="exit"  → добавить принимающий cascade-инбаунд (exit_params).
-    role="entry" → на каждую route добавить outbound (dedup по выходной) + routing-правило.
-    role="direct"/нет данных → вернуть base_config без изменений (обратная совместимость).
+    role="exit"  → в указанные каталожные инбаунды дописать служебный cascade-client.
+    role="entry" → на каждую route добавить outbound (dedup по (exit, inbound)) + routing.
+    role="direct"/нет данных → вернуть base_config без изменений.
     Базовые inbounds/outbounds/routing сохраняются — каскад только добавляется.
     """
-    if role == "exit" and exit_params:
+    if role == "exit" and cascade_clients:
         cfg = base_config.copy()
-        cfg["inbounds"] = cfg["inbounds"] + [build_receiving_inbound(exit_params)]
+        # Один служебный uuid на выходную ноду (конфиг строится per-node), поэтому
+        # дубликат inbound_tag отображается на тот же uuid — first-wins безопасно.
+        uuid_by_tag = {}
+        for c in cascade_clients:
+            uuid_by_tag.setdefault(c["inbound_tag"], c["uuid"])
+        cfg["inbounds"] = [
+            _inject_cascade_client(ib, uuid_by_tag[ib.get("tag")])
+            if ib.get("tag") in uuid_by_tag else ib
+            for ib in cfg["inbounds"]
+        ]
         return cfg
 
     if role == "entry" and entry_routes:
         cfg = base_config.copy()
         seen_outbounds = set()
         for route in entry_routes:
-            tag = cascade_outbound_tag(route["exit_node_id"])
+            tag = cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"])
             if tag not in seen_outbounds:
                 cfg["outbounds"] = cfg["outbounds"] + [build_cascade_outbound(route)]
                 seen_outbounds.add(tag)
