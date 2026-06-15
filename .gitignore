@@ -164,3 +164,6 @@ xray-core
 # Dashboard build artifacts
 app/dashboard/build/
 app/dashboard/node_modules/
+
+# Local planning/spec artifacts (superpowers)
+docs/

@@ -11,6 +11,7 @@ from app.models.node import NodeStatus
 from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
+from app.xray.inbound_filter import filtered_inbounds
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -299,6 +300,28 @@ def update_user_by_id(user_id: int):
             raise
 
 
+def _node_specific_config(base_config, node_inbound_tags):
+    """Вернуть конфиг для конкретной ноды.
+
+    node_inbound_tags пуст/None → возвращаем base_config без изменений
+    (обратная совместимость: нода получает все инбаунды).
+    Иначе — копия конфига, в которой оставлены только инфраструктурные
+    инбаунды и назначенные ноде прокси-инбаунды.
+    """
+    if not node_inbound_tags:
+        return base_config
+    node_config = base_config.copy()  # deepcopy → остаётся XRayConfig с to_json()
+    # managed_tags — только прокси-инбаунды (inbounds_by_tag). Инфраструктурные
+    # инбаунды (API_INBOUND, fallback, XRAY_EXCLUDE_INBOUND_TAGS) в managed не входят,
+    # поэтому остаются на каждой ноде всегда, независимо от назначений.
+    node_config["inbounds"] = filtered_inbounds(
+        node_config["inbounds"],
+        managed_tags=set(base_config.inbounds_by_tag.keys()),
+        allowed_tags=set(node_inbound_tags),
+    )
+    return node_config
+
+
 def remove_node(node_id: int):
     if node_id in xray.nodes:
         try:
@@ -431,9 +454,13 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
     node = None
     last_exc = None
 
+    node_inbound_tags = []
     try:
         with GetDB() as db:
             dbnode = crud.get_node_by_id(db, node_id)
+            if dbnode:
+                # читаем в открытой сессии, чтобы не словить DetachedInstanceError
+                node_inbound_tags = [i.tag for i in dbnode.inbounds]
 
         if not dbnode:
             return
@@ -466,7 +493,7 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
-                node.start(config)
+                node.start(_node_specific_config(config, node_inbound_tags))
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
                 logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
@@ -521,8 +548,11 @@ def connect_node(node_id, config=None, force: bool = False):
 
 @threaded_function
 def restart_node(node_id, config=None):
+    node_inbound_tags = []
     with GetDB() as db:
         dbnode = crud.get_node_by_id(db, node_id)
+        if dbnode:
+            node_inbound_tags = [i.tag for i in dbnode.inbounds]
 
     if not dbnode:
         return
@@ -541,7 +571,7 @@ def restart_node(node_id, config=None):
         if config is None:
             config = xray.config.include_db_users()
 
-        node.restart(config)
+        node.restart(_node_specific_config(config, node_inbound_tags))
         logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
     except Exception as e:
         try:

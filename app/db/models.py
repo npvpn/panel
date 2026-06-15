@@ -221,6 +221,13 @@ template_inbounds_association = Table(
     Column("inbound_tag", ForeignKey("inbounds.tag")),
 )
 
+node_inbounds_association = Table(
+    "node_inbounds",
+    Base.metadata,
+    Column("node_id", ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True),
+    Column("inbound_tag", ForeignKey("inbounds.tag", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class NextPlan(Base):
     __tablename__ = 'next_plans'
@@ -385,6 +392,11 @@ class Node(Base):
     user_usages = relationship("NodeUserUsage", back_populates="node", cascade="all, delete-orphan")
     usages = relationship("NodeUsage", back_populates="node", cascade="all, delete-orphan")
     usage_coefficient = Column(Float, nullable=False, server_default=text("1.0"), default=1)
+    inbounds = relationship(
+        "ProxyInbound",
+        secondary=node_inbounds_association,
+        passive_deletes=True,
+    )
 
 
 class NodeUserUsage(Base):

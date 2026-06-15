@@ -119,6 +119,8 @@
   "nodes.show-certificate": "Show certificate",
   "nodes.title": "Using Marzban-Node, you are able to scale up your connection quality by adding different nodes on different servers.",
   "nodes.usageCoefficient": "Usage Ratio",
+  "nodes.inbounds": "Inbounds on this node",
+  "nodes.inboundsHint": "Leave all unchecked to use every inbound (default).",
   "on_hold": "On Hold",
   "password": "Password",
   "previous": "Previous",
