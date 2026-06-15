@@ -127,6 +127,7 @@
   "nodes.roleExit": "Exit",
   "nodes.cascadeRoutes": "Cascade routes (inbound → exit node)",
   "nodes.cascadeRoutesHint": "Route traffic of a chosen inbound to an exit node.",
+  "nodes.cascadeInbound": "Cascade inbound (on exit)",
   "nodes.addCascadeRoute": "Add route",
   "on_hold": "On Hold",
   "password": "Password",

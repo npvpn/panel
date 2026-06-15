@@ -629,6 +629,32 @@ const NodeForm: NodeFormType = ({
                       </Select>
                     )}
                   />
+                  <Controller
+                    name={`cascade_routes.${idx}.cascade_inbound_tag`}
+                    control={form.control}
+                    render={({ field }) => {
+                      const selectedExitId = form.watch(
+                        `cascade_routes.${idx}.exit_node_id`
+                      );
+                      const exitNode = exitNodes.find(
+                        (n) => n.id === Number(selectedExitId)
+                      );
+                      const exitInbounds = exitNode?.inbounds ?? inboundTags;
+                      return (
+                        <Select
+                          size="sm"
+                          placeholder={t("nodes.cascadeInbound")}
+                          {...field}
+                        >
+                          {exitInbounds.map((tag) => (
+                            <option key={tag} value={tag}>
+                              {tag}
+                            </option>
+                          ))}
+                        </Select>
+                      );
+                    }}
+                  />
                   <Button size="sm" onClick={() => removeRoute(idx)}>
                     ✕
                   </Button>
@@ -637,7 +663,13 @@ const NodeForm: NodeFormType = ({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => appendRoute({ entry_inbound_tag: "", exit_node_id: 0 })}
+                onClick={() =>
+                  appendRoute({
+                    entry_inbound_tag: "",
+                    exit_node_id: 0,
+                    cascade_inbound_tag: "",
+                  })
+                }
               >
                 {t("nodes.addCascadeRoute")}
               </Button>

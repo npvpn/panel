@@ -127,6 +127,7 @@
   "nodes.roleExit": "Выходная",
   "nodes.cascadeRoutes": "Маршруты каскада (инбаунд → выходная нода)",
   "nodes.cascadeRoutesHint": "Заворачивать трафик выбранного инбаунда на выходную ноду.",
+  "nodes.cascadeInbound": "Каскадный инбаунд (на выходной)",
   "nodes.addCascadeRoute": "Добавить маршрут",
   "on_hold": "On Hold",
   "password": "Пароль",

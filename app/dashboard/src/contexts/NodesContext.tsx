@@ -28,7 +28,13 @@ export const NodeSchema = z.object({
   inbounds: z.array(z.string()).optional(),
   role: z.enum(["entry", "exit", "direct"]).optional(),
   cascade_routes: z
-    .array(z.object({ exit_node_id: z.number().min(1), entry_inbound_tag: z.string().min(1) }))
+    .array(
+      z.object({
+        exit_node_id: z.number().min(1),
+        entry_inbound_tag: z.string().min(1),
+        cascade_inbound_tag: z.string().min(1),
+      })
+    )
     .optional(),
 });
 
