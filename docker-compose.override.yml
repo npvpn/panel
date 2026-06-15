@@ -1,0 +1,24 @@
+# Локальная разработка шаблонов. Compose подхватывает файл автоматически.
+#
+# Зачем build: опубликованный npvpn/panel:v1.0.2 — старый и не содержит код
+# текущей ветки (редизайн sub/, mount_sub_statics и т.д.), поэтому собираем из
+# исходников. Тег :dev — чтобы не затирать прод-образ v1.0.2.
+#
+# Зачем volumes: шаблоны и статика монтируются с хоста поверх собранного образа.
+# Правки .html/.css/.svg видны сразу — Jinja перечитывает шаблон сам, статика
+# отдаётся с диска. Пересборка нужна только при изменении python-кода.
+#
+# Переменные CUSTOM_TEMPLATES_DIRECTORY / SUBSCRIPTION_PAGE_TEMPLATE — в .env.
+services:
+  marzban:
+    image: npvpn/panel:dev
+    build:
+      context: .
+    volumes:
+      # Редизайн страниц подписки (sub/*.html) + их статика на /statics/sub/
+      - ./templates:/code/templates
+      # Текущие активные шаблоны (subscription/index.html, home/index.html и т.д.)
+      - ./app/templates:/code/app/templates
+    network_mode: bridge
+    ports:
+      - 8001:8001

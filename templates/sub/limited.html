@@ -185,6 +185,18 @@
                   </button>
                 </div>
               </template>
+
+              {% if web_url %}
+                <button class="btn-fourth w-full font-semibold" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+                  <div class="device_button" style="border-radius: 16px;">
+                      <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                  </div>
+                  Добавить устройства
+                </button>
+              {% endif %}
+              
             </div>
 
             <p class="empty-devices" x-show="devices.length === 0">
@@ -223,12 +235,12 @@
                 <span class="info-value text-black" x-text="devicesInfoText"></span>
               </div>
             </div>
-
+<!-- 
             {% if web_url %}
               <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
                 Войти в личный кабинет
               </a>
-            {% endif %}
+            {% endif %} -->
           </div>
         </div>
       </main>
