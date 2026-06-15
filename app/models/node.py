@@ -30,6 +30,7 @@ class NodeSettings(BaseModel):
 class CascadeRouteModel(BaseModel):
     exit_node_id: int
     entry_inbound_tag: str
+    cascade_inbound_tag: str
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -36,7 +36,7 @@ from app.db.models import (
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.node import NodeCreate, NodeModify, NodeRole, NodeStatus, NodeUsageResponse
-from app.xray.cascade_keys import generate_cascade_params
+from app.xray.cascade_keys import generate_cascade_identity
 from app.models.proxy import ProxyHost as ProxyHostModify
 from app.models.user import (
     ReminderType,
@@ -1703,6 +1703,7 @@ def _sync_cascade_routes(db: Session, dbnode: Node, routes) -> None:
         CascadeRoute(
             exit_node_id=r.exit_node_id,
             entry_inbound_tag=get_or_create_inbound(db, r.entry_inbound_tag).tag,
+            cascade_inbound_tag=get_or_create_inbound(db, r.cascade_inbound_tag).tag,
         )
         for r in routes
     ]
@@ -1712,7 +1713,7 @@ def _apply_node_role(dbnode: Node, role: NodeRole) -> None:
     """Установить роль; для exit сгенерировать cascade_params один раз (идемпотентно)."""
     dbnode.role = role
     if role == NodeRole.exit and not dbnode.cascade_params:
-        dbnode.cascade_params = generate_cascade_params()
+        dbnode.cascade_params = generate_cascade_identity()
 
 
 def create_node(db: Session, node: NodeCreate) -> Node:
