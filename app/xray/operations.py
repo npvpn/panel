@@ -13,7 +13,6 @@ from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
 from app.xray.inbound_filter import filtered_inbounds
 from app.xray.cascade_config import cascade_config
-from app.db.models import CascadeRoute
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -316,6 +315,11 @@ def _cascade_kwargs(db, dbnode) -> dict:
     из общего xray-конфига и деривит publicKey, всё в plain-данные (без ORM-ссылок),
     чтобы не словить DetachedInstanceError после закрытия сессии.
     """
+    # Ленивый импорт: app.db.models тянет за собой app.xray (через цепочку моделей),
+    # а top-level импорт CascadeRoute здесь замыкал цикл и ломал инициализацию
+    # app.db.models при старте сервера (config.py:db_models становился частичным).
+    from app.db.models import CascadeRoute
+
     role = dbnode.role.value if dbnode.role else "direct"
 
     if role == "exit":
