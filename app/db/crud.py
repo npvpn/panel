@@ -34,6 +34,7 @@ from app.db.models import (
     UserTemplate,
     UserUsageResetLogs,
     UserDevice,
+    NodeUserBlock,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.node import NodeCreate, NodeModify, NodeRole, NodeStatus, NodeUsageResponse
@@ -1866,6 +1867,21 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     )
     t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
     return t["daily_used"], t["monthly_used"]
+
+
+def get_blocked_bs_inbound_tags(db: Session, user_id: int) -> set[str]:
+    """Инбаунд-теги БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
+    Это ровно те инбаунды, к которым доступ снят enforcement-джобой."""
+    node_ids = [
+        nid for (nid,) in db.query(NodeUserBlock.node_id)
+        .filter(NodeUserBlock.user_id == user_id).all()
+    ]
+    if not node_ids:
+        return set()
+    tags: set[str] = set()
+    for node in db.query(Node).filter(Node.id.in_(node_ids)).all():
+        tags.update(i.tag for i in node.inbounds)
+    return tags
 
 
 def create_notification_reminder(
