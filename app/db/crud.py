@@ -1738,8 +1738,6 @@ def create_node(db: Session, node: NodeCreate) -> Node:
 
     _apply_node_role(dbnode, node.role)
     dbnode.is_bs = node.is_bs
-    dbnode.bs_daily_limit = node.bs_daily_limit
-    dbnode.bs_monthly_limit = node.bs_monthly_limit
     if node.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, node.cascade_routes)
 
@@ -1808,12 +1806,8 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
     if modify.role is not None:
         _apply_node_role(dbnode, modify.role)
 
-    # БС-поля обновляются группой по наличию is_bs: dashboard всегда шлёт их вместе,
-    # что позволяет выставлять и очищать (None) лимиты атомарно с флагом.
     if modify.is_bs is not None:
         dbnode.is_bs = modify.is_bs
-        dbnode.bs_daily_limit = modify.bs_daily_limit
-        dbnode.bs_monthly_limit = modify.bs_monthly_limit
 
     if modify.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, modify.cascade_routes)

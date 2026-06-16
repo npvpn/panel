@@ -433,8 +433,6 @@ class Node(Base):
         passive_deletes=True,
     )
     is_bs = Column(Boolean, nullable=False, default=False, server_default=text("0"))
-    bs_daily_limit = Column(BigInteger, nullable=True)
-    bs_monthly_limit = Column(BigInteger, nullable=True)
 
 
 class NodeUserUsage(Base):
@@ -462,7 +460,7 @@ class NodeUserBsUsage(Base):
 
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     daily_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     monthly_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     daily_period = Column(String(10), nullable=True)   # "YYYY-MM-DD"
