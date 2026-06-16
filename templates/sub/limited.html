@@ -42,6 +42,19 @@
           devices: initialDevices,
           deviceLimit: Number("{{ user.device_limit or 0 }}"),
           revokingId: null,
+
+          showRevokeModal: false,
+          selectedDevice: null,
+          openRevokeModal(device) {
+            this.selectedDevice = device;
+            this.showRevokeModal = true;
+          },
+
+          closeRevokeModal() {
+            this.showRevokeModal = false;
+            this.selectedDevice = null;
+          },
+
           subUrl: '/{{ sub_path }}/{{ token }}',
           get devicesCountText() {
             if (this.deviceLimit > 0) {
@@ -60,25 +73,32 @@
             return lower.includes('windows') || lower.includes('linux') || lower.includes('pc');
           },
           async revokeDevice(deviceId) {
-            if (!confirm('Удалить это устройство из активных?')) {
-              return;
-            }
             this.revokingId = deviceId;
+
             try {
               const response = await fetch(
                 `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`
               );
+
               if (!response.ok) {
                 throw new Error(`revoke failed: ${response.status}`);
               }
-              this.devices = this.devices.filter((device) => device.id !== deviceId);
-              if (this.deviceLimit > 0 && this.devices.length <= this.deviceLimit) {
+
+              this.devices = this.devices.filter(
+                (device) => device.id !== deviceId
+              );
+
+              if (
+                this.deviceLimit > 0 &&
+                this.devices.length <= this.deviceLimit
+              ) {
                 window.location.href = this.subUrl;
               }
             } catch {
               alert('Не удалось удалить устройство. Попробуйте ещё раз.');
             } finally {
               this.revokingId = null;
+              this.closeRevokeModal();
             }
           },
           get statusText() {
@@ -174,7 +194,7 @@
                     class="device-card__delete"
                     title="Удалить устройство"
                     :disabled="revokingId === device.id"
-                    @click="revokeDevice(device.id)"
+                    @click="openRevokeModal(device)"
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M7 7L17 17M7 17L17 7"
@@ -185,6 +205,18 @@
                   </button>
                 </div>
               </template>
+
+              {% if web_url %}
+                <button class="btn-fourth w-full font-semibold" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+                  <div class="device_button" style="border-radius: 16px;">
+                      <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                  </div>
+                  Добавить устройства
+                </button>
+              {% endif %}
+
             </div>
 
             <p class="empty-devices" x-show="devices.length === 0">
@@ -223,15 +255,76 @@
                 <span class="info-value text-black" x-text="devicesInfoText"></span>
               </div>
             </div>
-
-            {% if web_url %}
-              <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
-                Войти в личный кабинет
-              </a>
-            {% endif %}
           </div>
         </div>
       </main>
+      
+
+      <div
+          x-show="showRevokeModal"
+          x-transition
+          class="modal-overlay"
+          style="display:none;"
+      >
+          <div class="modal-card">
+              <div class="modal-header">
+                  <div class="modal-content">
+                      <h3 class="modal-title">
+                          Выйти с устройства?
+                      </h3>
+                  </div>
+                  <button
+                      class="modal-close"
+                      @click="closeRevokeModal()"
+                  >
+                      <svg
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#7B7B7B"
+                      >
+                          <path
+                              d="M7 7L17 17M7 17L17 7"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                          />
+                      </svg>
+                  </button>
+              </div>
+              <div
+                  class="modal-device"
+                  x-show="selectedDevice"
+              >
+                  <p
+                      class="modal-device-name"
+                      x-text="selectedDevice?.device_model"
+                  ></p>
+
+                  <p
+                      class="modal-device-info"
+                      x-text="`${selectedDevice?.device_os || ''}${selectedDevice?.ver_os ? ' ' + selectedDevice.ver_os : ''}`"
+                  ></p>
+              </div>
+              <div class="modal-actions">
+                  <button
+                      class="btn-secondary"
+                      @click="closeRevokeModal()"
+                  >
+                      Оставить
+                  </button>
+                  <button
+                      class="btn-tertiary"
+                      @click="revokeDevice(selectedDevice.id)"
+                  >
+                      Выйти с устройства
+                  </button>
+              </div>
+          </div>
+      </div>
+
+
 
       <footer class="footer">
         Сайт работает на платформе
