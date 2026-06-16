@@ -5,6 +5,9 @@ from app.xray.bs_limit import (
     bs_counter_step,
     diff_blocks,
     strip_blocked_clients,
+    aggregate_bs_usage,
+    over_limit,
+    pick_bs_bar,
 )
 
 
@@ -103,3 +106,30 @@ def test_strip_no_mutation_with_shallow_copy_plain_dict():
     assert cfg == snapshot
     emails = [c["email"] for c in result["inbounds"][0]["settings"]["clients"]]
     assert emails == ["2.bob"]
+
+
+def test_aggregate_sums_only_current_periods():
+    rows = [
+        {"user_id": 1, "daily_used": 100, "daily_period": "2026-06-16",
+         "monthly_used": 100, "monthly_period": "2026-06"},
+        {"user_id": 1, "daily_used": 50, "daily_period": "2026-06-16",
+         "monthly_used": 50, "monthly_period": "2026-06"},
+        {"user_id": 1, "daily_used": 999, "daily_period": "2026-06-15",
+         "monthly_used": 7, "monthly_period": "2026-05"},
+    ]
+    totals = aggregate_bs_usage(rows, "2026-06-16", "2026-06")
+    assert totals[1]["daily_used"] == 150
+    assert totals[1]["monthly_used"] == 150
+
+
+def test_over_limit_only_set_limits():
+    assert over_limit(10, 10, 0, 0) is False
+    assert over_limit(10, 0, 10, 0) is True
+    assert over_limit(0, 100, 0, 50) is True
+    assert over_limit(5, 5, 10, 10) is False
+
+
+def test_pick_bs_bar_chooses_smaller_remaining():
+    assert pick_bs_bar(8, 10, 900, 1000) == (8, 10)
+    assert pick_bs_bar(8, 0, 900, 1000) == (900, 1000)
+    assert pick_bs_bar(8, 0, 900, 0) is None
