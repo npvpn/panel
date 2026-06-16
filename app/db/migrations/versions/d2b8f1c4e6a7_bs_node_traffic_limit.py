@@ -46,9 +46,11 @@ def upgrade() -> None:
         sa.UniqueConstraint("node_id", "user_id", name="uq_node_user_blocks"),
     )
     op.create_index("ix_node_user_blocks_node_id", "node_user_blocks", ["node_id"])
+    op.create_index("ix_node_user_blocks_user_id", "node_user_blocks", ["user_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_node_user_blocks_user_id", table_name="node_user_blocks")
     op.drop_index("ix_node_user_blocks_node_id", table_name="node_user_blocks")
     op.drop_table("node_user_blocks")
     op.drop_index("ix_node_user_bs_usage_user_id", table_name="node_user_bs_usage")

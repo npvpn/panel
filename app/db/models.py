@@ -477,7 +477,7 @@ class NodeUserBlock(Base):
 
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     period = Column(String(8), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

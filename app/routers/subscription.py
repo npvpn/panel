@@ -488,6 +488,17 @@ def user_subscription_with_client_type(
         )
     )
 
+    blocked_bs_tags = set()
+    if not is_revoked and not is_expired:
+        blocked_bs_tags = crud.get_blocked_bs_inbound_tags(db, dbuser.id)
+        if blocked_bs_tags:
+            filtered_inbounds = {
+                protocol: [t for t in tags if t not in blocked_bs_tags]
+                for protocol, tags in user.inbounds.items()
+            }
+            user = user.model_copy(update={"inbounds": filtered_inbounds})
+    bs_stub_texts = bot_settings["sub_bs_limit_server_text"] if blocked_bs_tags else None
+
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
@@ -497,6 +508,8 @@ def user_subscription_with_client_type(
         announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
+    elif blocked_bs_tags and str(bot_settings["sub_bs_limit_announce_text"]).strip():
+        announce_text = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
     response_headers = {
@@ -509,7 +522,9 @@ def user_subscription_with_client_type(
         "profile-update-interval": str(bot_settings["sub_update_interval"]),
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
-            for key, val in get_subscription_user_info(user).items()
+            for key, val in get_subscription_user_info(
+                user, db=db, bot_settings=bot_settings, user_id=dbuser.id
+            ).items()
         )
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
@@ -524,6 +539,7 @@ def user_subscription_with_client_type(
                                  device_limited=device_limited,
                                  device_limited_hard=device_limited_hard_for_gen,
                                  unsupported_client=unsupported_blocks,
-                                 settings=bot_settings)
+                                 settings=bot_settings,
+                                 bs_stub_texts=bs_stub_texts)
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
