@@ -31,6 +31,8 @@ import { useDashboard } from "contexts/DashboardContext";
 import { fetch } from "service/http";
 import { Bot, BotSettings } from "types/Bot";
 
+const GB_IN_BYTES = 1073741824;
+
 const toText = (values: string[] = []) => values.join("\n");
 
 const toList = (value: string) =>
@@ -58,6 +60,8 @@ const emptySettings: BotSettings = {
   sub_expired_server_text: [],
   sub_device_limit_server_text: [],
   sub_unsupported_client_server_text: [],
+  bs_daily_limit: 0,
+  bs_monthly_limit: 0,
 };
 
 type ServerTextField =
@@ -303,6 +307,8 @@ export const BotSettingsDialog: FC = () => {
         current.sub_unsupported_client_server_text.length > 0
           ? current.sub_unsupported_client_server_text
           : defaultSettings.sub_unsupported_client_server_text,
+      bs_daily_limit: current.bs_daily_limit,
+      bs_monthly_limit: current.bs_monthly_limit,
     };
   };
 
@@ -761,6 +767,40 @@ export const BotSettingsDialog: FC = () => {
                       }
                     />
                   </FormControl>
+                  <HStack align="start">
+                    <FormControl>
+                      <FormLabel>{t("botSettings.bsDailyLimitGb")}</FormLabel>
+                      <Input
+                        type="number"
+                        value={settings.bs_daily_limit ? String(settings.bs_daily_limit / GB_IN_BYTES) : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const gb = parseFloat(e.target.value);
+                          updateSettings({
+                            bs_daily_limit: e.target.value === "" || isNaN(gb)
+                              ? 0 : Math.round(gb * GB_IN_BYTES),
+                          });
+                        }}
+                      />
+                      <FormHelperText>{t("botSettings.bsDailyLimitGbHint")}</FormHelperText>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>{t("botSettings.bsMonthlyLimitGb")}</FormLabel>
+                      <Input
+                        type="number"
+                        value={settings.bs_monthly_limit ? String(settings.bs_monthly_limit / GB_IN_BYTES) : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const gb = parseFloat(e.target.value);
+                          updateSettings({
+                            bs_monthly_limit: e.target.value === "" || isNaN(gb)
+                              ? 0 : Math.round(gb * GB_IN_BYTES),
+                          });
+                        }}
+                      />
+                      <FormHelperText>{t("botSettings.bsMonthlyLimitGbHint")}</FormHelperText>
+                    </FormControl>
+                  </HStack>
                 </VStack>
               </TabPanel>
 

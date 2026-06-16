@@ -72,8 +72,6 @@ import { NodeModalStatusBadge } from "./NodeModalStatusBadge";
 import { fetch } from "service/http";
 import { Input } from "./Input";
 
-const GB_IN_BYTES = 1073741824;
-
 const CustomInput = chakra(Input, {
   baseStyle: {
     bg: "white",
@@ -561,56 +559,6 @@ const NodeForm: NodeFormType = ({
             <FormLabel m={0}>{t("nodes.isBsNode")}</FormLabel>
           </Checkbox>
         </FormControl>
-        {form.watch("is_bs") && (
-          <HStack alignItems="flex-start" w="100%">
-            <Box>
-              <Controller
-                name="bs_daily_limit"
-                control={form.control}
-                render={({ field }) => (
-                  <CustomInput
-                    label={t("nodes.bsDailyLimitGb")}
-                    size="sm"
-                    placeholder="0"
-                    type="number"
-                    value={field.value == null ? "" : String(Number((field.value / GB_IN_BYTES).toFixed(5)))}
-                    onChange={(v: any) => {
-                      const gb = parseFloat(String(v));
-                      field.onChange(
-                        v === "" || v == null || isNaN(gb)
-                          ? null
-                          : Math.round(gb * GB_IN_BYTES)
-                      );
-                    }}
-                  />
-                )}
-              />
-            </Box>
-            <Box>
-              <Controller
-                name="bs_monthly_limit"
-                control={form.control}
-                render={({ field }) => (
-                  <CustomInput
-                    label={t("nodes.bsMonthlyLimitGb")}
-                    size="sm"
-                    placeholder="0"
-                    type="number"
-                    value={field.value == null ? "" : String(Number((field.value / GB_IN_BYTES).toFixed(5)))}
-                    onChange={(v: any) => {
-                      const gb = parseFloat(String(v));
-                      field.onChange(
-                        v === "" || v == null || isNaN(gb)
-                          ? null
-                          : Math.round(gb * GB_IN_BYTES)
-                      );
-                    }}
-                  />
-                )}
-              />
-            </Box>
-          </HStack>
-        )}
         {inboundTags.length > 0 && (
           <FormControl py={1}>
             <FormLabel>{t("nodes.inbounds")}</FormLabel>

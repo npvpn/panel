@@ -37,8 +37,6 @@ export const NodeSchema = z.object({
     )
     .optional(),
   is_bs: z.boolean().optional(),
-  bs_daily_limit: z.number().nullable().optional(),
-  bs_monthly_limit: z.number().nullable().optional(),
 });
 
 export type NodeType = z.infer<typeof NodeSchema>;
@@ -55,8 +53,6 @@ export const getNodeDefaultValues = (): NodeType => ({
   role: "direct",
   cascade_routes: [],
   is_bs: false,
-  bs_daily_limit: null,
-  bs_monthly_limit: null,
 });
 
 export const FetchNodesQueryKey = "fetch-nodes-query-key";
