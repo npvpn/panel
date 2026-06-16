@@ -98,14 +98,31 @@ def build_content_disposition(username: str) -> str:
     return f'attachment; filename="{fallback}"; filename*=UTF-8''{utf8_quoted}'
 
 
-def get_subscription_user_info(user: UserResponse) -> dict:
-    """Retrieve user subscription information including upload, download, total data, and expiry."""
-    return {
+def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None,
+                               user_id: int | None = None) -> dict:
+    """upload/download/total/expire для Happ. Если у бота юзера задан БС-лимит и есть
+    БС-расход — download/total отражают агрегат БС (binding day/month), иначе глобальный."""
+    info = {
         "upload": 0,
         "download": user.used_traffic,
         "total": user.data_limit if user.data_limit is not None else 0,
         "expire": user.expire if user.expire is not None else 0,
     }
+    if db is None or bot_settings is None or user_id is None:
+        return info
+
+    daily_limit = bot_settings.get("bs_daily_limit") or 0
+    monthly_limit = bot_settings.get("bs_monthly_limit") or 0
+    if not (daily_limit or monthly_limit):
+        return info
+
+    from app.xray.bs_limit import period_keys, pick_bs_bar
+    today, yyyymm = period_keys(datetime.utcnow())
+    daily_used, monthly_used = crud.get_bs_usage_totals(db, user_id, today, yyyymm)
+    bar = pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit)
+    if bar is not None:
+        info["download"], info["total"] = bar
+    return info
 
 
 def get_empty_subscription_user(user: UserResponse) -> UserResponse:
@@ -290,7 +307,9 @@ def user_subscription(
         "profile-update-interval": str(bot_settings["sub_update_interval"]),
         "subscription-userinfo": "; ".join(
             f"{key}={val}"
-            for key, val in get_subscription_user_info(user).items()
+            for key, val in get_subscription_user_info(
+                user, db=db, bot_settings=bot_settings, user_id=dbuser.id
+            ).items()
         )
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
