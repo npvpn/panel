@@ -54,6 +54,8 @@ DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
     "sub_unsupported_client_server_text": _normalize_server_text(SUB_UNSUPPORTED_CLIENT_SERVER_TEXT),
     "bs_daily_limit": 0,
     "bs_monthly_limit": 0,
+    "sub_bs_limit_server_text": [],
+    "sub_bs_limit_announce_text": "",
 }
 
 
@@ -108,12 +110,15 @@ class BotSettingsPayload(BaseModel):
     sub_expired_server_text: List[str] = []
     sub_device_limit_server_text: List[str] = []
     sub_unsupported_client_server_text: List[str] = []
+    sub_bs_limit_server_text: List[str] = []
+    sub_bs_limit_announce_text: str = ""
 
     @field_validator(
         "sub_revoked_server_text",
         "sub_expired_server_text",
         "sub_device_limit_server_text",
         "sub_unsupported_client_server_text",
+        "sub_bs_limit_server_text",
         mode="before",
     )
     @classmethod
@@ -133,6 +138,7 @@ def apply_bot_settings_fallback(raw_settings: Optional[Dict[str, Any]]) -> Dict[
         "sub_expired_server_text",
         "sub_device_limit_server_text",
         "sub_unsupported_client_server_text",
+        "sub_bs_limit_server_text",
     ):
         base[key] = _normalize_server_text(base.get(key))
 
