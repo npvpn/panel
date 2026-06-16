@@ -4,7 +4,7 @@ from operator import attrgetter
 from typing import Union
 
 from pymysql.err import OperationalError
-from sqlalchemy import and_, bindparam, insert, or_, select, text, update
+from sqlalchemy import and_, bindparam, insert, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
@@ -274,14 +274,11 @@ def record_user_usages():
     if DISABLE_RECORDING_NODE_USER_USAGE:
         return
 
-    # id БС-нод с заданным лимитом — для них дополнительно ведём node_user_bs_usage.
+    # id всех БС-нод — для них дополнительно ведём node_user_bs_usage.
     try:
         with GetDB() as db:
             bs_node_ids = {
-                nid for (nid,) in db.query(Node.id).filter(
-                    Node.is_bs.is_(True),
-                    or_(Node.bs_daily_limit.isnot(None), Node.bs_monthly_limit.isnot(None)),
-                ).all()
+                nid for (nid,) in db.query(Node.id).filter(Node.is_bs.is_(True)).all()
             }
     except Exception as e:
         logger.warning(f"[record_user_usages] failed to load BS node ids: {type(e).__name__}: {e}")
