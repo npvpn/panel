@@ -88,9 +88,11 @@ def generate_outline_subscription(
 
 def generate_v2ray_json_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        bs_stub_texts: Optional[List[str]] = None,
 ) -> str:
     conf = V2rayJsonConfig()
-
+    for remark in (bs_stub_texts or []):
+        conf.add_placeholder(remark)
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
         inbounds, proxies, format_variables, conf=conf, reverse=reverse
@@ -108,6 +110,7 @@ def generate_subscription(
         device_limited_hard: bool = False,
         unsupported_client: bool = False,
         settings: Optional[dict] = None,
+        bs_stub_texts: Optional[List[str]] = None,
 ) -> str:
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
 
@@ -201,6 +204,19 @@ def generate_subscription(
                 for remark in device_limit_text
             ]
 
+    bs_stub_links = []
+    if config_format == "v2ray" and bs_stub_texts:
+        from app.subscription.v2ray import V2rayShareLink
+
+        zero_id = "00000000-0000-0000-0000-000000000000"
+        bs_stub_links = [
+            V2rayShareLink.vless(
+                remark=remark, address="0.0.0.0", port=0, id=zero_id,
+                net="ws", tls="none", path="", host="",
+            )
+            for remark in bs_stub_texts
+        ]
+
     kwargs = {
         "proxies": user.proxies,
         "inbounds": user.inbounds,
@@ -212,6 +228,8 @@ def generate_subscription(
         links = generate_v2ray_links(**kwargs)
         if device_limit_links:
             links = [*device_limit_links, *links]
+        if bs_stub_links:
+            links = [*bs_stub_links, *links]
         config = "\n".join(links)
     elif config_format == "clash-meta":
         config = generate_clash_subscription(**kwargs, is_meta=True)
