@@ -114,8 +114,10 @@ def generate_subscription(
     resolved_settings = apply_bot_settings_fallback(settings or DEFAULT_BOT_SETTINGS)
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format == "v2ray" and (revoked or expired or unsupported_client or device_limited_hard):
-        from app.subscription.v2ray import V2rayShareLink
+    if config_format in ("v2ray", "v2ray-json") and (
+        revoked or expired or unsupported_client or device_limited_hard
+    ):
+        from app.subscription.v2ray import V2rayJsonConfig, V2rayShareLink
 
         if revoked:
             text_list = resolved_settings["sub_revoked_server_text"]
@@ -127,31 +129,63 @@ def generate_subscription(
             text_list = resolved_settings["sub_unsupported_client_server_text"]
 
         if not text_list:
-            return base64.b64encode("".encode()).decode()
+            if config_format == "v2ray":
+                return base64.b64encode("".encode()).decode()
+            config = "[]"
+            if as_base64:
+                config = base64.b64encode(config.encode()).decode()
+            return config
 
         zero_id = "00000000-0000-0000-0000-000000000000"
-        links = [
-            V2rayShareLink.vless(
+        if config_format == "v2ray":
+            links = [
+                V2rayShareLink.vless(
+                    remark=remark,
+                    address="0.0.0.0",
+                    port=0,
+                    id=zero_id,
+                    net="ws",
+                    tls="none",
+                    path="",
+                    host="",
+                )
+                for remark in text_list
+            ]
+            payload = "\n".join(links)
+            return base64.b64encode(payload.encode()).decode()
+
+        stub_inbound = {
+            "network": "ws",
+            "protocol": "vless",
+            "port": 0,
+            "tls": "none",
+            "header_type": "",
+            "fragment_setting": "",
+            "noise_setting": "",
+            "path": "",
+            "host": "",
+            "sni": "",
+        }
+        conf = V2rayJsonConfig()
+        for remark in text_list:
+            conf.add(
                 remark=remark,
                 address="0.0.0.0",
-                port=0,
-                id=zero_id,
-                net="ws",
-                tls="none",
-                path="",
-                host="",
+                inbound=stub_inbound,
+                settings={"id": zero_id},
             )
-            for remark in text_list
-        ]
-        payload = "\n".join(links)
-        return base64.b64encode(payload.encode()).decode()
+        config = conf.render(reverse=reverse)
+        if as_base64:
+            config = base64.b64encode(config.encode()).decode()
+        return config
 
     device_limit_links = []
-    if config_format == "v2ray" and device_limited and not device_limited_hard:
+    device_limit_text = []
+    if config_format in ("v2ray", "v2ray-json") and device_limited and not device_limited_hard:
         from app.subscription.v2ray import V2rayShareLink
 
-        device_limit_text = resolved_settings["sub_device_limit_server_text"]
-        if device_limit_text:
+        device_limit_text = resolved_settings["sub_device_limit_server_text"] or []
+        if config_format == "v2ray" and device_limit_text:
             zero_id = "00000000-0000-0000-0000-000000000000"
             device_limit_links = [
                 V2rayShareLink.vless(
@@ -188,7 +222,38 @@ def generate_subscription(
     elif config_format == "outline":
         config = generate_outline_subscription(**kwargs)
     elif config_format == "v2ray-json":
-        config = generate_v2ray_json_subscription(**kwargs)
+        from app.subscription.v2ray import V2rayJsonConfig
+
+        conf = V2rayJsonConfig()
+        if device_limit_text:
+            zero_id = "00000000-0000-0000-0000-000000000000"
+            stub_inbound = {
+                "network": "ws",
+                "protocol": "vless",
+                "port": 0,
+                "tls": "none",
+                "header_type": "",
+                "fragment_setting": "",
+                "noise_setting": "",
+                "path": "",
+                "host": "",
+                "sni": "",
+            }
+            for remark in device_limit_text:
+                conf.add(
+                    remark=remark,
+                    address="0.0.0.0",
+                    inbound=stub_inbound,
+                    settings={"id": zero_id},
+                )
+        format_variables = setup_format_variables(kwargs["extra_data"])
+        config = process_inbounds_and_tags(
+            kwargs["inbounds"],
+            kwargs["proxies"],
+            format_variables,
+            conf=conf,
+            reverse=reverse,
+        )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')
 
