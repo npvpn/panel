@@ -265,6 +265,8 @@
   "botSettings.subUnsupportedClientAnnounceText": "Текст объявления для неподдерживаемого клиента",
   "botSettings.subRevokedServerText": "Текст серверов при отзыве",
   "botSettings.subExpiredServerText": "Текст серверов при истечении",
+  "botSettings.subBsLimitServerText": "Заглушки при исчерпании БС-лимита",
+  "botSettings.subBsLimitAnnounceText": "Announce при исчерпании БС-лимита",
   "botSettings.subDeviceLimitServerText": "Текст серверов при лимите устройств",
   "botSettings.bsDailyLimitGb": "БС лимит на юзера в день (ГБ)",
   "botSettings.bsDailyLimitGbHint": "0 = без дневного лимита на БС-нодах",

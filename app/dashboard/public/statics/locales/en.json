@@ -265,6 +265,8 @@
   "botSettings.subUnsupportedClientAnnounceText": "Unsupported client announce text",
   "botSettings.subRevokedServerText": "Revoked server text",
   "botSettings.subExpiredServerText": "Expired server text",
+  "botSettings.subBsLimitServerText": "BS limit server text (stubs)",
+  "botSettings.subBsLimitAnnounceText": "BS limit announce text",
   "botSettings.subDeviceLimitServerText": "Device limit server text",
   "botSettings.bsDailyLimitGb": "BS daily limit per user (GB)",
   "botSettings.bsDailyLimitGbHint": "0 = no daily limit on BS nodes",

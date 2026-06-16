@@ -60,6 +60,8 @@ const emptySettings: BotSettings = {
   sub_expired_server_text: [],
   sub_device_limit_server_text: [],
   sub_unsupported_client_server_text: [],
+  sub_bs_limit_server_text: [],
+  sub_bs_limit_announce_text: "",
   bs_daily_limit: 0,
   bs_monthly_limit: 0,
 };
@@ -68,7 +70,8 @@ type ServerTextField =
   | "sub_revoked_server_text"
   | "sub_expired_server_text"
   | "sub_device_limit_server_text"
-  | "sub_unsupported_client_server_text";
+  | "sub_unsupported_client_server_text"
+  | "sub_bs_limit_server_text";
 
 type ListFieldTexts = Record<ServerTextField, string>;
 
@@ -79,6 +82,7 @@ const toListFieldTexts = (settings: BotSettings): ListFieldTexts => ({
   sub_unsupported_client_server_text: toText(
     settings.sub_unsupported_client_server_text
   ),
+  sub_bs_limit_server_text: toText(settings.sub_bs_limit_server_text),
 });
 
 export const BotSettingsDialog: FC = () => {
@@ -307,6 +311,13 @@ export const BotSettingsDialog: FC = () => {
         current.sub_unsupported_client_server_text.length > 0
           ? current.sub_unsupported_client_server_text
           : defaultSettings.sub_unsupported_client_server_text,
+      sub_bs_limit_server_text:
+        current.sub_bs_limit_server_text.length > 0
+          ? current.sub_bs_limit_server_text
+          : defaultSettings.sub_bs_limit_server_text,
+      sub_bs_limit_announce_text:
+        current.sub_bs_limit_announce_text.trim() ||
+        defaultSettings.sub_bs_limit_announce_text,
       bs_daily_limit: current.bs_daily_limit,
       bs_monthly_limit: current.bs_monthly_limit,
     };
@@ -330,6 +341,7 @@ export const BotSettingsDialog: FC = () => {
       sub_unsupported_client_server_text: toList(
         listFieldTexts.sub_unsupported_client_server_text
       ),
+      sub_bs_limit_server_text: toList(listFieldTexts.sub_bs_limit_server_text),
     };
 
     setSaving(true);
@@ -968,6 +980,38 @@ export const BotSettingsDialog: FC = () => {
                           <FormHelperText>
                             {t("botSettings.serverTextHint")}
                           </FormHelperText>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subBsLimitServerText")}
+                          </FormLabel>
+                          <Textarea
+                            value={listFieldTexts.sub_bs_limit_server_text}
+                            onChange={(e) =>
+                              updateListField(
+                                "sub_bs_limit_server_text",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormHelperText>
+                            {t("botSettings.serverTextHint")}
+                          </FormHelperText>
+                        </FormControl>
+                      </HStack>
+                      <HStack align="start">
+                        <FormControl>
+                          <FormLabel>
+                            {t("botSettings.subBsLimitAnnounceText")}
+                          </FormLabel>
+                          <Input
+                            value={settings.sub_bs_limit_announce_text}
+                            onChange={(e) =>
+                              updateSettings({
+                                sub_bs_limit_announce_text: e.target.value,
+                              })
+                            }
+                          />
                         </FormControl>
                       </HStack>
                       <HStack align="start">
