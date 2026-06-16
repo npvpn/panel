@@ -26,6 +26,16 @@ export const NodeSchema = z.object({
   add_as_new_host: z.boolean().optional(),
   usage_coefficient: z.number().or(z.string().transform((v) => parseFloat(v))),
   inbounds: z.array(z.string()).optional(),
+  role: z.enum(["entry", "exit", "direct"]).optional(),
+  cascade_routes: z
+    .array(
+      z.object({
+        exit_node_id: z.number().min(1),
+        entry_inbound_tag: z.string().min(1),
+        cascade_inbound_tag: z.string().min(1),
+      })
+    )
+    .optional(),
 });
 
 export type NodeType = z.infer<typeof NodeSchema>;
@@ -39,6 +49,8 @@ export const getNodeDefaultValues = (): NodeType => ({
   xray_version: "",
   usage_coefficient: 1,
   inbounds: [],
+  role: "direct",
+  cascade_routes: [],
 });
 
 export const FetchNodesQueryKey = "fetch-nodes-query-key";

@@ -166,4 +166,4 @@ app/dashboard/build/
 app/dashboard/node_modules/
 
 # Local planning/spec artifacts (superpowers)
-docs/
+docs/superpowers/

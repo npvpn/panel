@@ -43,12 +43,14 @@ class XRayCore:
         if private_key:
             cmd.extend(['-i', private_key])
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
-        m = re.match(r'Private key: (.+)\nPublic key: (.+)', output)
-        if m:
-            private, public = m.groups()
+        # Старые сборки xray печатают "Private key:/Public key:", новые (26.x) —
+        # "PrivateKey:/Password (PublicKey):". Парсим оба формата.
+        priv_m = re.search(r'Private ?[Kk]ey:\s*(\S+)', output)
+        pub_m = re.search(r'(?:Public ?[Kk]ey|Password \(PublicKey\)):\s*(\S+)', output)
+        if priv_m and pub_m:
             return {
-                "private_key": private,
-                "public_key": public
+                "private_key": priv_m.group(1),
+                "public_key": pub_m.group(1),
             }
 
     def __capture_process_logs(self):

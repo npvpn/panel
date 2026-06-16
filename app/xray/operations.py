@@ -12,6 +12,7 @@ from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
 from app.xray.inbound_filter import filtered_inbounds
+from app.xray.cascade_config import cascade_config
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -300,6 +301,80 @@ def update_user_by_id(user_id: int):
             raise
 
 
+def _find_inbound(config, tag):
+    """Найти определение инбаунда по tag в общем xray-конфиге (None, если нет)."""
+    for inbound in (config.get("inbounds") or []):
+        if inbound.get("tag") == tag:
+            return inbound
+    return None
+
+
+def _cascade_kwargs(db, dbnode) -> dict:
+    """Собрать kwargs для cascade_config из dbnode. Вызывать в открытой DB-сессии:
+    резолвит маршруты/exit_node/cascade_params + читает определение cascade-инбаунда
+    из общего xray-конфига и деривит publicKey, всё в plain-данные (без ORM-ссылок),
+    чтобы не словить DetachedInstanceError после закрытия сессии.
+    """
+    # Ленивый импорт: app.db.models тянет за собой app.xray (через цепочку моделей),
+    # а top-level импорт CascadeRoute здесь замыкал цикл и ломал инициализацию
+    # app.db.models при старте сервера (config.py:db_models становился частичным).
+    from app.db.models import CascadeRoute
+
+    role = dbnode.role.value if dbnode.role else "direct"
+
+    if role == "exit":
+        params = dbnode.cascade_params or {}
+        uuid = params.get("uuid")
+        if not uuid:
+            return {"role": "exit"}  # роль есть, но uuid ещё не сгенерён — нечего инъектить
+        exit_routes = (
+            db.query(CascadeRoute)
+            .filter(CascadeRoute.exit_node_id == dbnode.id)
+            .all()
+        )
+        clients = [
+            {"inbound_tag": r.cascade_inbound_tag, "uuid": uuid}
+            for r in exit_routes
+        ]
+        return {"role": "exit", "cascade_clients": clients}
+
+    if role == "entry":
+        routes = []
+        for r in dbnode.cascade_routes:
+            exit_node = r.exit_node
+            if not exit_node:
+                continue
+            uuid = (exit_node.cascade_params or {}).get("uuid")
+            if not uuid:
+                continue  # выходная ещё без служебного uuid — пропускаем маршрут
+            inbound = _find_inbound(xray.config, r.cascade_inbound_tag)
+            if not inbound:
+                continue  # cascade-инбаунд отсутствует в каталоге
+            reality = (inbound.get("streamSettings") or {}).get("realitySettings") or {}
+            private_key = reality.get("privateKey")
+            if not private_key:
+                continue  # инбаунд не REALITY — пропускаем
+            keys = xray.core.get_x25519(private_key=private_key)
+            if not keys:
+                continue
+            server_names = reality.get("serverNames") or []
+            short_ids = reality.get("shortIds") or []
+            routes.append({
+                "entry_inbound_tag": r.entry_inbound_tag,
+                "exit_node_id": r.exit_node_id,
+                "cascade_inbound_tag": r.cascade_inbound_tag,
+                "address": exit_node.address,
+                "port": inbound.get("port"),
+                "uuid": uuid,
+                "public_key": keys["public_key"],
+                "short_id": short_ids[0] if short_ids else "",
+                "sni": server_names[0] if server_names else "",
+            })
+        return {"role": "entry", "entry_routes": routes}
+
+    return {"role": "direct"}
+
+
 def _node_specific_config(base_config, node_inbound_tags):
     """Вернуть конфиг для конкретной ноды.
 
@@ -455,12 +530,14 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
     last_exc = None
 
     node_inbound_tags = []
+    cascade_kwargs = {"role": "direct"}
     try:
         with GetDB() as db:
             dbnode = crud.get_node_by_id(db, node_id)
             if dbnode:
                 # читаем в открытой сессии, чтобы не словить DetachedInstanceError
                 node_inbound_tags = [i.tag for i in dbnode.inbounds]
+                cascade_kwargs = _cascade_kwargs(db, dbnode)
 
         if not dbnode:
             return
@@ -493,7 +570,11 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
                 logger.info(
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
-                node.start(_node_specific_config(config, node_inbound_tags))
+                node.start(
+                    cascade_config(
+                        _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+                    )
+                )
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
                 logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
@@ -549,10 +630,12 @@ def connect_node(node_id, config=None, force: bool = False):
 @threaded_function
 def restart_node(node_id, config=None):
     node_inbound_tags = []
+    cascade_kwargs = {"role": "direct"}
     with GetDB() as db:
         dbnode = crud.get_node_by_id(db, node_id)
         if dbnode:
             node_inbound_tags = [i.tag for i in dbnode.inbounds]
+            cascade_kwargs = _cascade_kwargs(db, dbnode)
 
     if not dbnode:
         return
@@ -571,7 +654,11 @@ def restart_node(node_id, config=None):
         if config is None:
             config = xray.config.include_db_users()
 
-        node.restart(_node_specific_config(config, node_inbound_tags))
+        node.restart(
+            cascade_config(
+                _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+            )
+        )
         logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
     except Exception as e:
         try:

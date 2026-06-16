@@ -47,7 +47,7 @@ import {
   useNodesQuery,
 } from "contexts/NodesContext";
 import { FC, ReactNode, useState } from "react";
-import { Controller, useForm, UseFormReturn } from "react-hook-form";
+import { Controller, useFieldArray, useForm, UseFormReturn } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   UseMutateFunction,
@@ -334,6 +334,16 @@ const NodeForm: NodeFormType = ({
         .map((i) => i.tag)
     )
   );
+  const { data: allNodes } = useNodesQuery();
+  const exitNodes = (allNodes || []).filter(
+    (n) => n.role === "exit" && typeof n.id === "number"
+  );
+  const role = form.watch("role");
+  const {
+    fields: routeFields,
+    append: appendRoute,
+    remove: removeRoute,
+  } = useFieldArray({ control: form.control, name: "cascade_routes" });
   const [showCertificate, setShowCertificate] = useState(false);
   const { data: nodeSettings, isLoading: nodeSettingsLoading } = useQuery({
     queryKey: "node-settings",
@@ -530,6 +540,20 @@ const NodeForm: NodeFormType = ({
             />
           </Box>
         </HStack>
+        <FormControl py={1}>
+          <FormLabel>{t("nodes.role")}</FormLabel>
+          <Controller
+            name="role"
+            control={form.control}
+            render={({ field }) => (
+              <Select size="sm" {...field}>
+                <option value="direct">{t("nodes.roleDirect")}</option>
+                <option value="entry">{t("nodes.roleEntry")}</option>
+                <option value="exit">{t("nodes.roleExit")}</option>
+              </Select>
+            )}
+          />
+        </FormControl>
         {inboundTags.length > 0 && (
           <FormControl py={1}>
             <FormLabel>{t("nodes.inbounds")}</FormLabel>
@@ -563,6 +587,93 @@ const NodeForm: NodeFormType = ({
                 );
               }}
             />
+          </FormControl>
+        )}
+        {role === "entry" && (
+          <FormControl py={1}>
+            <FormLabel>{t("nodes.cascadeRoutes")}</FormLabel>
+            <Text fontSize="xs" opacity={0.7} mb={2}>
+              {t("nodes.cascadeRoutesHint")}
+            </Text>
+            <VStack align="stretch" spacing={2}>
+              {routeFields.map((rf, idx) => (
+                <HStack key={rf.id} spacing={2}>
+                  <Controller
+                    name={`cascade_routes.${idx}.entry_inbound_tag`}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select size="sm" placeholder={t("nodes.inbounds")} {...field}>
+                        {inboundTags.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  <Controller
+                    name={`cascade_routes.${idx}.exit_node_id`}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        size="sm"
+                        placeholder={t("nodes.roleExit")}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      >
+                        {exitNodes.map((n) => (
+                          <option key={n.id} value={n.id as number}>
+                            {n.name}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  <Controller
+                    name={`cascade_routes.${idx}.cascade_inbound_tag`}
+                    control={form.control}
+                    render={({ field }) => {
+                      const selectedExitId = form.watch(
+                        `cascade_routes.${idx}.exit_node_id`
+                      );
+                      const exitNode = exitNodes.find(
+                        (n) => n.id === Number(selectedExitId)
+                      );
+                      const exitInbounds = exitNode?.inbounds ?? inboundTags;
+                      return (
+                        <Select
+                          size="sm"
+                          placeholder={t("nodes.cascadeInbound")}
+                          {...field}
+                        >
+                          {exitInbounds.map((tag) => (
+                            <option key={tag} value={tag}>
+                              {tag}
+                            </option>
+                          ))}
+                        </Select>
+                      );
+                    }}
+                  />
+                  <Button size="sm" onClick={() => removeRoute(idx)}>
+                    ✕
+                  </Button>
+                </HStack>
+              ))}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  appendRoute({
+                    entry_inbound_tag: "",
+                    exit_node_id: 0,
+                    cascade_inbound_tag: "",
+                  })
+                }
+              >
+                {t("nodes.addCascadeRoute")}
+              </Button>
+            </VStack>
           </FormControl>
         )}
         {addAsHost && (
