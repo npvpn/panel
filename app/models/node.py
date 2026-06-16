@@ -44,6 +44,9 @@ class Node(BaseModel):
     inbounds: Optional[List[str]] = None
     role: NodeRole = NodeRole.direct
     cascade_routes: Optional[List[CascadeRouteModel]] = None
+    is_bs: bool = False
+    bs_daily_limit: Optional[int] = None
+    bs_monthly_limit: Optional[int] = None
 
 
 class NodeCreate(Node):
@@ -72,6 +75,9 @@ class NodeModify(Node):
     inbounds: Optional[List[str]] = Field(None, nullable=True)
     role: Optional[NodeRole] = Field(None, nullable=True)
     cascade_routes: Optional[List[CascadeRouteModel]] = Field(None, nullable=True)
+    is_bs: Optional[bool] = Field(None, nullable=True)
+    bs_daily_limit: Optional[int] = Field(None, nullable=True)
+    bs_monthly_limit: Optional[int] = Field(None, nullable=True)
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "DE node",
@@ -93,6 +99,9 @@ class NodeResponse(Node):
     inbounds: List[str] = []
     role: NodeRole = NodeRole.direct
     cascade_routes: List[CascadeRouteModel] = []
+    is_bs: bool = False
+    bs_daily_limit: Optional[int] = None
+    bs_monthly_limit: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("inbounds", mode="before")
