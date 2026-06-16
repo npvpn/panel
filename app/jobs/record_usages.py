@@ -4,13 +4,14 @@ from operator import attrgetter
 from typing import Union
 
 from pymysql.err import OperationalError
-from sqlalchemy import and_, bindparam, insert, select, text, update
+from sqlalchemy import and_, bindparam, insert, or_, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
 from app import logger, scheduler, xray
+from app.xray.bs_limit import bs_counter_step, period_keys
 from app.db import GetDB
-from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
+from app.db.models import Admin, Node, NodeUsage, NodeUserBsUsage, NodeUserUsage, System, User
 from app.utils.concurrency import get_xray_executor
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
@@ -87,6 +88,69 @@ def record_user_stats(params: list, node_id: Union[int, None],
                         NodeUserUsage.node_id == node_id,
                         NodeUserUsage.created_at == created_at))
         safe_execute(db, stmt, params)
+
+
+def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1):
+    """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс периодов).
+
+    params — [{'uid': str, 'value': int}, ...] как в record_user_stats.
+    """
+    if not params:
+        return
+
+    today, yyyymm = period_keys(datetime.utcnow())
+
+    with GetDB() as db:
+        deltas = {}
+        for p in params:
+            uid = int(p['uid'])
+            deltas[uid] = deltas.get(uid, 0) + int(p['value'] * consumption_factor)
+
+        uids = list(deltas.keys())
+        existing_rows = db.query(
+            NodeUserBsUsage.user_id,
+            NodeUserBsUsage.daily_used,
+            NodeUserBsUsage.daily_period,
+            NodeUserBsUsage.monthly_used,
+            NodeUserBsUsage.monthly_period,
+        ).filter(
+            NodeUserBsUsage.node_id == node_id,
+            NodeUserBsUsage.user_id.in_(uids),
+        ).all()
+        existing = {
+            r.user_id: {
+                "daily_used": r.daily_used, "daily_period": r.daily_period,
+                "monthly_used": r.monthly_used, "monthly_period": r.monthly_period,
+            }
+            for r in existing_rows
+        }
+
+        to_insert, to_update = [], []
+        for uid, delta in deltas.items():
+            vals = bs_counter_step(existing.get(uid), delta, today, yyyymm)
+            if uid in existing:
+                to_update.append({"uid": uid, **vals})
+            else:
+                to_insert.append({"user_id": uid, "node_id": node_id, **vals})
+
+        # INSERT IGNORE здесь безопасен: record_user_usages зарегистрирован с
+        # max_instances=1, конкурентных тиков нет, поэтому SELECT выше уже видит
+        # все существующие строки и IGNORE срабатывает только на реальной гонке
+        # (которой при текущем планировщике быть не может).
+        if to_insert:
+            safe_execute(db, insert(NodeUserBsUsage), to_insert)
+
+        if to_update:
+            stmt = update(NodeUserBsUsage).where(
+                and_(NodeUserBsUsage.node_id == node_id,
+                     NodeUserBsUsage.user_id == bindparam("uid"))
+            ).values(
+                daily_used=bindparam("daily_used"),
+                daily_period=bindparam("daily_period"),
+                monthly_used=bindparam("monthly_used"),
+                monthly_period=bindparam("monthly_period"),
+            )
+            safe_execute(db, stmt, to_update)
 
 
 def record_node_stats(params: dict, node_id: Union[int, None]):
@@ -210,12 +274,33 @@ def record_user_usages():
     if DISABLE_RECORDING_NODE_USER_USAGE:
         return
 
+    # id БС-нод с заданным лимитом — для них дополнительно ведём node_user_bs_usage.
+    try:
+        with GetDB() as db:
+            bs_node_ids = {
+                nid for (nid,) in db.query(Node.id).filter(
+                    Node.is_bs.is_(True),
+                    or_(Node.bs_daily_limit.isnot(None), Node.bs_monthly_limit.isnot(None)),
+                ).all()
+            }
+    except Exception as e:
+        logger.warning(f"[record_user_usages] failed to load BS node ids: {type(e).__name__}: {e}")
+        bs_node_ids = set()
+
     for node_id, params in api_params.items():
         try:
             record_user_stats(params, node_id, usage_coefficient[node_id])
         except Exception as e:
             logger.warning(f"[record_user_usages] failed to record node_user_usage for "
                            f"node {node_id}: {type(e).__name__}: {e}")
+        # node_id=None (главный xray-инстанс) никогда не попадает в bs_node_ids
+        # (там только целочисленные id нод из БД), поэтому БС-учёт его не трогает.
+        if node_id in bs_node_ids:
+            try:
+                record_bs_user_stats(params, node_id, usage_coefficient[node_id])
+            except Exception as e:
+                logger.warning(f"[record_user_usages] failed to record node_user_bs_usage for "
+                               f"node {node_id}: {type(e).__name__}: {e}")
 
 
 def record_node_usages():
