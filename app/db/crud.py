@@ -22,6 +22,7 @@ from app.db.models import (
     NextPlan,
     Node,
     NodeUsage,
+    NodeUserBsUsage,
     NodeUserUsage,
     NotificationReminder,
     Proxy,
@@ -1838,6 +1839,33 @@ def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: s
     db.commit()
     db.refresh(dbnode)
     return dbnode
+
+
+def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> tuple[int, int]:
+    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий период.
+    → (daily_used, monthly_used) в байтах. Один индексированный запрос по user_id."""
+    from app.xray.bs_limit import aggregate_bs_usage
+
+    rows = db.query(
+        NodeUserBsUsage.user_id,
+        NodeUserBsUsage.daily_used,
+        NodeUserBsUsage.daily_period,
+        NodeUserBsUsage.monthly_used,
+        NodeUserBsUsage.monthly_period,
+    ).join(
+        Node, Node.id == NodeUserBsUsage.node_id
+    ).filter(
+        Node.is_bs.is_(True),
+        NodeUserBsUsage.user_id == user_id,
+    ).all()
+
+    totals = aggregate_bs_usage(
+        [{"user_id": r.user_id, "daily_used": r.daily_used, "daily_period": r.daily_period,
+          "monthly_used": r.monthly_used, "monthly_period": r.monthly_period} for r in rows],
+        today, yyyymm,
+    )
+    t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
+    return t["daily_used"], t["monthly_used"]
 
 
 def create_notification_reminder(
