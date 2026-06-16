@@ -116,6 +116,7 @@ celerybeat.pid
 venv/
 venv.bak/
 .vscode/
+docker-compose.override.yml
 
 # Spyder project settings
 .spyderproject
