@@ -518,6 +518,21 @@ class V2rayJsonConfig(str):
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
 
+    def add_placeholder(self, remark: str):
+        """Фейковый профиль (0.0.0.0:0) с remark — для информирования юзера (БС-лимит)."""
+        outbound = {
+            "tag": "proxy",
+            "protocol": "vless",
+            "settings": self.vless_config(
+                address="0.0.0.0",
+                port=0,
+                id="00000000-0000-0000-0000-000000000000",
+                flow="",
+            ),
+            "streamSettings": {"network": "tcp"},
+        }
+        self.add_config(remarks=remark, outbounds=[outbound])
+
     def render(self, reverse=False):
         if reverse:
             self.config.reverse()
