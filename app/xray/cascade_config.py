@@ -34,8 +34,8 @@ def _inject_cascade_client(inbound: dict, uuid: str) -> dict:
 def build_cascade_outbound(route: dict) -> dict:
     """vless+TCP+REALITY outbound с входной ноды на каталожный инбаунд выходной.
 
-    Параметры REALITY (publicKey/shortId/serverName) и port уже разрешены в operations.py
-    из определения cascade-инбаунда.
+    Параметры REALITY (publicKey/shortId/serverName/fingerprint) и port уже разрешены в
+    operations.py из определения cascade-инбаунда; fingerprint фоллбэчится на CASCADE_FINGERPRINT.
     """
     return {
         "tag": cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"]),
@@ -56,7 +56,7 @@ def build_cascade_outbound(route: dict) -> dict:
             "security": "reality",
             "realitySettings": {
                 "show": False,
-                "fingerprint": CASCADE_FINGERPRINT,
+                "fingerprint": route.get("fingerprint") or CASCADE_FINGERPRINT,
                 "serverName": route["sni"],
                 "publicKey": route["public_key"],
                 "shortId": route["short_id"],

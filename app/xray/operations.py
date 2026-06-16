@@ -369,6 +369,7 @@ def _cascade_kwargs(db, dbnode) -> dict:
                 "public_key": keys["public_key"],
                 "short_id": short_ids[0] if short_ids else "",
                 "sni": server_names[0] if server_names else "",
+                "fingerprint": reality.get("fingerprint") or "",
             })
         return {"role": "entry", "entry_routes": routes}
 

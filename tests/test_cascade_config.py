@@ -96,6 +96,28 @@ def test_entry_adds_outbound_and_rule():
     assert rule == {"type": "field", "inboundTag": ["VLESS_TCP"], "outboundTag": tag}
 
 
+def test_entry_uses_fingerprint_from_route():
+    r = route(exit_id=7)
+    r["fingerprint"] = "qq"
+    result = cascade_config(base(), role="entry", entry_routes=[r])
+    out = result["outbounds"][-1]
+    assert out["streamSettings"]["realitySettings"]["fingerprint"] == "qq"
+
+
+def test_entry_fingerprint_falls_back_to_default_when_absent():
+    result = cascade_config(base(), role="entry", entry_routes=[route()])
+    out = result["outbounds"][-1]
+    assert out["streamSettings"]["realitySettings"]["fingerprint"] == "chrome"
+
+
+def test_entry_fingerprint_falls_back_to_default_when_empty():
+    r = route(exit_id=7)
+    r["fingerprint"] = ""
+    result = cascade_config(base(), role="entry", entry_routes=[r])
+    out = result["outbounds"][-1]
+    assert out["streamSettings"]["realitySettings"]["fingerprint"] == "chrome"
+
+
 def test_entry_outbound_tag_unique_per_exit_and_inbound():
     routes = [route(exit_id=7, cascade="VLESS_TCP"), route(exit_id=7, cascade="VLESS_WS")]
     result = cascade_config(base(), role="entry", entry_routes=routes)

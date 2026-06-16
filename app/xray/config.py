@@ -213,7 +213,10 @@ class XRayConfig(dict):
                             settings['sni'].extend(get_cert_SANs(cert))
 
                 elif security == 'reality':
-                    settings['fp'] = 'chrome'
+                    # fingerprint берём из инбаунда (realitySettings.fingerprint);
+                    # если в инбаунде не задан — последний фоллбэк chrome.
+                    # Хост может переопределить это значение (см. subscription/share.py).
+                    settings['fp'] = tls_settings.get('fingerprint') or 'chrome'
                     settings['tls'] = 'reality'
                     settings['sni'] = tls_settings.get('serverNames', [])
 
