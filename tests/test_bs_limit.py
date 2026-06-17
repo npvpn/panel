@@ -8,6 +8,7 @@ from app.xray.bs_limit import (
     aggregate_bs_usage,
     over_limit,
     pick_bs_bar,
+    bs_stub_remark,
 )
 
 
@@ -133,3 +134,17 @@ def test_pick_bs_bar_chooses_smaller_remaining():
     assert pick_bs_bar(8, 10, 900, 1000) == (8, 10)
     assert pick_bs_bar(8, 0, 900, 1000) == (900, 1000)
     assert pick_bs_bar(8, 0, 900, 0) is None
+
+
+def test_bs_stub_remark_joins_nonempty_lines():
+    assert bs_stub_remark(["лимит исчерпан", "ждите месяц"]) == "лимит исчерпан ждите месяц"
+
+
+def test_bs_stub_remark_string_and_blanks():
+    assert bs_stub_remark("один") == "один"
+    assert bs_stub_remark(["", "  ", "x"]) == "x"
+
+
+def test_bs_stub_remark_empty_inputs():
+    assert bs_stub_remark([]) == ""
+    assert bs_stub_remark(None) == ""

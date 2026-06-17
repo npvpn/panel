@@ -67,6 +67,20 @@ def pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit):
     return used, total
 
 
+def bs_stub_remark(text_list):
+    """Имя сервера-заглушки БС-лимита из настройки sub_bs_limit_server_text.
+
+    БС-хост заменяется заглушкой НА СВОЁМ МЕСТЕ (один хост → одна заглушка),
+    поэтому многострочный текст склеивается в одно имя сервера. Пустые строки
+    отбрасываются. Принимает список строк, одну строку или None.
+    """
+    if not text_list:
+        return ""
+    lines = [text_list] if isinstance(text_list, str) else list(text_list)
+    parts = [str(x).strip() for x in lines]
+    return " ".join(p for p in parts if p)
+
+
 def strip_blocked_clients(config, blocked_user_ids):
     """Копия config без клиентов заблокированных user_id во всех инбаундах.
 

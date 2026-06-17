@@ -928,6 +928,13 @@ def reset_user_data_usage(db: Session, dbuser: User) -> User:
 
     dbuser.used_traffic = 0
     dbuser.node_usages.clear()
+    # Сбрасываем агрегатный БС-счётчик: иначе после reset usages юзер остаётся
+    # над лимитом и review_bs_nodes держит его заблокированным. Блок (node_user_blocks)
+    # снимет сама джоба на следующем тике (≤ JOB_REVIEW_BS_NODES_INTERVAL), заодно
+    # вернув юзера на ноды в xray.
+    db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id == dbuser.id).delete(
+        synchronize_session=False
+    )
     if dbuser.status not in (UserStatus.expired or UserStatus.disabled):
         dbuser.status = UserStatus.active.value
 
@@ -1061,7 +1068,8 @@ def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
     if admin:
         query = query.filter(User.admin == admin)
 
-    for dbuser in query.all():
+    users = query.all()
+    for dbuser in users:
         dbuser.used_traffic = 0
         if dbuser.status not in [UserStatus.on_hold, UserStatus.expired, UserStatus.disabled]:
             dbuser.status = UserStatus.active
@@ -1071,6 +1079,14 @@ def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
             db.delete(dbuser.next_plan)
             dbuser.next_plan = None
         db.add(dbuser)
+
+    # Сбрасываем БС-счётчики этих юзеров — иначе review_bs_nodes держит блок
+    # после массового reset (см. reset_user_data_usage).
+    user_ids = [u.id for u in users]
+    if user_ids:
+        db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id.in_(user_ids)).delete(
+            synchronize_session=False
+        )
 
     db.commit()
 
