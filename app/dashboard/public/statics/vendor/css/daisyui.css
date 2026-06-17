@@ -1191,6 +1191,7 @@ html {
 body {
   margin: 0; /* 1 */
   line-height: inherit; /* 2 */
+  overflow-y: scroll
 }
 /*
 1. Add the correct height in Firefox.
