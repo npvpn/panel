@@ -81,6 +81,19 @@ def bs_stub_remark(text_list):
     return " ".join(p for p in parts if p)
 
 
+def host_matches_blocked(host_addresses, blocked_addresses):
+    """True, если хост указывает на заблокированную БС-ноду (матч по адресу).
+
+    В Marzban инбаунд-теги общие для всех нод, поэтому БС-ноду в подписке
+    отличает только адрес хоста (= Node.address). host_addresses — список
+    адресов хоста (xray.hosts[tag][i]["address"]). При блоке юзер теряет ноду
+    целиком, значит глушим ВСЕ хосты с её адресом, независимо от тега.
+    """
+    if not blocked_addresses:
+        return False
+    return any(a in blocked_addresses for a in (host_addresses or []))
+
+
 def strip_blocked_clients(config, blocked_user_ids):
     """Копия config без клиентов заблокированных user_id во всех инбаундах.
 

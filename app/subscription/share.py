@@ -45,16 +45,16 @@ STATUS_TEXTS = {
 
 
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-                         bs_stub_tags: Optional[set] = None, bs_stub_text: str = "") -> list:
+                         bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "") -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
     return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-                                     bs_stub_tags=bs_stub_tags, bs_stub_text=bs_stub_text)
+                                     bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text)
 
 
 def generate_clash_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, is_meta: bool = False,
-        bs_stub_tags: Optional[set] = None, bs_stub_text: str = "",
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -64,33 +64,33 @@ def generate_clash_subscription(
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
         inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_tags=bs_stub_tags, bs_stub_text=bs_stub_text
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
 def generate_singbox_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-        bs_stub_tags: Optional[set] = None, bs_stub_text: str = "",
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     conf = SingBoxConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
         inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_tags=bs_stub_tags, bs_stub_text=bs_stub_text
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
 def generate_outline_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-        bs_stub_tags: Optional[set] = None, bs_stub_text: str = "",
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     conf = OutlineConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
         inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_tags=bs_stub_tags, bs_stub_text=bs_stub_text
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
@@ -116,7 +116,7 @@ def generate_subscription(
         device_limited_hard: bool = False,
         unsupported_client: bool = False,
         settings: Optional[dict] = None,
-        bs_stub_tags: Optional[set] = None,
+        bs_stub_addresses: Optional[set] = None,
         bs_stub_text: str = "",
 ) -> str:
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
@@ -219,7 +219,7 @@ def generate_subscription(
     }
     # БС-заглушки на месте: заблокированные БС-теги остаются в подписке, но их
     # хосты рендерятся как мёртвые заглушки. Прокидываем во все форматы.
-    bs_kwargs = {"bs_stub_tags": bs_stub_tags, "bs_stub_text": bs_stub_text}
+    bs_kwargs = {"bs_stub_addresses": bs_stub_addresses, "bs_stub_text": bs_stub_text}
 
     if config_format == "v2ray":
         links = generate_v2ray_links(**kwargs, **bs_kwargs)
@@ -266,7 +266,7 @@ def generate_subscription(
             format_variables,
             conf=conf,
             reverse=reverse,
-            bs_stub_tags=bs_stub_tags,
+            bs_stub_addresses=bs_stub_addresses,
             bs_stub_text=bs_stub_text,
         )
     else:
@@ -390,10 +390,12 @@ def process_inbounds_and_tags(
             OutlineConfiguration
         ],
         reverse=False,
-        bs_stub_tags: Optional[set] = None,
+        bs_stub_addresses: Optional[set] = None,
         bs_stub_text: str = "",
 ) -> Union[List, str]:
-    bs_stub_tags = bs_stub_tags or set()
+    from app.xray.bs_limit import host_matches_blocked
+
+    bs_stub_addresses = bs_stub_addresses or set()
     _inbounds = []
     for protocol, tags in inbounds.items():
         for tag in tags:
@@ -473,10 +475,11 @@ def process_inbounds_and_tags(
                     }
                 )
 
-                # БС-лимит исчерпан → этот хост остаётся на своём месте, но
-                # превращается в мёртвую заглушку (0.0.0.0:0) с именем-текстом
-                # лимита. Не-БС хосты не трогаем.
-                if tag in bs_stub_tags:
+                # БС-лимит исчерпан → хост заблокированной БС-ноды (матч по
+                # адресу, т.к. инбаунд-теги общие для нод) остаётся на своём
+                # месте, но превращается в мёртвую заглушку (0.0.0.0:0) с
+                # именем-текстом лимита. Хосты обычных нод не трогаем.
+                if host_matches_blocked(host["address"], bs_stub_addresses):
                     host_inbound["port"] = 0
                     conf.add(
                         remark=bs_stub_text,

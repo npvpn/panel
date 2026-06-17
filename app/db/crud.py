@@ -1885,19 +1885,20 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     return t["daily_used"], t["monthly_used"]
 
 
-def get_blocked_bs_inbound_tags(db: Session, user_id: int) -> set[str]:
-    """Инбаунд-теги БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
-    Это ровно те инбаунды, к которым доступ снят enforcement-джобой."""
-    node_ids = [
-        nid for (nid,) in db.query(NodeUserBlock.node_id)
-        .filter(NodeUserBlock.user_id == user_id).all()
-    ]
-    if not node_ids:
-        return set()
-    tags: set[str] = set()
-    for node in db.query(Node).filter(Node.id.in_(node_ids)).all():
-        tags.update(i.tag for i in node.inbounds)
-    return tags
+def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
+    """Адреса БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
+
+    Матчим заглушку в подписке по адресу хоста, а НЕ по инбаунд-тегу: теги в
+    Marzban общие для всех нод (node_inbounds — m2m), поэтому стаб по тегу
+    задевал бы хосты обычных нод. Адрес же = Node.address уникально указывает
+    на конкретную ноду. При блоке юзер теряет ноду целиком."""
+    rows = (
+        db.query(Node.address)
+        .join(NodeUserBlock, NodeUserBlock.node_id == Node.id)
+        .filter(NodeUserBlock.user_id == user_id)
+        .all()
+    )
+    return {addr for (addr,) in rows if addr}
 
 
 def create_notification_reminder(

@@ -284,12 +284,12 @@ def user_subscription(
         )
     )
 
-    blocked_bs_tags = set()
+    blocked_bs_addresses = set()
     if not is_revoked and not is_expired:
-        blocked_bs_tags = crud.get_blocked_bs_inbound_tags(db, dbuser.id)
-    # БС-теги НЕ вырезаем: они остаются в подписке на своих местах, но рендерятся
-    # как мёртвые заглушки с именем-текстом лимита (см. generate_subscription).
-    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_tags else ""
+        blocked_bs_addresses = crud.get_blocked_bs_node_addresses(db, dbuser.id)
+    # Хосты заблокированной БС-ноды (матч по адресу) остаются в подписке на своих
+    # местах, но рендерятся как мёртвые заглушки с текстом лимита (см. generate_subscription).
+    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
 
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
@@ -303,7 +303,7 @@ def user_subscription(
         announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
-    elif blocked_bs_tags and str(bot_settings["sub_bs_limit_announce_text"]).strip():
+    elif blocked_bs_addresses and str(bot_settings["sub_bs_limit_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
@@ -336,7 +336,7 @@ def user_subscription(
             device_limited_hard=device_limited_hard_for_gen,
             unsupported_client=unsupported_blocks,
             settings=bot_settings,
-            bs_stub_tags=blocked_bs_tags,
+            bs_stub_addresses=blocked_bs_addresses,
             bs_stub_text=bs_stub_text,
         )
 
@@ -486,11 +486,12 @@ def user_subscription_with_client_type(
         )
     )
 
-    blocked_bs_tags = set()
+    blocked_bs_addresses = set()
     if not is_revoked and not is_expired:
-        blocked_bs_tags = crud.get_blocked_bs_inbound_tags(db, dbuser.id)
-    # БС-теги НЕ вырезаем: остаются на местах как мёртвые заглушки (см. первый эндпоинт).
-    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_tags else ""
+        blocked_bs_addresses = crud.get_blocked_bs_node_addresses(db, dbuser.id)
+    # Хосты заблокированной БС-ноды (матч по адресу) остаются на местах как мёртвые
+    # заглушки (см. первый эндпоинт).
+    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
 
     announce_text = get_user_note(user, str(bot_settings["sub_client_note"])) or ""
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
@@ -501,7 +502,7 @@ def user_subscription_with_client_type(
         announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
-    elif blocked_bs_tags and str(bot_settings["sub_bs_limit_announce_text"]).strip():
+    elif blocked_bs_addresses and str(bot_settings["sub_bs_limit_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
@@ -533,7 +534,7 @@ def user_subscription_with_client_type(
                                  device_limited_hard=device_limited_hard_for_gen,
                                  unsupported_client=unsupported_blocks,
                                  settings=bot_settings,
-                                 bs_stub_tags=blocked_bs_tags,
+                                 bs_stub_addresses=blocked_bs_addresses,
                                  bs_stub_text=bs_stub_text)
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
