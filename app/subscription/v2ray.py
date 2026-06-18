@@ -11,6 +11,7 @@ from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun, get_grpc_multi
 from app.templates import render_template
+from app.xray.bs_routing import select_routing
 from app.utils.helpers import UUIDEncoder
 from config import (
     EXTERNAL_CONFIG,
@@ -487,9 +488,18 @@ class V2rayShareLink(str):
 
 class V2rayJsonConfig(str):
 
-    def __init__(self):
+    def __new__(cls, template_override=None, routing_default=None, routing_bs=None):
+        # str subclass: __new__ must absorb the kwargs, or str.__new__ would reject them with TypeError
+        return super().__new__(cls)
+
+    def __init__(self, template_override=None, routing_default=None, routing_bs=None):
         self.config = []
-        self.template = render_template(V2RAY_SUBSCRIPTION_TEMPLATE)
+        if template_override is not None:
+            self.template = json.dumps(template_override)
+        else:
+            self.template = render_template(V2RAY_SUBSCRIPTION_TEMPLATE)
+        self.routing_default = routing_default
+        self.routing_bs = routing_bs
         self.mux_template = render_template(MUX_TEMPLATE)
         user_agent_data = json.loads(render_template(USER_AGENT_TEMPLATE))
 
@@ -512,10 +522,16 @@ class V2rayJsonConfig(str):
 
         del user_agent_data, grpc_user_agent_data
 
-    def add_config(self, remarks, outbounds):
+    def add_config(self, remarks, outbounds, is_bs=False):
         json_template = json.loads(self.template)
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
+        json_template["routing"] = select_routing(
+            json_template.get("routing", {}),
+            self.routing_default,
+            self.routing_bs,
+            is_bs,
+        )
         self.config.append(json_template)
 
     def render(self, reverse=False):
@@ -983,7 +999,7 @@ class V2rayJsonConfig(str):
                                           tls_settings=tls_settings,
                                           sockopt=sockopt)
 
-    def add(self, remark: str, address: str, inbound: dict, settings: dict):
+    def add(self, remark: str, address: str, inbound: dict, settings: dict, is_bs: bool = False):
 
         net = inbound['network']
         protocol = inbound['protocol']
@@ -1079,4 +1095,4 @@ class V2rayJsonConfig(str):
             outbound["mux"] = mux_config
             outbound["mux"]["enabled"] = True
 
-        self.add_config(remarks=remark, outbounds=outbounds)
+        self.add_config(remarks=remark, outbounds=outbounds, is_bs=is_bs)

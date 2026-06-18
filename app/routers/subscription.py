@@ -291,6 +291,10 @@ def user_subscription(
     # местах, но рендерятся как мёртвые заглушки с текстом лимита (см. generate_subscription).
     bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
 
+    bs_addresses = set()
+    if not is_revoked and not is_expired:
+        bs_addresses = crud.get_bs_node_addresses(db)
+
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
 
@@ -341,6 +345,7 @@ def user_subscription(
             settings=bot_settings,
             bs_stub_addresses=blocked_bs_addresses,
             bs_stub_text=bs_stub_text,
+            bs_addresses=bs_addresses,
         )
 
     if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
