@@ -44,14 +44,17 @@ STATUS_TEXTS = {
 }
 
 
-def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool) -> list:
+def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+                         bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "") -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
-    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+                                     bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text)
 
 
 def generate_clash_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, is_meta: bool = False
+        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, is_meta: bool = False,
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -60,29 +63,34 @@ def generate_clash_subscription(
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
 def generate_singbox_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool
+        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     conf = SingBoxConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
 def generate_outline_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
 ) -> str:
     conf = OutlineConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
     )
 
 
@@ -108,6 +116,8 @@ def generate_subscription(
         device_limited_hard: bool = False,
         unsupported_client: bool = False,
         settings: Optional[dict] = None,
+        bs_stub_addresses: Optional[set] = None,
+        bs_stub_text: str = "",
 ) -> str:
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
 
@@ -207,20 +217,23 @@ def generate_subscription(
         "extra_data": user.__dict__,
         "reverse": reverse,
     }
+    # БС-заглушки на месте: заблокированные БС-теги остаются в подписке, но их
+    # хосты рендерятся как мёртвые заглушки. Прокидываем во все форматы.
+    bs_kwargs = {"bs_stub_addresses": bs_stub_addresses, "bs_stub_text": bs_stub_text}
 
     if config_format == "v2ray":
-        links = generate_v2ray_links(**kwargs)
+        links = generate_v2ray_links(**kwargs, **bs_kwargs)
         if device_limit_links:
             links = [*device_limit_links, *links]
         config = "\n".join(links)
     elif config_format == "clash-meta":
-        config = generate_clash_subscription(**kwargs, is_meta=True)
+        config = generate_clash_subscription(**kwargs, is_meta=True, **bs_kwargs)
     elif config_format == "clash":
-        config = generate_clash_subscription(**kwargs)
+        config = generate_clash_subscription(**kwargs, **bs_kwargs)
     elif config_format == "sing-box":
-        config = generate_singbox_subscription(**kwargs)
+        config = generate_singbox_subscription(**kwargs, **bs_kwargs)
     elif config_format == "outline":
-        config = generate_outline_subscription(**kwargs)
+        config = generate_outline_subscription(**kwargs, **bs_kwargs)
     elif config_format == "v2ray-json":
         from app.subscription.v2ray import V2rayJsonConfig
 
@@ -253,6 +266,8 @@ def generate_subscription(
             format_variables,
             conf=conf,
             reverse=reverse,
+            bs_stub_addresses=bs_stub_addresses,
+            bs_stub_text=bs_stub_text,
         )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')
@@ -375,7 +390,12 @@ def process_inbounds_and_tags(
             OutlineConfiguration
         ],
         reverse=False,
+        bs_stub_addresses: Optional[set] = None,
+        bs_stub_text: str = "",
 ) -> Union[List, str]:
+    from app.xray.bs_limit import host_matches_blocked
+
+    bs_stub_addresses = bs_stub_addresses or set()
     _inbounds = []
     for protocol, tags in inbounds.items():
         for tag in tags:
@@ -454,6 +474,20 @@ def process_inbounds_and_tags(
                         "random_user_agent": host["random_user_agent"],
                     }
                 )
+
+                # БС-лимит исчерпан → хост заблокированной БС-ноды (матч по
+                # адресу, т.к. инбаунд-теги общие для нод) остаётся на своём
+                # месте, но превращается в мёртвую заглушку (0.0.0.0:0) с
+                # именем-текстом лимита. Хосты обычных нод не трогаем.
+                if host_matches_blocked(host["address"], bs_stub_addresses):
+                    host_inbound["port"] = 0
+                    conf.add(
+                        remark=bs_stub_text,
+                        address="0.0.0.0",
+                        inbound=host_inbound,
+                        settings=settings.model_dump()
+                    )
+                    continue
 
                 conf.add(
                     remark=host["remark"].format_map(format_variables),

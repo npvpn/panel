@@ -554,6 +554,11 @@ const NodeForm: NodeFormType = ({
             )}
           />
         </FormControl>
+        <FormControl py={1}>
+          <Checkbox {...form.register("is_bs")}>
+            <FormLabel m={0}>{t("nodes.isBsNode")}</FormLabel>
+          </Checkbox>
+        </FormControl>
         {inboundTags.length > 0 && (
           <FormControl py={1}>
             <FormLabel>{t("nodes.inbounds")}</FormLabel>

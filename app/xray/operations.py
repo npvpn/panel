@@ -13,6 +13,7 @@ from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
 from app.xray.inbound_filter import filtered_inbounds
 from app.xray.cascade_config import cascade_config
+from app.xray.bs_limit import strip_blocked_clients
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -301,6 +302,74 @@ def update_user_by_id(user_id: int):
             raise
 
 
+def _user_inbound_tags(user) -> list:
+    """Список фактических inbound-тегов пользователя (по всем proxy-типам)."""
+    tags = []
+    for _, inbound_tags in user.inbounds.items():
+        for inbound_tag in inbound_tags:
+            tags.append(inbound_tag)
+    return tags
+
+
+def remove_user_from_node(dbuser: "DBUser", node_id: int):
+    """Снять пользователя ТОЛЬКО с указанной ноды (по её API), не трогая остальные."""
+    if dbuser is None:
+        return
+    node = xray.nodes.get(node_id)
+    if node is None:
+        return  # нода не подключена — фильтрация стартового конфига снимет её при connect
+    email = f"{dbuser.id}.{dbuser.username}"
+    user = UserResponse.model_validate(dbuser)
+    for inbound_tag in _user_inbound_tags(user):
+        try:
+            _remove_user_from_inbound(node.api, inbound_tag, email)
+        except Exception as e:
+            logger.warning(f"[xray.remove_user_from_node] node={node_id} "
+                           f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": "
+                           f"{type(e).__name__}: {e}")
+    logger.info(f"[xray.remove_user_from_node] email={email} node_id={node_id}")
+
+
+def add_user_to_node(dbuser: "DBUser", node_id: int):
+    """Вернуть пользователя ТОЛЬКО на указанную ноду (по её API)."""
+    if dbuser is None:
+        return
+    node = xray.nodes.get(node_id)
+    if node is None:
+        return
+    email = f"{dbuser.id}.{dbuser.username}"
+    user = UserResponse.model_validate(dbuser)
+    for proxy_type, inbound_tags in user.inbounds.items():
+        for inbound_tag in inbound_tags:
+            inbound = xray.config.inbounds_by_tag.get(inbound_tag, {})
+            try:
+                proxy_settings = user.proxies[proxy_type].dict(no_obj=True)
+            except KeyError:
+                proxy_settings = {}
+            account = proxy_type.account_model(email=email, **proxy_settings)
+            if getattr(account, 'flow', None) and (
+                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
+                or (inbound.get('network', 'tcp') in ('tcp', 'kcp')
+                    and inbound.get('tls') not in ('tls', 'reality'))
+                or inbound.get('header_type') == 'http'
+            ):
+                account.flow = XTLSFlows.NONE
+            try:
+                _add_user_to_inbound(node.api, inbound_tag, account)
+            except Exception as e:
+                logger.warning(f"[xray.add_user_to_node] node={node_id} "
+                               f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": "
+                               f"{type(e).__name__}: {e}")
+    logger.info(f"[xray.add_user_to_node] email={email} node_id={node_id}")
+
+
+def _blocked_user_ids(db, node_id: int) -> set:
+    """user_id, заблокированные на данной ноде (читать в открытой DB-сессии)."""
+    from app.db.models import NodeUserBlock
+    return {b.user_id for b in db.query(NodeUserBlock.user_id)
+            .filter(NodeUserBlock.node_id == node_id).all()}
+
+
 def _find_inbound(config, tag):
     """Найти определение инбаунда по tag в общем xray-конфиге (None, если нет)."""
     for inbound in (config.get("inbounds") or []):
@@ -533,12 +602,14 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
     node_inbound_tags = []
     cascade_kwargs = {"role": "direct"}
     try:
+        blocked_user_ids = set()
         with GetDB() as db:
             dbnode = crud.get_node_by_id(db, node_id)
             if dbnode:
                 # читаем в открытой сессии, чтобы не словить DetachedInstanceError
                 node_inbound_tags = [i.tag for i in dbnode.inbounds]
                 cascade_kwargs = _cascade_kwargs(db, dbnode)
+                blocked_user_ids = _blocked_user_ids(db, node_id)
 
         if not dbnode:
             return
@@ -572,8 +643,11 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
                     f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
                 )
                 node.start(
-                    cascade_config(
-                        _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+                    strip_blocked_clients(
+                        cascade_config(
+                            _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+                        ),
+                        blocked_user_ids,
                     )
                 )
                 version = node.get_version()
@@ -632,11 +706,13 @@ def connect_node(node_id, config=None, force: bool = False):
 def restart_node(node_id, config=None):
     node_inbound_tags = []
     cascade_kwargs = {"role": "direct"}
+    blocked_user_ids = set()
     with GetDB() as db:
         dbnode = crud.get_node_by_id(db, node_id)
         if dbnode:
             node_inbound_tags = [i.tag for i in dbnode.inbounds]
             cascade_kwargs = _cascade_kwargs(db, dbnode)
+            blocked_user_ids = _blocked_user_ids(db, node_id)
 
     if not dbnode:
         return
@@ -656,8 +732,11 @@ def restart_node(node_id, config=None):
             config = xray.config.include_db_users()
 
         node.restart(
-            cascade_config(
-                _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+            strip_blocked_clients(
+                cascade_config(
+                    _node_specific_config(config, node_inbound_tags), **cascade_kwargs
+                ),
+                blocked_user_ids,
             )
         )
         logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
@@ -680,6 +759,8 @@ __all__ = [
     "add_user",
     "remove_user",
     "update_user_by_id",
+    "remove_user_from_node",
+    "add_user_to_node",
     "add_node",
     "remove_node",
     "connect_node",
