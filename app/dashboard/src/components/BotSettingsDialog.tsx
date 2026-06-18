@@ -62,6 +62,9 @@ const emptySettings: BotSettings = {
   sub_unsupported_client_server_text: [],
   sub_bs_limit_server_text: [],
   sub_bs_limit_announce_text: "",
+  sub_v2ray_json_template: "",
+  sub_routing_json_default: "",
+  sub_routing_json_bs: "",
   bs_daily_limit: 0,
   bs_monthly_limit: 0,
 };
@@ -318,6 +321,9 @@ export const BotSettingsDialog: FC = () => {
       sub_bs_limit_announce_text:
         current.sub_bs_limit_announce_text.trim() ||
         defaultSettings.sub_bs_limit_announce_text,
+      sub_v2ray_json_template: current.sub_v2ray_json_template,
+      sub_routing_json_default: current.sub_routing_json_default,
+      sub_routing_json_bs: current.sub_routing_json_bs,
       bs_daily_limit: current.bs_daily_limit,
       bs_monthly_limit: current.bs_monthly_limit,
     };
@@ -484,6 +490,7 @@ export const BotSettingsDialog: FC = () => {
               <Tab>{t("botSettings.tabBotInfo")}</Tab>
               <Tab>{t("botSettings.tabSubscription")}</Tab>
               <Tab>{t("botSettings.tabMessages")}</Tab>
+              <Tab>{t("botSettings.tabV2rayJson")}</Tab>
             </TabList>
             {hasDraft && (
               <HStack
@@ -1054,6 +1061,61 @@ export const BotSettingsDialog: FC = () => {
                       </HStack>
                     </VStack>
                   </Box>
+                </VStack>
+              </TabPanel>
+
+              {/* Вкладка 4: v2ray-json */}
+              <TabPanel px={0}>
+                <VStack spacing={4} align="stretch">
+                  <FormControl>
+                    <FormLabel>{t("botSettings.v2rayJsonTemplate")}</FormLabel>
+                    <Textarea
+                      fontFamily="mono"
+                      minH="180px"
+                      value={settings.sub_v2ray_json_template}
+                      placeholder='{ "dns": {...}, "routing": {...}, ... }'
+                      onChange={(e) =>
+                        updateSettings({
+                          sub_v2ray_json_template: e.target.value,
+                        })
+                      }
+                    />
+                    <FormHelperText>
+                      {t("botSettings.v2rayJsonTemplateHint")}
+                    </FormHelperText>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>{t("botSettings.routingDefault")}</FormLabel>
+                    <Textarea
+                      fontFamily="mono"
+                      minH="140px"
+                      value={settings.sub_routing_json_default}
+                      placeholder='{ "domainStrategy": "IPIfNonMatch", "rules": [...] }'
+                      onChange={(e) =>
+                        updateSettings({
+                          sub_routing_json_default: e.target.value,
+                        })
+                      }
+                    />
+                    <FormHelperText>
+                      {t("botSettings.routingDefaultHint")}
+                    </FormHelperText>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>{t("botSettings.routingBs")}</FormLabel>
+                    <Textarea
+                      fontFamily="mono"
+                      minH="140px"
+                      value={settings.sub_routing_json_bs}
+                      placeholder='{ "domainStrategy": "AsIs", "rules": [...] }'
+                      onChange={(e) =>
+                        updateSettings({ sub_routing_json_bs: e.target.value })
+                      }
+                    />
+                    <FormHelperText>
+                      {t("botSettings.routingBsHint")}
+                    </FormHelperText>
+                  </FormControl>
                 </VStack>
               </TabPanel>
             </TabPanels>

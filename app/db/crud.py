@@ -1901,6 +1901,17 @@ def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
     return {addr for (addr,) in rows if addr}
 
 
+def get_bs_node_addresses(db: Session) -> set[str]:
+    """Адреса всех БС-нод (Node.is_bs=True).
+
+    Для пер-серверного выбора клиентского routing в подписке: хост в подписке
+    относится к БС-ноде, если его адрес совпадает с адресом is_bs-ноды (теги
+    инбаундов в Marzban общие, различает только Node.address — как в
+    get_blocked_bs_node_addresses)."""
+    rows = db.query(Node.address).filter(Node.is_bs.is_(True)).all()
+    return {addr for (addr,) in rows if addr}
+
+
 def create_notification_reminder(
         db: Session, reminder_type: ReminderType, expires_at: datetime, user_id: int, threshold: Optional[int] = None) -> NotificationReminder:
     """

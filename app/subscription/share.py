@@ -1,4 +1,5 @@
 import base64
+import logging
 import random
 import secrets
 from collections import defaultdict
@@ -23,6 +24,8 @@ from config import (
     LIMITED_STATUS_TEXT,
     ONHOLD_STATUS_TEXT,
 )
+
+logger = logging.getLogger(__name__)
 
 SERVER_IP = get_public_ip()
 SERVER_IPV6 = get_public_ipv6()
@@ -118,10 +121,27 @@ def generate_subscription(
         settings: Optional[dict] = None,
         bs_stub_addresses: Optional[set] = None,
         bs_stub_text: str = "",
+        bs_addresses: Optional[set] = None,
 ) -> str:
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
 
     resolved_settings = apply_bot_settings_fallback(settings or DEFAULT_BOT_SETTINGS)
+
+    from app.xray.bs_routing import parse_json_object
+
+    def _safe_json(raw, name):
+        try:
+            return parse_json_object(raw)
+        except ValueError as exc:
+            logger.warning("[sub] ignoring invalid %s: %s", name, exc)
+            return None
+
+    v2ray_template_override = _safe_json(
+        resolved_settings.get("sub_v2ray_json_template"), "sub_v2ray_json_template")
+    routing_default_override = _safe_json(
+        resolved_settings.get("sub_routing_json_default"), "sub_routing_json_default")
+    routing_bs_override = _safe_json(
+        resolved_settings.get("sub_routing_json_bs"), "sub_routing_json_bs")
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
     if config_format in ("v2ray", "v2ray-json") and (
@@ -237,7 +257,11 @@ def generate_subscription(
     elif config_format == "v2ray-json":
         from app.subscription.v2ray import V2rayJsonConfig
 
-        conf = V2rayJsonConfig()
+        conf = V2rayJsonConfig(
+            template_override=v2ray_template_override,
+            routing_default=routing_default_override,
+            routing_bs=routing_bs_override,
+        )
         if device_limit_text:
             zero_id = "00000000-0000-0000-0000-000000000000"
             stub_inbound = {
@@ -268,6 +292,7 @@ def generate_subscription(
             reverse=reverse,
             bs_stub_addresses=bs_stub_addresses,
             bs_stub_text=bs_stub_text,
+            bs_addresses=bs_addresses,
         )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')
@@ -392,10 +417,12 @@ def process_inbounds_and_tags(
         reverse=False,
         bs_stub_addresses: Optional[set] = None,
         bs_stub_text: str = "",
+        bs_addresses: Optional[set] = None,
 ) -> Union[List, str]:
     from app.xray.bs_limit import host_matches_blocked
 
     bs_stub_addresses = bs_stub_addresses or set()
+    bs_addresses = bs_addresses or set()
     _inbounds = []
     for protocol, tags in inbounds.items():
         for tag in tags:
@@ -489,11 +516,20 @@ def process_inbounds_and_tags(
                     )
                     continue
 
+                # Пер-серверный routing только для v2ray-json: БС-хост (адрес
+                # совпал с is_bs-нодой) получает routing_bs, остальные — default.
+                # Другие форматы не знают про is_bs — туда флаг не передаём.
+                add_kwargs = {}
+                if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(
+                    host["address"], bs_addresses
+                ):
+                    add_kwargs["is_bs"] = True
                 conf.add(
                     remark=host["remark"].format_map(format_variables),
                     address=address.format_map(format_variables),
                     inbound=host_inbound,
-                    settings=settings.model_dump()
+                    settings=settings.model_dump(),
+                    **add_kwargs,
                 )
 
     return conf.render(reverse=reverse)
