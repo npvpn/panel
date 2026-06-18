@@ -52,6 +52,13 @@ DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
     "sub_expired_server_text": _normalize_server_text(SUB_EXPIRED_SERVER_TEXT),
     "sub_device_limit_server_text": _normalize_server_text(SUB_DEVICE_LIMIT_SERVER_TEXT),
     "sub_unsupported_client_server_text": _normalize_server_text(SUB_UNSUPPORTED_CLIENT_SERVER_TEXT),
+    "bs_daily_limit": 0,
+    "bs_monthly_limit": 0,
+    "sub_bs_limit_server_text": [],
+    "sub_bs_limit_announce_text": "",
+    "sub_v2ray_json_template": "",
+    "sub_routing_json_default": "",
+    "sub_routing_json_bs": "",
 }
 
 
@@ -99,22 +106,44 @@ class BotSettingsPayload(BaseModel):
     sub_expired_announce_text: str = ""
     sub_device_limit_announce_text: str = ""
     sub_device_limit_hard_mode: bool = False
+    bs_daily_limit: int = 0
+    bs_monthly_limit: int = 0
     sub_unsupported_client_announce_text: str = ""
     sub_revoked_server_text: List[str] = []
     sub_expired_server_text: List[str] = []
     sub_device_limit_server_text: List[str] = []
     sub_unsupported_client_server_text: List[str] = []
+    sub_bs_limit_server_text: List[str] = []
+    sub_bs_limit_announce_text: str = ""
+    sub_v2ray_json_template: str = ""
+    sub_routing_json_default: str = ""
+    sub_routing_json_bs: str = ""
 
     @field_validator(
         "sub_revoked_server_text",
         "sub_expired_server_text",
         "sub_device_limit_server_text",
         "sub_unsupported_client_server_text",
+        "sub_bs_limit_server_text",
         mode="before",
     )
     @classmethod
     def validate_server_text(cls, value: Any):
         return _normalize_server_text(value)
+
+    @field_validator(
+        "sub_v2ray_json_template",
+        "sub_routing_json_default",
+        "sub_routing_json_bs",
+        mode="before",
+    )
+    @classmethod
+    def validate_json_field(cls, value: Any):
+        from app.xray.bs_routing import parse_json_object
+
+        # '' / None → допустимо (поле не задано); иначе обязан быть JSON-объект.
+        parse_json_object(value)
+        return value if value is not None else ""
 
 
 def apply_bot_settings_fallback(raw_settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -129,6 +158,7 @@ def apply_bot_settings_fallback(raw_settings: Optional[Dict[str, Any]]) -> Dict[
         "sub_expired_server_text",
         "sub_device_limit_server_text",
         "sub_unsupported_client_server_text",
+        "sub_bs_limit_server_text",
     ):
         base[key] = _normalize_server_text(base.get(key))
 

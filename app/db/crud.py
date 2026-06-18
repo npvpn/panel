@@ -22,6 +22,7 @@ from app.db.models import (
     NextPlan,
     Node,
     NodeUsage,
+    NodeUserBsUsage,
     NodeUserUsage,
     NotificationReminder,
     Proxy,
@@ -33,6 +34,7 @@ from app.db.models import (
     UserTemplate,
     UserUsageResetLogs,
     UserDevice,
+    NodeUserBlock,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.node import NodeCreate, NodeModify, NodeRole, NodeStatus, NodeUsageResponse
@@ -926,6 +928,13 @@ def reset_user_data_usage(db: Session, dbuser: User) -> User:
 
     dbuser.used_traffic = 0
     dbuser.node_usages.clear()
+    # Сбрасываем агрегатный БС-счётчик: иначе после reset usages юзер остаётся
+    # над лимитом и review_bs_nodes держит его заблокированным. Блок (node_user_blocks)
+    # снимет сама джоба на следующем тике (≤ JOB_REVIEW_BS_NODES_INTERVAL), заодно
+    # вернув юзера на ноды в xray.
+    db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id == dbuser.id).delete(
+        synchronize_session=False
+    )
     if dbuser.status not in (UserStatus.expired or UserStatus.disabled):
         dbuser.status = UserStatus.active.value
 
@@ -1059,7 +1068,8 @@ def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
     if admin:
         query = query.filter(User.admin == admin)
 
-    for dbuser in query.all():
+    users = query.all()
+    for dbuser in users:
         dbuser.used_traffic = 0
         if dbuser.status not in [UserStatus.on_hold, UserStatus.expired, UserStatus.disabled]:
             dbuser.status = UserStatus.active
@@ -1069,6 +1079,14 @@ def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
             db.delete(dbuser.next_plan)
             dbuser.next_plan = None
         db.add(dbuser)
+
+    # Сбрасываем БС-счётчики этих юзеров — иначе review_bs_nodes держит блок
+    # после массового reset (см. reset_user_data_usage).
+    user_ids = [u.id for u in users]
+    if user_ids:
+        db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id.in_(user_ids)).delete(
+            synchronize_session=False
+        )
 
     db.commit()
 
@@ -1737,6 +1755,7 @@ def create_node(db: Session, node: NodeCreate) -> Node:
         dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in node.inbounds]
 
     _apply_node_role(dbnode, node.role)
+    dbnode.is_bs = node.is_bs
     if node.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, node.cascade_routes)
 
@@ -1805,6 +1824,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
     if modify.role is not None:
         _apply_node_role(dbnode, modify.role)
 
+    if modify.is_bs is not None:
+        dbnode.is_bs = modify.is_bs
+
     if modify.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, modify.cascade_routes)
 
@@ -1834,6 +1856,60 @@ def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: s
     db.commit()
     db.refresh(dbnode)
     return dbnode
+
+
+def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> tuple[int, int]:
+    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий период.
+    → (daily_used, monthly_used) в байтах. Один индексированный запрос по user_id."""
+    from app.xray.bs_limit import aggregate_bs_usage
+
+    rows = db.query(
+        NodeUserBsUsage.user_id,
+        NodeUserBsUsage.daily_used,
+        NodeUserBsUsage.daily_period,
+        NodeUserBsUsage.monthly_used,
+        NodeUserBsUsage.monthly_period,
+    ).join(
+        Node, Node.id == NodeUserBsUsage.node_id
+    ).filter(
+        Node.is_bs.is_(True),
+        NodeUserBsUsage.user_id == user_id,
+    ).all()
+
+    totals = aggregate_bs_usage(
+        [{"user_id": r.user_id, "daily_used": r.daily_used, "daily_period": r.daily_period,
+          "monthly_used": r.monthly_used, "monthly_period": r.monthly_period} for r in rows],
+        today, yyyymm,
+    )
+    t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
+    return t["daily_used"], t["monthly_used"]
+
+
+def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
+    """Адреса БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
+
+    Матчим заглушку в подписке по адресу хоста, а НЕ по инбаунд-тегу: теги в
+    Marzban общие для всех нод (node_inbounds — m2m), поэтому стаб по тегу
+    задевал бы хосты обычных нод. Адрес же = Node.address уникально указывает
+    на конкретную ноду. При блоке юзер теряет ноду целиком."""
+    rows = (
+        db.query(Node.address)
+        .join(NodeUserBlock, NodeUserBlock.node_id == Node.id)
+        .filter(NodeUserBlock.user_id == user_id)
+        .all()
+    )
+    return {addr for (addr,) in rows if addr}
+
+
+def get_bs_node_addresses(db: Session) -> set[str]:
+    """Адреса всех БС-нод (Node.is_bs=True).
+
+    Для пер-серверного выбора клиентского routing в подписке: хост в подписке
+    относится к БС-ноде, если его адрес совпадает с адресом is_bs-ноды (теги
+    инбаундов в Marzban общие, различает только Node.address — как в
+    get_blocked_bs_node_addresses)."""
+    rows = db.query(Node.address).filter(Node.is_bs.is_(True)).all()
+    return {addr for (addr,) in rows if addr}
 
 
 def create_notification_reminder(

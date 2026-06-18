@@ -432,6 +432,7 @@ class Node(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    is_bs = Column(Boolean, nullable=False, default=False, server_default=text("0"))
 
 
 class NodeUserUsage(Base):
@@ -447,6 +448,38 @@ class NodeUserUsage(Base):
     node_id = Column(Integer, ForeignKey("nodes.id"))
     node = relationship("Node", back_populates="user_usages")
     used_traffic = Column(BigInteger, default=0)
+
+
+class NodeUserBsUsage(Base):
+    """По-нодный инкрементальный счётчик расхода для БС-нод (NPVPN-1456).
+    Ленивый сброс периодов при инкременте; единственный writer — record_usages."""
+    __tablename__ = "node_user_bs_usage"
+    __table_args__ = (
+        UniqueConstraint("node_id", "user_id", name="uq_node_user_bs_usage"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    daily_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
+    monthly_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
+    daily_period = Column(String(10), nullable=True)   # "YYYY-MM-DD"
+    monthly_period = Column(String(7), nullable=True)   # "YYYY-MM"
+
+
+class NodeUserBlock(Base):
+    """Текущее состояние по-нодных блокировок (NPVPN-1456).
+    Единственный writer — review_bs_nodes; period: 'day'|'month' (диагностика)."""
+    __tablename__ = "node_user_blocks"
+    __table_args__ = (
+        UniqueConstraint("node_id", "user_id", name="uq_node_user_blocks"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    period = Column(String(8), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class NodeUsage(Base):
