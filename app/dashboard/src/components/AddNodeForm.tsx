@@ -1,12 +1,4 @@
-import {
-  AccordionButton,
-  AccordionItem,
-  AccordionPanel,
-  chakra,
-  Text,
-  useToast,
-} from "@chakra-ui/react";
-import { PlusIcon as HeroIconPlusIcon } from "@heroicons/react/24/outline";
+import { Box, useToast } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   FetchNodesQueryKey,
@@ -28,21 +20,11 @@ import {
 import { NodeForm } from "./NodeForm";
 
 type AddNodeFormType = {
-  toggleAccordion: () => void;
   resetAccordions: () => void;
   isOpen: boolean;
 };
 
-const PlusIcon = chakra(HeroIconPlusIcon, {
-  baseStyle: {
-    w: 5,
-    h: 5,
-    strokeWidth: 2,
-  },
-});
-
 export const AddNodeForm: FC<AddNodeFormType> = ({
-  toggleAccordion,
   resetAccordions,
   isOpen,
 }) => {
@@ -73,42 +55,22 @@ export const AddNodeForm: FC<AddNodeFormType> = ({
   });
 
   return (
-    <AccordionItem
+    <Box
       border="1px solid"
       _dark={{ borderColor: "gray.600" }}
       _light={{ borderColor: "gray.200" }}
       borderRadius="4px"
-      p={1}
+      p={3}
       w="full"
     >
-      <AccordionButton px={2} borderRadius="3px" onClick={toggleAccordion}>
-        <Text
-          as="span"
-          fontWeight="medium"
-          fontSize="sm"
-          flex="1"
-          textAlign="left"
-          color="gray.700"
-          _dark={{ color: "gray.300" }}
-          display="flex"
-          gap={1}
-        >
-          <PlusIcon display={"inline-block"} />{" "}
-          <span>{t("nodes.addNewMarzbanNode")}</span>
-        </Text>
-      </AccordionButton>
-      <AccordionPanel px={2} py={4}>
-        {isOpen && (
-          <NodeForm
-            form={form}
-            mutate={mutate}
-            isLoading={isLoading}
-            submitBtnText={t("nodes.addNode")}
-            btnProps={{ variant: "solid" }}
-            addAsHost
-          />
-        )}
-      </AccordionPanel>
-    </AccordionItem>
+      <NodeForm
+        form={form}
+        mutate={mutate}
+        isLoading={isLoading}
+        submitBtnText={t("nodes.addNode")}
+        btnProps={{ variant: "solid" }}
+        addAsHost
+      />
+    </Box>
   );
 };
