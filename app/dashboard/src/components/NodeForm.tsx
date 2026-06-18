@@ -251,7 +251,7 @@ export const NodeForm: NodeFormType = ({
             </FormControl>
           </Box>
         </HStack>
-        <HStack alignItems="flex-start" w="100%">
+        <HStack alignItems="flex-end" w="100%">
           <Box>
             <CustomInput
               label={t("nodes.nodePort")}
