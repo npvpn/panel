@@ -5,6 +5,9 @@ import {
   chakra,
   Collapse,
   HStack,
+  Input,
+  InputGroup,
+  InputLeftElement,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -15,7 +18,11 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { ChevronDownIcon, SquaresPlusIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+  SquaresPlusIcon,
+} from "@heroicons/react/24/outline";
 import { useNodesQuery } from "contexts/NodesContext";
 import { FC, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -37,16 +44,10 @@ const ModalIcon = chakra(SquaresPlusIcon, {
     h: 5,
   },
 });
-const PlusIcon = chakra(HeroIconPlusIcon, {
-  baseStyle: {
-    w: 5,
-    h: 5,
-    strokeWidth: 2,
-  },
-});
 
 export const NodesDialog: FC = () => {
   const [isAddingNode, setIsAddingNode] = useState(false);
+  const [search, setSearch] = useState("");
   const { isEditingNodes, onEditingNodes } = useDashboard();
   const { t } = useTranslation();
   const [openAccordions, setOpenAccordions] = useState<Set<number>>(new Set());
@@ -91,10 +92,13 @@ export const NodesDialog: FC = () => {
     });
   }, []);
 
-  const openIndexes = useMemo(
-    () => Array.from(openAccordions),
-    [openAccordions]
-  );
+  const filteredNodes = useMemo(() => {
+    if (!nodes) return [];
+    if (!search.trim()) return nodes;
+    return nodes.filter((node) =>
+      node.name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [nodes, search]);
 
   return (
     <>
@@ -130,7 +134,26 @@ export const NodesDialog: FC = () => {
             </HStack>
           </ModalHeader>
           <ModalCloseButton mt={3} />
-          <ModalBody w="full" pb={6} pt={3}>
+          <ModalBody
+            w="full"
+            pb={6}
+            pt={3}
+            sx={{
+              "&::-webkit-scrollbar": {
+                width: "6px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: "transparent",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: "rgba(128,128,128,0.4)",
+                borderRadius: "999px",
+              },
+              "&::-webkit-scrollbar-thumb:hover": {
+                background: "rgba(128,128,128,0.6)",
+              },
+            }}
+          >
             {isLoading && (
               <VStack w="full" spacing={2}>
                 <Box
@@ -156,6 +179,18 @@ export const NodesDialog: FC = () => {
                 />
               </VStack>
             )}
+
+            <InputGroup mb={3}>
+              <InputLeftElement pointerEvents="none">
+                <MagnifyingGlassIcon width="16px" color="gray" />
+              </InputLeftElement>
+              <Input
+                placeholder={t("nodes.search") ?? "Поиск по нодам..."}
+                size="md"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </InputGroup>
 
             <Button
               w="full"
@@ -185,12 +220,15 @@ export const NodesDialog: FC = () => {
                 }}
               />
             </Collapse>
-
-            <Accordion w="full" allowToggle index={openIndexes}>
+            <Accordion w="full" allowToggle>
               <VStack w="full">
+                {!isLoading && filteredNodes.length === 0 && search.trim() && (
+                  <Text opacity={0.5} fontSize="sm" textAlign="center" py={4}>
+                    {t("nodes.notFound") ?? "Ноды не найдены"}
+                  </Text>
+                )}
                 {!isLoading &&
-                  nodes &&
-                  nodes.map((node, index) => {
+                  filteredNodes.map((node, index) => {
                     const isOpen = openAccordions.has(index);
 
                     return (
