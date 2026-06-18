@@ -19,7 +19,6 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "react-query";
 import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
-
 import { useDashboard } from "../contexts/DashboardContext";
 import { DeleteNodeModal } from "./DeleteNodeModal";
 import { Icon } from "./Icon";
@@ -73,8 +72,6 @@ export const NodesDialog: FC = () => {
     [openAccordions]
   );
 
-  const nodeSettingsMemo = useMemo(() => nodeSettings, [nodeSettings]);
-
   return (
     <>
       <Modal isOpen={isEditingNodes} onClose={onClose}>
@@ -127,10 +124,10 @@ export const NodesDialog: FC = () => {
                       <NodeAccordion
                         onToggle={toggleAccordion}
                         index={index}
-                        key={node.name}
-                        node={node as any}
+                        key={node.id ?? node.name}
+                        node={node}
                         isOpen={isOpen}
-                        nodeSettings={nodeSettingsMemo}
+                        nodeSettings={nodeSettings}
                       />
                     );
                   })}

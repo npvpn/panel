@@ -9,34 +9,18 @@ import {
   Box,
   Button,
   HStack,
-  IconButton,
-  Tooltip,
   Text,
-  useToast,
   VStack,
 } from "@chakra-ui/react";
-import {
-  FetchNodesQueryKey,
-  NodeSchema,
-  NodeType,
-  useNodes,
-} from "contexts/NodesContext";
+import { FetchNodesQueryKey, NodeType, useNodes } from "contexts/NodesContext";
 import { FC, memo } from "react";
-import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "react-query";
 import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
 import { Status } from "types/User";
-import {
-  generateErrorMessage,
-  generateSuccessMessage,
-} from "utils/toastHandler";
-import { DeleteIcon } from "./DeleteUserModal";
 import { ReloadIcon } from "./Filters";
 import { NodeModalStatusBadge } from "./NodeModalStatusBadge";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { NodeForm } from "./NodeForm";
 import { NodeAccordionForm } from "./NodeAccordionForm";
 
 type AccordionInboundType = {
@@ -55,11 +39,6 @@ export const NodeAccordion: FC<AccordionInboundType> = memo(
     const { reconnectNode, setDeletingNode } = useNodes();
     const { t } = useTranslation();
     const queryClient = useQueryClient();
-    const toast = useToast();
-    const form = useForm<NodeType>({
-      defaultValues: node,
-      resolver: zodResolver(NodeSchema),
-    });
     const handleDeleteNode = setDeletingNode.bind(null, node);
 
     const { isLoading: isReconnecting, mutate: reconnect } = useMutation(
