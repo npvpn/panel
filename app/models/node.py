@@ -22,6 +22,13 @@ class NodeRole(str, Enum):
     direct = "direct"
 
 
+class NodeBalancerStrategy(str, Enum):
+    random = "random"
+    round_robin = "roundRobin"
+    least_ping = "leastPing"
+    least_load = "leastLoad"
+
+
 class NodeSettings(BaseModel):
     min_node_version: str = "v0.2.0"
     certificate: str
