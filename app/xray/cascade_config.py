@@ -176,20 +176,29 @@ def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None
                 routing["balancers"] = routing.get("balancers", []) + [
                     build_balancer(bal_tag, selector, strategy)
                 ]
+                # Cascade routing rules are appended AFTER any pre-existing base rules.
+                # xray matches rules top-to-bottom, first match wins — so the base config
+                # must not carry an earlier rule matching a cascade entry_inbound_tag,
+                # or this appended balancer/outbound rule would never be reached.
                 routing["rules"] = routing.get("rules", []) + [
                     build_balancer_rule(entry_tag, bal_tag)
                 ]
                 has_balancer = True
             else:
                 # одиночный exit на инбаунд — прежнее поведение.
+                # Same append-after invariant applies (see comment above).
                 routing["rules"] = routing.get("rules", []) + [build_routing_rule(group[0])]
 
         # 3) observatory только для ping/load-стратегий и только если есть балансировщики.
         if has_balancer:
             if strategy == "leastPing":
                 cfg["observatory"] = build_observatory()
+                # subjectSelector prefix "CASCADE_OUT_" intentionally covers ALL cascade
+                # outbounds on the node, including single-exit (non-balanced) ones —
+                # accepted as harmless over-probing for v1.
             elif strategy == "leastLoad":
                 cfg["burstObservatory"] = build_burst_observatory()
+                # Same intentional over-probing rationale as observatory above.
 
         return cfg
 

@@ -241,3 +241,25 @@ def test_entry_two_groups_get_separate_balancers():
     result = cascade_config(base(), role="entry", entry_routes=routes, strategy="random")
     bal_tags = {b["tag"] for b in result["routing"]["balancers"]}
     assert bal_tags == {cascade_balancer_tag("VLESS_TCP"), cascade_balancer_tag("OTHER")}
+
+
+def test_entry_appends_cascade_rules_after_base_rules():
+    """Documents the rule-ordering invariant: cascade rules are appended after base rules.
+
+    xray is first-match-wins; the base config must not carry an earlier rule matching
+    a cascade entry_inbound_tag or the cascade balancer/outbound rule would be dead.
+    This test asserts the base BLOCK rule stays first and the balancer rule follows it.
+    """
+    routes = [
+        route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"),
+        route(exit_id=9, entry="VLESS_TCP", cascade="VLESS_TCP"),
+    ]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="random")
+    rules = result["routing"]["rules"]
+    # The pre-existing base rule is still present and still first.
+    assert rules[0] == {"ip": ["geoip:private"], "outboundTag": "BLOCK", "type": "field"}
+    # The appended balancer rule appears after it.
+    bal_tag = cascade_balancer_tag("VLESS_TCP")
+    balancer_rules = [r for r in rules if r.get("balancerTag") == bal_tag]
+    assert len(balancer_rules) == 1
+    assert rules.index(balancer_rules[0]) > 0
