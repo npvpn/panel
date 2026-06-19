@@ -4,6 +4,7 @@ from app.xray.cascade_config import (
     cascade_config,
     cascade_outbound_tag,
 )
+from app.xray.cascade_config import cascade_balancer_tag
 
 
 class FakeConfig(dict):
@@ -144,3 +145,99 @@ def test_does_not_mutate_input():
     cascade_config(cfg, role="exit",
                    cascade_clients=[{"inbound_tag": "VLESS_TCP", "uuid": "svc-uuid"}])
     assert dict(cfg) == snapshot
+
+
+def test_entry_single_route_per_inbound_keeps_outbound_rule():
+    # одна route на entry_inbound_tag → старое поведение, без балансировщика
+    result = cascade_config(base(), role="entry", entry_routes=[route(exit_id=7)],
+                            strategy="leastPing")
+    assert "balancers" not in result["routing"]
+    rule = result["routing"]["rules"][-1]
+    assert rule == {"type": "field", "inboundTag": ["VLESS_TCP"],
+                    "outboundTag": cascade_outbound_tag(7, "VLESS_TCP")}
+    # observatory не добавляется, если нет ни одного балансировщика
+    assert "observatory" not in result
+
+
+def test_entry_multiple_exits_same_inbound_build_balancer():
+    routes = [route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"),
+              route(exit_id=9, entry="VLESS_TCP", cascade="VLESS_TCP")]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="random")
+
+    # оба outbound'а присутствуют
+    out_tags = [o["tag"] for o in result["outbounds"]]
+    assert cascade_outbound_tag(7, "VLESS_TCP") in out_tags
+    assert cascade_outbound_tag(9, "VLESS_TCP") in out_tags
+
+    # один балансировщик с явным selector'ом из тегов группы
+    bal_tag = cascade_balancer_tag("VLESS_TCP")
+    balancers = result["routing"]["balancers"]
+    assert len(balancers) == 1
+    bal = balancers[0]
+    assert bal["tag"] == bal_tag
+    assert bal["selector"] == [cascade_outbound_tag(7, "VLESS_TCP"),
+                               cascade_outbound_tag(9, "VLESS_TCP")]
+    assert bal["strategy"] == {"type": "random"}
+
+    # одно routing-правило входного инбаунда → balancerTag (а не два outboundTag)
+    inbound_rules = [r for r in result["routing"]["rules"]
+                     if r.get("inboundTag") == ["VLESS_TCP"]]
+    assert inbound_rules == [{"type": "field", "inboundTag": ["VLESS_TCP"],
+                              "balancerTag": bal_tag}]
+
+
+def test_entry_observatory_only_for_least_ping():
+    routes = [route(exit_id=7), route(exit_id=9)]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="leastPing")
+    assert result["observatory"] == {
+        "subjectSelector": ["CASCADE_OUT_"],
+        "probeUrl": "https://www.google.com/generate_204",
+        "probeInterval": "10s",
+    }
+    assert "burstObservatory" not in result
+    assert result["routing"]["balancers"][0]["strategy"] == {"type": "leastPing"}
+
+
+def test_entry_burst_observatory_only_for_least_load():
+    routes = [route(exit_id=7), route(exit_id=9)]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="leastLoad")
+    assert result["burstObservatory"] == {
+        "subjectSelector": ["CASCADE_OUT_"],
+        "pingConfig": {
+            "destination": "https://www.google.com/generate_204",
+            "interval": "10s",
+            "connectivity": "",
+            "timeout": "3s",
+            "sampling": 3,
+        },
+    }
+    assert "observatory" not in result
+    assert result["routing"]["balancers"][0]["strategy"] == {"type": "leastLoad"}
+
+
+def test_entry_random_round_robin_have_no_observatory():
+    routes = [route(exit_id=7), route(exit_id=9)]
+    for strat in ("random", "roundRobin"):
+        result = cascade_config(base(), role="entry", entry_routes=routes, strategy=strat)
+        assert "observatory" not in result
+        assert "burstObservatory" not in result
+
+
+def test_entry_unknown_strategy_falls_back_to_random():
+    routes = [route(exit_id=7), route(exit_id=9)]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="bogus")
+    assert result["routing"]["balancers"][0]["strategy"] == {"type": "random"}
+    assert "observatory" not in result
+    assert "burstObservatory" not in result
+
+
+def test_entry_two_groups_get_separate_balancers():
+    routes = [
+        route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"),
+        route(exit_id=9, entry="VLESS_TCP", cascade="VLESS_TCP"),
+        route(exit_id=7, entry="OTHER", cascade="VLESS_TCP"),
+        route(exit_id=9, entry="OTHER", cascade="VLESS_TCP"),
+    ]
+    result = cascade_config(base(), role="entry", entry_routes=routes, strategy="random")
+    bal_tags = {b["tag"] for b in result["routing"]["balancers"]}
+    assert bal_tags == {cascade_balancer_tag("VLESS_TCP"), cascade_balancer_tag("OTHER")}
