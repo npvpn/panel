@@ -1,5 +1,4 @@
 import {
-  Accordion,
   Box,
   Button,
   chakra,
@@ -12,7 +11,6 @@ import {
   ModalBody,
   ModalCloseButton,
   ModalContent,
-  ModalFooter,
   ModalHeader,
   ModalOverlay,
   Text,
@@ -23,7 +21,7 @@ import {
   MagnifyingGlassIcon,
   SquaresPlusIcon,
 } from "@heroicons/react/24/outline";
-import { useNodesQuery } from "contexts/NodesContext";
+import { NodeType, useNodesQuery } from "contexts/NodesContext";
 import { FC, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
@@ -50,7 +48,7 @@ export const NodesDialog: FC = () => {
   const [search, setSearch] = useState("");
   const { isEditingNodes, onEditingNodes } = useDashboard();
   const { t } = useTranslation();
-  const [openAccordions, setOpenAccordions] = useState<Set<number>>(new Set());
+  const [openAccordion, setOpenAccordion] = useState<number | null>(null);
   const { data: nodes, isLoading } = useNodesQuery();
 
   useEffect(() => {
@@ -76,20 +74,12 @@ export const NodesDialog: FC = () => {
   });
 
   const onClose = () => {
-    setOpenAccordions(new Set());
+    setOpenAccordion(null);
     onEditingNodes(false);
   };
 
-  const toggleAccordion = useCallback((index: number) => {
-    setOpenAccordions((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
+  const toggleAccordion = useCallback((id: number) => {
+    setOpenAccordion((prev) => (prev === id ? null : id));
   }, []);
 
   const filteredNodes = useMemo(() => {
@@ -215,39 +205,40 @@ export const NodesDialog: FC = () => {
               <AddNodeForm
                 isOpen={isAddingNode}
                 resetAccordions={() => {
-                  setOpenAccordions(new Set());
+                  setOpenAccordion(null);
                   setIsAddingNode(false);
                 }}
               />
             </Collapse>
-            <Accordion w="full" allowToggle>
-              <VStack w="full">
-                {!isLoading && filteredNodes.length === 0 && search.trim() && (
-                  <Text opacity={0.5} fontSize="sm" textAlign="center" py={4}>
-                    {t("nodes.notFound") ?? "Ноды не найдены"}
-                  </Text>
-                )}
-                {!isLoading &&
-                  filteredNodes.map((node, index) => {
-                    const isOpen = openAccordions.has(index);
+            {/* <Accordion w="full" allowToggle> */}
+            <VStack w="full">
+              {!isLoading && filteredNodes.length === 0 && search.trim() && (
+                <Text opacity={0.5} fontSize="sm" textAlign="center" py={4}>
+                  {t("nodes.notFound") ?? "Ноды не найдены"}
+                </Text>
+              )}
+              {!isLoading &&
+                filteredNodes.map((node) => {
+                  if (typeof node.id !== "number") return null;
 
-                    return (
-                      <NodeAccordion
-                        onToggle={toggleAccordion}
-                        index={index}
-                        key={node.id ?? node.name}
-                        node={node}
-                        isOpen={isOpen}
-                        nodeSettings={nodeSettings}
-                      />
-                    );
-                  })}
-              </VStack>
-            </Accordion>
+                  const isOpen = openAccordion === node.id;
+
+                  return (
+                    <NodeAccordion
+                      onToggle={toggleAccordion}
+                      key={node.id}
+                      node={node}
+                      isOpen={isOpen}
+                      nodeSettings={nodeSettings}
+                    />
+                  );
+                })}
+            </VStack>
+            {/* </Accordion> */}
           </ModalBody>
         </ModalContent>
       </Modal>
-      <DeleteNodeModal deleteCallback={() => setOpenAccordions(new Set())} />
+      <DeleteNodeModal deleteCallback={() => setOpenAccordion(null)} />
     </>
   );
 };

@@ -8,6 +8,7 @@ import {
   Badge,
   Box,
   Button,
+  Collapse,
   HStack,
   Text,
   VStack,
@@ -22,10 +23,10 @@ import { Status } from "types/User";
 import { ReloadIcon } from "./Filters";
 import { NodeModalStatusBadge } from "./NodeModalStatusBadge";
 import { NodeAccordionForm } from "./NodeAccordionForm";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 
 type AccordionInboundType = {
-  onToggle: (index: number) => void;
-  index: number;
+  onToggle: (id: number) => void;
   node: NodeType;
   isOpen: boolean;
   nodeSettings?: {
@@ -35,11 +36,11 @@ type AccordionInboundType = {
 };
 
 export const NodeAccordion: FC<AccordionInboundType> = memo(
-  ({ onToggle, index, node, isOpen, nodeSettings }) => {
+  ({ onToggle, node, isOpen, nodeSettings }) => {
     const { reconnectNode, setDeletingNode } = useNodes();
     const { t } = useTranslation();
     const queryClient = useQueryClient();
-    const handleDeleteNode = setDeletingNode.bind(null, node);
+    const handleDeleteNode = () => setDeletingNode(node);
 
     const { isLoading: isReconnecting, mutate: reconnect } = useMutation(
       reconnectNode.bind(null, node),
@@ -57,7 +58,7 @@ export const NodeAccordion: FC<AccordionInboundType> = memo(
       : "error";
 
     return (
-      <AccordionItem
+      <Box
         border="1px solid"
         _dark={{ borderColor: "gray.600" }}
         _light={{ borderColor: "gray.200" }}
@@ -65,10 +66,11 @@ export const NodeAccordion: FC<AccordionInboundType> = memo(
         p={1}
         w="full"
       >
-        <AccordionButton
-          px={2}
-          borderRadius="3px"
-          onClick={() => onToggle(index)}
+        <Button
+          variant="ghost"
+          w="full"
+          justifyContent="space-between"
+          onClick={() => onToggle(node.id!)}
         >
           <HStack w="full" justifyContent="space-between" pr={2}>
             <Text
@@ -106,43 +108,51 @@ export const NodeAccordion: FC<AccordionInboundType> = memo(
               )}
             </HStack>
           </HStack>
-          <AccordionIcon />
-        </AccordionButton>
-        <AccordionPanel px={2} pb={2}>
-          <VStack pb={3} alignItems="flex-start">
-            {nodeStatus === "error" && (
-              <Alert status="error" size="xs">
-                <Box>
-                  <HStack w="full">
-                    <AlertIcon w={4} />
-                    <Text marginInlineEnd={0}>{node.message}</Text>
-                  </HStack>
-                  <HStack justifyContent="flex-end" w="full">
-                    <Button
-                      size="sm"
-                      aria-label="reconnect node"
-                      leftIcon={<ReloadIcon />}
-                      onClick={() => reconnect()}
-                      disabled={isReconnecting}
-                    >
-                      {isReconnecting
-                        ? t("nodes.reconnecting")
-                        : t("nodes.reconnect")}
-                    </Button>
-                  </HStack>
-                </Box>
-              </Alert>
+          <ChevronDownIcon
+            width={16}
+            style={{
+              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform .2s",
+            }}
+          />
+        </Button>
+        <Collapse in={isOpen} animateOpacity>
+          <Box px={2} pb={2}>
+            <VStack pb={3} alignItems="flex-start">
+              {nodeStatus === "error" && (
+                <Alert status="error" size="xs">
+                  <Box>
+                    <HStack w="full">
+                      <AlertIcon w={4} />
+                      <Text marginInlineEnd={0}>{node.message}</Text>
+                    </HStack>
+                    <HStack justifyContent="flex-end" w="full">
+                      <Button
+                        size="sm"
+                        aria-label="reconnect node"
+                        leftIcon={<ReloadIcon />}
+                        onClick={() => reconnect()}
+                        disabled={isReconnecting}
+                      >
+                        {isReconnecting
+                          ? t("nodes.reconnecting")
+                          : t("nodes.reconnect")}
+                      </Button>
+                    </HStack>
+                  </Box>
+                </Alert>
+              )}
+            </VStack>
+            {isOpen && (
+              <NodeAccordionForm
+                node={node}
+                nodeSettings={nodeSettings}
+                onDelete={handleDeleteNode}
+              />
             )}
-          </VStack>
-          {isOpen && (
-            <NodeAccordionForm
-              node={node}
-              nodeSettings={nodeSettings}
-              onDelete={handleDeleteNode}
-            />
-          )}
-        </AccordionPanel>
-      </AccordionItem>
+          </Box>
+        </Collapse>
+      </Box>
     );
   }
 );
