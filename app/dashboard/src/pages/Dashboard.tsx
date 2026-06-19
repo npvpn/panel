@@ -26,8 +26,9 @@ export const Dashboard: FC = () => {
     const search = params.get("search");
     if (search) {
       useDashboard.getState().onFilterChange({ search });
+    } else {
+      useDashboard.getState().refetchUsers();
     }
-    useDashboard.getState().refetchUsers();
     useDashboard.getState().onEditingBotSettings(false);
     fetchInbounds();
   }, []);
