@@ -4,6 +4,7 @@ import traceback
 from app import app, logger, scheduler, xray
 from app.db import GetDB, crud
 from app.models.node import NodeStatus
+from app.xray.node import NodeAPIError
 from config import (
     JOB_CORE_HEALTH_CHECK_INTERVAL,
     XRAY_NODE_ERROR_RECONNECT_INTERVAL,
@@ -12,18 +13,6 @@ from config import (
 from xray_api import exc as xray_exc
 
 _error_reconnect_last: dict[int, float] = {}
-
-
-def _quick_node_ready(node) -> bool:
-    """Cached readiness check — no network I/O."""
-    try:
-        if hasattr(node, "_session_id"):
-            return bool(getattr(node, "_session_id", None)) and bool(getattr(node, "_started", False))
-        if hasattr(node, "started"):
-            return bool(getattr(node, "started", False))
-    except Exception:
-        pass
-    return False
 
 
 def _should_force_reconnect(node_id: int, status: NodeStatus, now: float) -> bool:
@@ -62,10 +51,23 @@ def core_health_check():
 
         node = xray.nodes[node_id]
 
-        if dbnode.status == NodeStatus.connected and _quick_node_ready(node):
+        if dbnode.status == NodeStatus.connected:
+            if not node.connected:
+                if reconnects_scheduled >= max_reconnects:
+                    continue
+                if not config:
+                    config = xray.config.include_db_users()
+                xray.operations.connect_node(node_id, config)
+                reconnects_scheduled += 1
+                continue
+
             try:
+                # Must hit the node REST API (GET /), not cached _started — ping alone
+                # does not prove Xray is running (e.g. OOM killed the core).
+                if not node.started:
+                    raise AssertionError("Xray core is not started on node")
                 node.api.get_sys_stats(timeout=2)
-            except (ConnectionError, xray_exc.XrayError, AssertionError):
+            except (ConnectionError, NodeAPIError, xray_exc.XrayError, AssertionError):
                 if not config:
                     config = xray.config.include_db_users()
                 xray.operations.restart_node(node_id, config)
@@ -74,8 +76,7 @@ def core_health_check():
         if dbnode.status == NodeStatus.connecting:
             if xray.operations.is_connect_in_progress(node_id):
                 continue
-            if not xray.operations.is_connect_stale(node_id):
-                continue
+            # No active connect task — fall through and schedule reconnect below.
 
         if dbnode.status not in (NodeStatus.error, NodeStatus.connecting):
             continue
