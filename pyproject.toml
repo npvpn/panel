@@ -69,6 +69,35 @@ test = [
 pythonpath = ["."]
 testpaths = ["tests"]
 
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+check_untyped_defs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+no_implicit_optional = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+ignore_missing_imports = false
+follow_imports = "normal"
+exclude = ["app/db/migrations/"]
+
+# Сторонние библиотеки без типов/стабов
+[[tool.mypy.overrides]]
+module = [
+    "commentjson.*",
+    "rpyc.*",
+    "telebot.*",
+    "jdatetime.*",
+    "decouple.*",
+    "grpc.*",
+    "xray_api.*",
+    "apscheduler.*",
+    "prometheus_fastapi_instrumentator.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120
