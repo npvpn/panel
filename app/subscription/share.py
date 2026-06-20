@@ -25,7 +25,7 @@ from config import (
     ONHOLD_STATUS_TEXT,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.subscription.share")
 
 SERVER_IP = get_public_ip()
 SERVER_IPV6 = get_public_ipv6()

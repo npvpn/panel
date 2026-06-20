@@ -26,6 +26,7 @@ class LogSettings:
     file_backup_count: int = 10
     access_enabled: bool = True
     sql_slow_enabled: bool = True
+    access_noise_paths: tuple[str, ...] = ("/metrics",)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> LogSettings:
@@ -37,6 +38,11 @@ class LogSettings:
             file_backup_count=int(env.get("LOG_FILE_BACKUP_COUNT", "10")),
             access_enabled=_as_bool(env.get("LOG_ACCESS_ENABLED"), True),
             sql_slow_enabled=_as_bool(env.get("LOG_SQL_SLOW_ENABLED"), True),
+            access_noise_paths=tuple(
+                p.strip()
+                for p in env.get("LOG_ACCESS_NOISE_PATHS", "/metrics").split(",")
+                if p.strip()
+            ),
         )
 
 
@@ -51,7 +57,10 @@ def build_logging_config(settings: LogSettings) -> dict:
         "disable_existing_loggers": False,
         "filters": {
             "context": {"()": "app.logging_context.ContextFilter"},
-            "access_noise": {"()": "app.logging_context.AccessNoiseFilter"},
+            "access_noise": {
+                "()": "app.logging_context.AccessNoiseFilter",
+                "noise_paths": list(settings.access_noise_paths),
+            },
         },
         "formatters": {"default": formatter},
         "handlers": {

@@ -1,9 +1,7 @@
 import logging
-import logging.handlers
 import os
 import time
 import traceback
-from pathlib import Path
 from uuid import uuid4
 
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
@@ -217,61 +215,18 @@ use_route_names_as_operation_ids(app)
 
 
 def _setup_file_logging() -> None:
+    """Применяет стандартный конфиг логирования (dictConfig из env).
+
+    Зовётся из on_startup() — после того как uvicorn сконфигурировал свои
+    логгеры, иначе наш конфиг будет перетёрт.
     """
-    Вешает RotatingFileHandler на uvicorn-loggers так, чтобы access-лог
-    и все traceback'и из log_exceptions_middleware писались на хостовой
-    том, смонтированный в /var/log/app (см. docker-compose.yaml сервиса
-    marzban). Это нужно, чтобы логи переживали recreate контейнера через
-    refresh.sh (json-file driver их стирает при удалении container id).
+    import logging.config
 
-    Вызывается из on_startup() — гарантированно ПОСЛЕ того как uvicorn
-    сконфигурировал свои loggers через log_config dictConfig, иначе наш
-    handler был бы затёрт.
-    """
-    log_dir = Path(os.getenv("LOG_DIR", "/var/log/app"))
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.warning("Failed to create log dir %s: %s; file logging disabled", log_dir, e)
-        return
+    from app.logging_config import LogSettings, build_logging_config
 
-    try:
-        max_bytes = int(os.getenv("LOG_FILE_MAX_SIZE_MB", "50")) * 1024 * 1024
-        backup_count = int(os.getenv("LOG_FILE_BACKUP_COUNT", "10"))
-    except ValueError:
-        max_bytes = 50 * 1024 * 1024
-        backup_count = 10
-
-    fmt = logging.Formatter(
-        fmt="%(asctime)s %(levelname)-8s %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    # Один файл на оба канала — так проще искать трейсбеки рядом с access-логом.
-    handler = logging.handlers.RotatingFileHandler(
-        log_dir / "marzban.log",
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding="utf-8",
-    )
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(fmt)
-
-    # Маркер, чтобы не добавлять handler дважды при горячей перезагрузке воркера.
-    handler._marzban_file_handler = True  # type: ignore[attr-defined]
-
-    for logger_name in ("uvicorn.error", "uvicorn.access"):
-        lg = logging.getLogger(logger_name)
-        if any(getattr(h, "_marzban_file_handler", False) for h in lg.handlers):
-            continue
-        lg.addHandler(handler)
-
-    logger.info(
-        "File logging enabled: %s (max=%dMB, backups=%d)",
-        log_dir / "marzban.log",
-        max_bytes // (1024 * 1024),
-        backup_count,
-    )
+    settings = LogSettings.from_env(os.environ)
+    os.makedirs(settings.dir, exist_ok=True)
+    logging.config.dictConfig(build_logging_config(settings))
 
 
 def _scheduler_job_listener(event) -> None:

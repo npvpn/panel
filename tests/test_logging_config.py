@@ -19,3 +19,13 @@ def test_build_config_has_expected_handlers_and_level():
 def test_access_disabled_silences_access_logger():
     cfg = build_logging_config(LogSettings(access_enabled=False))
     assert cfg["loggers"]["uvicorn.access"]["level"] == "CRITICAL"
+
+
+def test_from_env_parses_noise_paths():
+    s = LogSettings.from_env({"LOG_ACCESS_NOISE_PATHS": "/metrics, /healthz"})
+    assert s.access_noise_paths == ("/metrics", "/healthz")
+
+
+def test_build_config_passes_noise_paths_to_filter():
+    cfg = build_logging_config(LogSettings(access_noise_paths=("/metrics", "/healthz")))
+    assert cfg["filters"]["access_noise"]["noise_paths"] == ["/metrics", "/healthz"]

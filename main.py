@@ -3,6 +3,7 @@ import logging
 
 import uvicorn
 
+from app import app  # noqa: F401  # makes "main:app" resolvable for uvicorn
 from config import DEBUG, UVICORN_HOST, UVICORN_PORT, UVICORN_SSL_CERTFILE, UVICORN_SSL_KEYFILE, UVICORN_UDS
 
 if __name__ == "__main__":
