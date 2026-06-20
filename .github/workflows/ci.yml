@@ -1,0 +1,28 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format
+        run: uv run ruff format --check .
+      - name: strict lint (changed files only)
+        run: |
+          if [ -f scripts/lint-strict.sh ]; then
+            bash scripts/lint-strict.sh origin/${{ github.base_ref || 'master' }}
+          fi
+      - name: mypy (baseline)
+        run: uv run mypy app | uv run mypy-baseline filter
+      - name: pytest
+        run: uv run pytest -q
