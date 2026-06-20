@@ -5,10 +5,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-_TEXT_FORMAT = (
-    "%(asctime)s %(levelname)-8s %(name)s"
-    " [rid=%(rid)s node=%(node_id)s user=%(user_id)s] %(message)s"
-)
+_TEXT_FORMAT = "%(asctime)s %(levelname)-8s %(name)s [rid=%(rid)s node=%(node_id)s user=%(user_id)s] %(message)s"
 
 
 def _as_bool(value: str | None, default: bool) -> bool:
@@ -39,19 +36,13 @@ class LogSettings:
             access_enabled=_as_bool(env.get("LOG_ACCESS_ENABLED"), True),
             sql_slow_enabled=_as_bool(env.get("LOG_SQL_SLOW_ENABLED"), True),
             access_noise_paths=tuple(
-                p.strip()
-                for p in env.get("LOG_ACCESS_NOISE_PATHS", "/metrics").split(",")
-                if p.strip()
+                p.strip() for p in env.get("LOG_ACCESS_NOISE_PATHS", "/metrics").split(",") if p.strip()
             ),
         )
 
 
 def build_logging_config(settings: LogSettings) -> dict:
-    formatter = (
-        {"()": "app.logging_config.JsonFormatter"}
-        if settings.format == "json"
-        else {"format": _TEXT_FORMAT}
-    )
+    formatter = {"()": "app.logging_config.JsonFormatter"} if settings.format == "json" else {"format": _TEXT_FORMAT}
     return {
         "version": 1,
         "disable_existing_loggers": False,
