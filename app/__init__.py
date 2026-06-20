@@ -3,27 +3,26 @@ import logging.handlers
 import os
 import time
 import traceback
-from uuid import uuid4
 from pathlib import Path
+from uuid import uuid4
 
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import HTTPException
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 from app.utils.request_context import (
     request_handler_var,
     request_id_var,
     request_method_var,
     request_path_template_var,
 )
+from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 
 __version__ = "0.8.4"
 
@@ -35,9 +34,7 @@ app = FastAPI(
     redoc_url="/redoc" if DOCS else None,
 )
 
-scheduler = BackgroundScheduler(
-    {"apscheduler.job_defaults.max_instances": 20}, timezone="UTC"
-)
+scheduler = BackgroundScheduler({"apscheduler.job_defaults.max_instances": 20}, timezone="UTC")
 logger = logging.getLogger("uvicorn.error")
 
 app.add_middleware(
@@ -118,8 +115,7 @@ async def log_exceptions_middleware(request: Request, call_next):
         client_host = request.client.host if request.client else "-"
         user_agent = request.headers.get("user-agent", "-")
         logger.error(
-            "Unhandled exception rid=%s handler=%s in %s %s?%s from %s ua=%r after %dms: "
-            "%s: %s\n%s",
+            "Unhandled exception rid=%s handler=%s in %s %s?%s from %s ua=%r after %dms: %s: %s\n%s",
             rid,
             handler or "-",
             request.method,
@@ -167,8 +163,24 @@ from prometheus_fastapi_instrumentator import Instrumentator, metrics
 # Дефолтные lowr-бакеты (0.1, 0.5, 1) обрезают гистограмму на 1с,
 # из-за чего histogram_quantile экстраполирует всё что выше в фантастические минуты.
 _LATENCY_HIGHR_BUCKETS = (
-    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5,
-    0.75, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 30.0, 60.0,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    5.0,
+    7.5,
+    10.0,
+    30.0,
+    60.0,
 )
 _LATENCY_LOWR_BUCKETS = (0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
 
@@ -271,8 +283,9 @@ def _scheduler_job_listener(event) -> None:
     Прокидываем их в наш logger (uvicorn.error) с полным трейсбэком.
     """
     if event.code == EVENT_JOB_MISSED:
-        logger.warning("[scheduler] job %s missed its run time %s",
-                        event.job_id, getattr(event, "scheduled_run_time", "?"))
+        logger.warning(
+            "[scheduler] job %s missed its run time %s", event.job_id, getattr(event, "scheduled_run_time", "?")
+        )
         return
     logger.error(
         "[scheduler] job %s raised %s",
@@ -290,9 +303,7 @@ def on_startup():
     paths = [f"{r.path}/" for r in app.routes]
     paths.append("/api/")
     if f"/{XRAY_SUBSCRIPTION_PATH}/" in paths:
-        raise ValueError(
-            f"you can't use /{XRAY_SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}"
-        )
+        raise ValueError(f"you can't use /{XRAY_SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}")
     _setup_file_logging()
     scheduler.start()
 
@@ -301,6 +312,7 @@ def on_startup():
 def on_shutdown():
     scheduler.shutdown()
     from app.utils.concurrency import shutdown_xray_executor
+
     shutdown_xray_executor(wait=True)
 
 

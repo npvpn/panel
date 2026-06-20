@@ -1,21 +1,31 @@
+import time
 from concurrent.futures import as_completed
 from datetime import datetime
-import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
 from app import logger, scheduler, xray
-from app.db import (GetDB, get_notification_reminder, get_users,
-                    start_user_expire, update_user_status, reset_user_by_next)
+from app.db import (
+    GetDB,
+    get_notification_reminder,
+    get_users,
+    reset_user_by_next,
+    start_user_expire,
+    update_user_status,
+)
 from app.models.user import ReminderType, UserResponse, UserStatus
 from app.utils import report
 from app.utils.concurrency import get_xray_executor
-from app.utils.helpers import (calculate_expiration_days,
-                               calculate_usage_percent)
-from config import (JOB_REVIEW_USERS_INTERVAL, NOTIFY_DAYS_LEFT,
-                    NOTIFY_REACHED_USAGE_PERCENT, SLOW_STEP_THRESHOLD,
-                    SLOW_USER_TOTAL_THRESHOLD, WEBHOOK_ADDRESS)
+from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
+from config import (
+    JOB_REVIEW_USERS_INTERVAL,
+    NOTIFY_DAYS_LEFT,
+    NOTIFY_REACHED_USAGE_PERCENT,
+    SLOW_STEP_THRESHOLD,
+    SLOW_USER_TOTAL_THRESHOLD,
+    WEBHOOK_ADDRESS,
+)
 
 if TYPE_CHECKING:
     from app.db.models import User
@@ -29,8 +39,7 @@ def add_notification_reminders(db: Session, user: "User", now: datetime = dateti
             if usage_percent >= percent:
                 if not get_notification_reminder(db, user.id, ReminderType.data_usage, threshold=percent):
                     report.data_usage_percent_reached(
-                        db, usage_percent, UserResponse.model_validate(user),
-                        user.id, user.expire, threshold=percent
+                        db, usage_percent, UserResponse.model_validate(user), user.id, user.expire, threshold=percent
                     )
                 break
 
@@ -41,8 +50,7 @@ def add_notification_reminders(db: Session, user: "User", now: datetime = dateti
             if expire_days <= days_left:
                 if not get_notification_reminder(db, user.id, ReminderType.expiration_date, threshold=days_left):
                     report.expire_days_reached(
-                        db, expire_days, UserResponse.model_validate(user),
-                        user.id, user.expire, threshold=days_left
+                        db, expire_days, UserResponse.model_validate(user), user.id, user.expire, threshold=days_left
                     )
                 break
 
@@ -56,7 +64,7 @@ def reset_user_by_next_report(db: Session, user: "User"):
     if reset_user is None:
         logger.warning(
             f"reset_user_by_next returned None for user "
-            f"\"{getattr(user, 'username', '?')}\"; skipping xray update and report"
+            f'"{getattr(user, "username", "?")}"; skipping xray update and report'
         )
         return
     user = reset_user
@@ -66,10 +74,10 @@ def reset_user_by_next_report(db: Session, user: "User"):
     try:
         xray.operations.update_user(user)
     except Exception as e:
-        logger.warning(f"Failed to update user on XRAY during reset_user_by_next for \"{user.username}\": {e}")
+        logger.warning(f'Failed to update user on XRAY during reset_user_by_next for "{user.username}": {e}')
     finally:
         _dur = time.time() - _t0
-        logger.info(f"[review][next_plan] user=\"{user.username}\" xray_update_user took {_dur:.3f}s")
+        logger.info(f'[review][next_plan] user="{user.username}" xray_update_user took {_dur:.3f}s')
 
     report.user_data_reset_by_next(user=UserResponse.model_validate(user), user_admin=user.admin)
 
@@ -109,7 +117,6 @@ def review():
 
             if (limited or expired) and user.next_plan is not None:
                 if user.next_plan is not None:
-
                     if user.next_plan.fire_on_either:
                         reset_user_by_next_report(db, user)
                         applied_next += 1
@@ -134,10 +141,11 @@ def review():
             users_to_remove.append(user)
             update_user_status(db, user, status, commit=False)
 
-            report.status_change(username=user.username, status=status,
-                                 user=UserResponse.model_validate(user), user_admin=user.admin)
+            report.status_change(
+                username=user.username, status=status, user=UserResponse.model_validate(user), user_admin=user.admin
+            )
 
-            logger.info(f"User \"{user.username}\" status changed to {status}")
+            logger.info(f'User "{user.username}" status changed to {status}')
             changed_in_batch += 1
 
             # Commit batch periodically to avoid long-held locks
@@ -162,14 +170,14 @@ def review():
             executor = get_xray_executor()
             _remove_t0 = time.time()
             for batch_start in range(0, len(users_to_remove), REMOVE_BATCH_SIZE):
-                batch = users_to_remove[batch_start:batch_start + REMOVE_BATCH_SIZE]
+                batch = users_to_remove[batch_start : batch_start + REMOVE_BATCH_SIZE]
                 futures = {executor.submit(xray.operations.remove_user, u): u for u in batch}
                 for future in as_completed(futures):
                     u = futures[future]
                     try:
                         future.result()
                     except Exception as e:
-                        logger.warning(f"Failed to remove user \"{u.username}\" from XRAY: {e}")
+                        logger.warning(f'Failed to remove user "{u.username}" from XRAY: {e}')
             _remove_dur = time.time() - _remove_t0
             logger.info(f"[review] removed {len(users_to_remove)} users from xray in {_remove_dur:.3f}s")
 
@@ -222,14 +230,19 @@ def review():
                 finally:
                     changed_onhold_batch = 0
 
-            report.status_change(username=user.username, status=status,
-                                 user=UserResponse.model_validate(user), user_admin=user.admin)
+            report.status_change(
+                username=user.username, status=status, user=UserResponse.model_validate(user), user_admin=user.admin
+            )
 
-            logger.info(f"User \"{user.username}\" status changed to {status}")
+            logger.info(f'User "{user.username}" status changed to {status}')
             _hold_u_dur = time.time() - _hold_u_t0
-            if _hold_u_dur >= SLOW_USER_TOTAL_THRESHOLD or _t_update_status_hold >= SLOW_STEP_THRESHOLD or _t_start_expire >= SLOW_STEP_THRESHOLD:
+            if (
+                _hold_u_dur >= SLOW_USER_TOTAL_THRESHOLD
+                or _t_update_status_hold >= SLOW_STEP_THRESHOLD
+                or _t_start_expire >= SLOW_STEP_THRESHOLD
+            ):
                 logger.info(
-                    f"[review][on_hold][slow] user=\"{user.username}\" total={_hold_u_dur:.3f}s "
+                    f'[review][on_hold][slow] user="{user.username}" total={_hold_u_dur:.3f}s '
                     f"update_status={_t_update_status_hold:.3f}s start_expire={_t_start_expire:.3f}s"
                 )
         # Final commit for on_hold group
@@ -247,6 +260,4 @@ def review():
     )
 
 
-scheduler.add_job(review, 'interval',
-                  seconds=JOB_REVIEW_USERS_INTERVAL,
-                  coalesce=True, max_instances=1)
+scheduler.add_job(review, "interval", seconds=JOB_REVIEW_USERS_INTERVAL, coalesce=True, max_instances=1)

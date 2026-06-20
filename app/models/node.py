@@ -1,7 +1,6 @@
 from enum import Enum
-from typing import List, Optional
 
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class NodeStatus(str, Enum):
@@ -48,62 +47,66 @@ class Node(BaseModel):
     api_port: int = 62051
     protocol: NodeProtocol = NodeProtocol.rest
     usage_coefficient: float = Field(gt=0, default=1.0)
-    inbounds: Optional[List[str]] = None
+    inbounds: list[str] | None = None
     role: NodeRole = NodeRole.direct
-    cascade_routes: Optional[List[CascadeRouteModel]] = None
+    cascade_routes: list[CascadeRouteModel] | None = None
     is_bs: bool = False
     cascade_balancer_strategy: NodeBalancerStrategy = NodeBalancerStrategy.random
 
 
 class NodeCreate(Node):
     add_as_new_host: bool = True
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "name": "DE node",
-            "address": "192.168.1.1",
-            "port": 62050,
-            "api_port": 62051,
-            "protocol": "rest",
-            "add_as_new_host": True,
-            "usage_coefficient": 1
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "DE node",
+                "address": "192.168.1.1",
+                "port": 62050,
+                "api_port": 62051,
+                "protocol": "rest",
+                "add_as_new_host": True,
+                "usage_coefficient": 1,
+            }
         }
-    })
+    )
 
 
 class NodeModify(Node):
-    name: Optional[str] = Field(None, nullable=True)
-    address: Optional[str] = Field(None, nullable=True)
-    port: Optional[int] = Field(None, nullable=True)
-    api_port: Optional[int] = Field(None, nullable=True)
-    protocol: Optional[NodeProtocol] = Field(None, nullable=True)
-    status: Optional[NodeStatus] = Field(None, nullable=True)
-    usage_coefficient: Optional[float] = Field(None, nullable=True)
-    inbounds: Optional[List[str]] = Field(None, nullable=True)
-    role: Optional[NodeRole] = Field(None, nullable=True)
-    cascade_routes: Optional[List[CascadeRouteModel]] = Field(None, nullable=True)
-    is_bs: Optional[bool] = Field(None, nullable=True)
-    cascade_balancer_strategy: Optional[NodeBalancerStrategy] = Field(None, nullable=True)
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "name": "DE node",
-            "address": "192.168.1.1",
-            "port": 62050,
-            "api_port": 62051,
-            "protocol": "rest",
-            "status": "disabled",
-            "usage_coefficient": 1.0
+    name: str | None = Field(None, nullable=True)
+    address: str | None = Field(None, nullable=True)
+    port: int | None = Field(None, nullable=True)
+    api_port: int | None = Field(None, nullable=True)
+    protocol: NodeProtocol | None = Field(None, nullable=True)
+    status: NodeStatus | None = Field(None, nullable=True)
+    usage_coefficient: float | None = Field(None, nullable=True)
+    inbounds: list[str] | None = Field(None, nullable=True)
+    role: NodeRole | None = Field(None, nullable=True)
+    cascade_routes: list[CascadeRouteModel] | None = Field(None, nullable=True)
+    is_bs: bool | None = Field(None, nullable=True)
+    cascade_balancer_strategy: NodeBalancerStrategy | None = Field(None, nullable=True)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "DE node",
+                "address": "192.168.1.1",
+                "port": 62050,
+                "api_port": 62051,
+                "protocol": "rest",
+                "status": "disabled",
+                "usage_coefficient": 1.0,
+            }
         }
-    })
+    )
 
 
 class NodeResponse(Node):
     id: int
-    xray_version: Optional[str] = None
+    xray_version: str | None = None
     status: NodeStatus
-    message: Optional[str] = None
-    inbounds: List[str] = []
+    message: str | None = None
+    inbounds: list[str] = []
     role: NodeRole = NodeRole.direct
-    cascade_routes: List[CascadeRouteModel] = []
+    cascade_routes: list[CascadeRouteModel] = []
     is_bs: bool = False
     cascade_balancer_strategy: NodeBalancerStrategy = NodeBalancerStrategy.random
     model_config = ConfigDict(from_attributes=True)
@@ -119,11 +122,11 @@ class NodeResponse(Node):
 
 
 class NodeUsageResponse(BaseModel):
-    node_id: Optional[int] = None
+    node_id: int | None = None
     node_name: str
     uplink: int
     downlink: int
 
 
 class NodesUsageResponse(BaseModel):
-    usages: List[NodeUsageResponse]
+    usages: list[NodeUsageResponse]

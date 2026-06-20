@@ -5,6 +5,7 @@ Grafana surface the symptom we hit in NPVPN-1170: pool fully used while MySQL
 itself was idle (real bottleneck was the starlette threadpool, but the pool
 metric is what visually screams first).
 """
+
 from prometheus_client import REGISTRY, Counter
 from prometheus_client.core import GaugeMetricFamily
 
@@ -41,9 +42,7 @@ class _DbPoolCollector:
         if size is not None:
             yield GaugeMetricFamily("db_pool_size", "Configured pool_size", value=size)
         if max_overflow is not None:
-            yield GaugeMetricFamily(
-                "db_pool_max_overflow", "Configured max_overflow", value=max_overflow
-            )
+            yield GaugeMetricFamily("db_pool_max_overflow", "Configured max_overflow", value=max_overflow)
         if checked_out is not None:
             yield GaugeMetricFamily("db_pool_checkedout", "Connections currently in use", value=checked_out)
         if overflow is not None:

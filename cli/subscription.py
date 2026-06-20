@@ -1,10 +1,9 @@
-import typer
 from enum import Enum
-from typing import Optional
+
+import typer
 from rich.console import Console
 
-from app.db import GetDB
-from app.db import crud
+from app.db import GetDB, crud
 from app.models.user import UserResponse
 from app.subscription.share import generate_subscription
 
@@ -20,9 +19,7 @@ class ConfigFormat(str, Enum):
 
 
 @app.command(name="get-link")
-def get_link(
-    username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True)
-):
+def get_link(username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True)):
     """
     Prints the given user's subscription link.
 
@@ -40,12 +37,10 @@ def get_link(
 def get_config(
     username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True),
     config_format: ConfigFormat = typer.Option(..., *utils.FLAGS["format"], prompt=True),
-    output_file: Optional[str] = typer.Option(
+    output_file: str | None = typer.Option(
         None, *utils.FLAGS["output_file"], help="Writes the generated config in the file if provided"
     ),
-    as_base64: bool = typer.Option(
-        False, "--base64", is_flag=True, help="Encodes output in base64 format if present"
-    )
+    as_base64: bool = typer.Option(False, "--base64", is_flag=True, help="Encodes output in base64 format if present"),
 ):
     """
     Generates a subscription config.
@@ -57,22 +52,18 @@ def get_config(
     """
     with GetDB() as db:
         user: UserResponse = UserResponse.model_validate(utils.get_user(db, username))
-        conf: str = generate_subscription(
-            user=user, config_format=config_format.name, as_base64=as_base64
-        )
+        conf: str = generate_subscription(user=user, config_format=config_format.name, as_base64=as_base64)
 
         if output_file:
             with open(output_file, "w") as out_file:
                 out_file.write(conf)
 
             utils.success(
-                f'{username}\'s configuration in "{config_format.value}" format'
-                f' successfully save to "{output_file}".'
+                f'{username}\'s configuration in "{config_format.value}" format successfully save to "{output_file}".'
             )
         else:
             utils.success(
-                'No output file specified.'
-                f' using pager for {username}\'s config in "{config_format}" format.',
-                auto_exit=False
+                f'No output file specified. using pager for {username}\'s config in "{config_format}" format.',
+                auto_exit=False,
             )
             utils.paginate(conf)

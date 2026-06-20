@@ -1,49 +1,49 @@
-from typing import Dict, List, Optional
-
-from pydantic import field_validator, ConfigDict, BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app import xray
 from app.models.proxy import ProxyTypes
 
 
 class UserTemplate(BaseModel):
-    name: Optional[str] = Field(None, nullable=True)
-    data_limit: Optional[int] = Field(
-        ge=0, default=None, description="data_limit can be 0 or greater"
-    )
-    expire_duration: Optional[int] = Field(
+    name: str | None = Field(None, nullable=True)
+    data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
+    expire_duration: int | None = Field(
         ge=0, default=None, description="expire_duration can be 0 or greater in seconds"
     )
-    username_prefix: Optional[str] = Field(max_length=20, min_length=1, default=None)
-    username_suffix: Optional[str] = Field(max_length=20, min_length=1, default=None)
+    username_prefix: str | None = Field(max_length=20, min_length=1, default=None)
+    username_suffix: str | None = Field(max_length=20, min_length=1, default=None)
 
-    inbounds: Dict[ProxyTypes, List[str]] = {}
+    inbounds: dict[ProxyTypes, list[str]] = {}
 
 
 class UserTemplateCreate(UserTemplate):
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "name": "my template 1",
-            "username_prefix": None,
-            "username_suffix": None,
-            "inbounds": {"vmess": ["VMESS_INBOUND"], "vless": ["VLESS_INBOUND"]},
-            "data_limit": 0,
-            "expire_duration": 0,
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "my template 1",
+                "username_prefix": None,
+                "username_suffix": None,
+                "inbounds": {"vmess": ["VMESS_INBOUND"], "vless": ["VLESS_INBOUND"]},
+                "data_limit": 0,
+                "expire_duration": 0,
+            }
         }
-    })
+    )
 
 
 class UserTemplateModify(UserTemplate):
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "name": "my template 1",
-            "username_prefix": None,
-            "username_suffix": None,
-            "inbounds": {"vmess": ["VMESS_INBOUND"], "vless": ["VLESS_INBOUND"]},
-            "data_limit": 0,
-            "expire_duration": 0,
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "my template 1",
+                "username_prefix": None,
+                "username_suffix": None,
+                "inbounds": {"vmess": ["VMESS_INBOUND"], "vless": ["VLESS_INBOUND"]},
+                "data_limit": 0,
+                "expire_duration": 0,
+            }
         }
-    })
+    )
 
 
 class UserTemplateResponse(UserTemplate):
@@ -62,4 +62,5 @@ class UserTemplateResponse(UserTemplate):
                     else:
                         final[protocol] = [inbound["tag"]]
         return final
+
     model_config = ConfigDict(from_attributes=True)

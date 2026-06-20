@@ -31,7 +31,6 @@ from app.models.proxy import (
 )
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 
-
 host_bot_association = Table(
     "host_bot_association",
     Base.metadata,
@@ -96,7 +95,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    username = Column(String(34, collation='NOCASE'), unique=True, index=True)
+    username = Column(String(34, collation="NOCASE"), unique=True, index=True)
     proxies = relationship("Proxy", back_populates="user", cascade="all, delete-orphan")
     status = Column(Enum(UserStatus), nullable=False, default=UserStatus.active)
     used_traffic = Column(BigInteger, default=0)
@@ -133,12 +132,7 @@ class User(Base):
     edit_at = Column(DateTime, nullable=True, default=None)
     last_status_change = Column(DateTime, default=datetime.utcnow, nullable=True)
 
-    next_plan = relationship(
-        "NextPlan",
-        uselist=False,
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
+    next_plan = relationship("NextPlan", uselist=False, back_populates="user", cascade="all, delete-orphan")
     devices = relationship("UserDevice", back_populates="user", cascade="all, delete-orphan")
 
     @hybrid_property
@@ -148,17 +142,14 @@ class User(Base):
     @reseted_usage.expression
     def reseted_usage(cls):
         return (
-            select(func.sum(UserUsageResetLogs.used_traffic_at_reset)).
-            where(UserUsageResetLogs.user_id == cls.id).
-            label('reseted_usage')
+            select(func.sum(UserUsageResetLogs.used_traffic_at_reset))
+            .where(UserUsageResetLogs.user_id == cls.id)
+            .label("reseted_usage")
         )
 
     @property
     def lifetime_used_traffic(self) -> int:
-        return int(
-            sum([log.used_traffic_at_reset for log in self.usage_logs])
-            + self.used_traffic
-        )
+        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]) + self.used_traffic)
 
     @property
     def last_traffic_reset_time(self):
@@ -190,9 +181,7 @@ class User(Base):
 
 class UserDevice(Base):
     __tablename__ = "user_devices"
-    __table_args__ = (
-        UniqueConstraint("user_id", "hwid", name="uq_user_devices_user_id_hwid"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "hwid", name="uq_user_devices_user_id_hwid"),)
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -236,30 +225,27 @@ class CascadeRoute(Base):
     в cascade-outbound на exit_node через cascade_inbound_tag (каталожный инбаунд
     выходной). Одна входная → N строк (1→N).
     """
+
     __tablename__ = "cascade_routes"
 
     id = Column(Integer, primary_key=True)
     entry_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
     exit_node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
-    entry_inbound_tag = Column(
-        String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False
-    )
-    cascade_inbound_tag = Column(
-        String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False
-    )
+    entry_inbound_tag = Column(String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False)
+    cascade_inbound_tag = Column(String(256), ForeignKey("inbounds.tag", ondelete="CASCADE"), nullable=False)
 
     exit_node = relationship("Node", foreign_keys=[exit_node_id])
 
 
 class NextPlan(Base):
-    __tablename__ = 'next_plans'
+    __tablename__ = "next_plans"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     data_limit = Column(BigInteger, nullable=False)
     expire = Column(Integer, nullable=True)
-    add_remaining_traffic = Column(Boolean, nullable=False, default=False, server_default='0')
-    fire_on_either = Column(Boolean, nullable=False, default=True, server_default='0')
+    add_remaining_traffic = Column(Boolean, nullable=False, default=False, server_default="0")
+    fire_on_either = Column(Boolean, nullable=False, default=True, server_default="0")
 
     user = relationship("User", back_populates="next_plan")
 
@@ -274,9 +260,7 @@ class UserTemplate(Base):
     username_prefix = Column(String(20), nullable=True)
     username_suffix = Column(String(20), nullable=True)
 
-    inbounds = relationship(
-        "ProxyInbound", secondary=template_inbounds_association
-    )
+    inbounds = relationship("ProxyInbound", secondary=template_inbounds_association)
 
 
 class UserUsageResetLogs(Base):
@@ -291,18 +275,14 @@ class UserUsageResetLogs(Base):
 
 class Proxy(Base):
     __tablename__ = "proxies"
-    __table_args__ = (
-        UniqueConstraint('user_id', 'type'),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "type"),)
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="proxies")
     type = Column(Enum(ProxyTypes), nullable=False)
     settings = Column(JSON, nullable=False)
-    excluded_inbounds = relationship(
-        "ProxyInbound", secondary=excluded_inbounds_association
-    )
+    excluded_inbounds = relationship("ProxyInbound", secondary=excluded_inbounds_association)
 
 
 class ProxyInbound(Base):
@@ -310,9 +290,7 @@ class ProxyInbound(Base):
 
     id = Column(Integer, primary_key=True)
     tag = Column(String(256), unique=True, nullable=False, index=True)
-    hosts = relationship(
-        "ProxyHost", back_populates="inbound", cascade="all, delete-orphan"
-    )
+    hosts = relationship("ProxyHost", back_populates="inbound", cascade="all, delete-orphan")
 
 
 class ProxyHost(Base):
@@ -339,24 +317,24 @@ class ProxyHost(Base):
         unique=False,
         nullable=False,
         default=ProxyHostSecurity.none,
-        server_default=ProxyHostSecurity.none.name
+        server_default=ProxyHostSecurity.none.name,
     )
     fingerprint = Column(
         Enum(ProxyHostFingerprint),
         unique=False,
         nullable=False,
         default=ProxyHostSecurity.none,
-        server_default=ProxyHostSecurity.none.name
+        server_default=ProxyHostSecurity.none.name,
     )
 
     inbound_tag = Column(String(256), ForeignKey("inbounds.tag"), nullable=False)
     inbound = relationship("ProxyInbound", back_populates="hosts")
     allowinsecure = Column(Boolean, nullable=True)
     is_disabled = Column(Boolean, nullable=True, default=False)
-    mux_enable = Column(Boolean, nullable=False, default=False, server_default='0')
+    mux_enable = Column(Boolean, nullable=False, default=False, server_default="0")
     fragment_setting = Column(String(100), nullable=True)
     noise_setting = Column(String(2000), nullable=True)
-    random_user_agent = Column(Boolean, nullable=False, default=False, server_default='0')
+    random_user_agent = Column(Boolean, nullable=False, default=False, server_default="0")
     use_sni_as_host = Column(Boolean, nullable=False, default=False, server_default="0")
     bots = relationship("Bot", secondary=host_bot_association, back_populates="hosts")
 
@@ -377,9 +355,7 @@ class JWT(Base):
     __tablename__ = "jwt"
 
     id = Column(Integer, primary_key=True)
-    secret_key = Column(
-        String(64), nullable=False, default=lambda: os.urandom(32).hex()
-    )
+    secret_key = Column(String(64), nullable=False, default=lambda: os.urandom(32).hex())
 
 
 class TLS(Base):
@@ -394,7 +370,7 @@ class Node(Base):
     __tablename__ = "nodes"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(256, collation='NOCASE'), unique=True)
+    name = Column(String(256, collation="NOCASE"), unique=True)
     address = Column(String(256), unique=False, nullable=False)
     port = Column(Integer, unique=False, nullable=False)
     api_port = Column(Integer, unique=False, nullable=False)
@@ -446,9 +422,7 @@ class Node(Base):
 
 class NodeUserUsage(Base):
     __tablename__ = "node_user_usages"
-    __table_args__ = (
-        UniqueConstraint('created_at', 'user_id', 'node_id'),
-    )
+    __table_args__ = (UniqueConstraint("created_at", "user_id", "node_id"),)
 
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, unique=False, nullable=False)  # one hour per record
@@ -462,27 +436,25 @@ class NodeUserUsage(Base):
 class NodeUserBsUsage(Base):
     """По-нодный инкрементальный счётчик расхода для БС-нод (NPVPN-1456).
     Ленивый сброс периодов при инкременте; единственный writer — record_usages."""
+
     __tablename__ = "node_user_bs_usage"
-    __table_args__ = (
-        UniqueConstraint("node_id", "user_id", name="uq_node_user_bs_usage"),
-    )
+    __table_args__ = (UniqueConstraint("node_id", "user_id", name="uq_node_user_bs_usage"),)
 
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     daily_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     monthly_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
-    daily_period = Column(String(10), nullable=True)   # "YYYY-MM-DD"
-    monthly_period = Column(String(7), nullable=True)   # "YYYY-MM"
+    daily_period = Column(String(10), nullable=True)  # "YYYY-MM-DD"
+    monthly_period = Column(String(7), nullable=True)  # "YYYY-MM"
 
 
 class NodeUserBlock(Base):
     """Текущее состояние по-нодных блокировок (NPVPN-1456).
     Единственный writer — review_bs_nodes; period: 'day'|'month' (диагностика)."""
+
     __tablename__ = "node_user_blocks"
-    __table_args__ = (
-        UniqueConstraint("node_id", "user_id", name="uq_node_user_blocks"),
-    )
+    __table_args__ = (UniqueConstraint("node_id", "user_id", name="uq_node_user_blocks"),)
 
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -493,9 +465,7 @@ class NodeUserBlock(Base):
 
 class NodeUsage(Base):
     __tablename__ = "node_usages"
-    __table_args__ = (
-        UniqueConstraint('created_at', 'node_id'),
-    )
+    __table_args__ = (UniqueConstraint("created_at", "node_id"),)
 
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, unique=False, nullable=False)  # one hour per record

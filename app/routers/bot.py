@@ -4,11 +4,11 @@ from app import xray
 from app.db import Session, crud, get_db
 from app.models.admin import Admin
 from app.models.bot import (
+    DEFAULT_BOT_SETTINGS,
     BotCreate,
     BotResponse,
-    BotUpdate,
     BotSettingsPayload,
-    DEFAULT_BOT_SETTINGS,
+    BotUpdate,
     apply_bot_settings_fallback,
 )
 from app.utils import responses
