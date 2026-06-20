@@ -18,6 +18,8 @@ jobs:
       - name: ruff format
         run: uv run ruff format --check .
       - name: strict lint (changed files only)
+        # informational на время Фазы 0; после мержа в master убрать continue-on-error (станет блокирующим)
+        continue-on-error: true
         run: |
           if [ -f scripts/lint-strict.sh ]; then
             bash scripts/lint-strict.sh origin/${{ github.base_ref || 'master' }}
