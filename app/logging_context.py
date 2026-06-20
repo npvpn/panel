@@ -25,9 +25,9 @@ def clear_log_context() -> None:
 
 class ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.rid = _rid.get() or "-"  # type: ignore[attr-defined]
-        record.node_id = _node_id.get() or "-"  # type: ignore[attr-defined]
-        record.user_id = _user_id.get() or "-"  # type: ignore[attr-defined]
+        record.rid = _rid.get() or "-"
+        record.node_id = _node_id.get() or "-"
+        record.user_id = _user_id.get() or "-"
         return True
 
 
