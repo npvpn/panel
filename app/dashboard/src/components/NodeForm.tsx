@@ -336,6 +336,26 @@ export const NodeForm: NodeFormType = ({
         )}
         {role === "entry" && (
           <FormControl py={1}>
+            <FormLabel>{t("nodes.balancerStrategy")}</FormLabel>
+            <Text fontSize="xs" opacity={0.7} mb={2}>
+              {t("nodes.balancerStrategyHint")}
+            </Text>
+            <Controller
+              name="cascade_balancer_strategy"
+              control={form.control}
+              render={({ field }) => (
+                <Select size="sm" {...field} value={field.value ?? "random"}>
+                  <option value="random">{t("nodes.balancerRandom")}</option>
+                  <option value="roundRobin">{t("nodes.balancerRoundRobin")}</option>
+                  <option value="leastPing">{t("nodes.balancerLeastPing")}</option>
+                  <option value="leastLoad">{t("nodes.balancerLeastLoad")}</option>
+                </Select>
+              )}
+            />
+          </FormControl>
+        )}
+        {role === "entry" && (
+          <FormControl py={1}>
             <FormLabel>{t("nodes.cascadeRoutes")}</FormLabel>
             <Text fontSize="xs" opacity={0.7} mb={2}>
               {t("nodes.cascadeRoutesHint")}

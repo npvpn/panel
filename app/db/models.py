@@ -22,7 +22,7 @@ from sqlalchemy.sql.expression import select, text
 
 from app import xray
 from app.db.base import Base
-from app.models.node import NodeProtocol, NodeRole, NodeStatus
+from app.models.node import NodeBalancerStrategy, NodeProtocol, NodeRole, NodeStatus
 from app.models.proxy import (
     ProxyHostALPN,
     ProxyHostFingerprint,
@@ -431,6 +431,15 @@ class Node(Base):
         foreign_keys="CascadeRoute.entry_node_id",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    cascade_balancer_strategy = Column(
+        # values_callable: persist enum *values* (e.g. "leastLoad"), not member
+        # names ("least_load"). The migration declares the SQL ENUM by value, so
+        # without this SQLAlchemy would send names and MySQL truncates the column.
+        Enum(NodeBalancerStrategy, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=NodeBalancerStrategy.random,
+        server_default=NodeBalancerStrategy.random.value,
     )
     is_bs = Column(Boolean, nullable=False, default=False, server_default=text("0"))
 

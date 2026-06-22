@@ -37,6 +37,9 @@ export const NodeSchema = z.object({
     )
     .optional(),
   is_bs: z.boolean().optional(),
+  cascade_balancer_strategy: z
+    .enum(["random", "roundRobin", "leastPing", "leastLoad"])
+    .optional(),
 });
 
 export type NodeType = z.infer<typeof NodeSchema>;
@@ -53,6 +56,7 @@ export const getNodeDefaultValues = (): NodeType => ({
   role: "direct",
   cascade_routes: [],
   is_bs: false,
+  cascade_balancer_strategy: "random",
 });
 
 export const FetchNodesQueryKey = "fetch-nodes-query-key";

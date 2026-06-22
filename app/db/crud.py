@@ -1756,6 +1756,7 @@ def create_node(db: Session, node: NodeCreate) -> Node:
 
     _apply_node_role(dbnode, node.role)
     dbnode.is_bs = node.is_bs
+    dbnode.cascade_balancer_strategy = node.cascade_balancer_strategy
     if node.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, node.cascade_routes)
 
@@ -1826,6 +1827,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
 
     if modify.is_bs is not None:
         dbnode.is_bs = modify.is_bs
+
+    if modify.cascade_balancer_strategy is not None:
+        dbnode.cascade_balancer_strategy = modify.cascade_balancer_strategy
 
     if modify.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, modify.cascade_routes)

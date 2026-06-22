@@ -440,7 +440,8 @@ def _cascade_kwargs(db, dbnode) -> dict:
                 "sni": server_names[0] if server_names else "",
                 "fingerprint": reality.get("fingerprint") or "",
             })
-        return {"role": "entry", "entry_routes": routes}
+        strategy = getattr(dbnode.cascade_balancer_strategy, "value", None) or "random"
+        return {"role": "entry", "entry_routes": routes, "strategy": strategy}
 
     return {"role": "direct"}
 
