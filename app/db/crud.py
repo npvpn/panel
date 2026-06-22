@@ -808,12 +808,11 @@ def _unknown_user_agents_match(stored: Optional[str], incoming: Optional[str]) -
 
     stored_n = norm(stored)
     incoming_n = norm(incoming)
-    if stored_n == "Неизвестно":
-        stored_n = None
-    if stored_n is None and incoming_n is None:
+    # Legacy unknown devices were saved with placeholder/empty UA before UA checks existed.
+    if stored_n in (None, "Неизвестно"):
         return True
-    if stored_n is None or incoming_n is None:
-        return stored_n == incoming_n
+    if incoming_n is None:
+        return False
     return stored_n == incoming_n
 
 
