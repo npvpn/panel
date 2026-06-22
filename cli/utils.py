@@ -1,7 +1,6 @@
 import pydoc
-from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any, Dict, Iterable, Optional, TypeVar, Union
 
 import typer
 from rich.console import Console
@@ -15,7 +14,7 @@ T = TypeVar("T")
 rich_console = Console()
 PASSWORD_ENVIRON_NAME = "MARZBAN_ADMIN_PASSWORD"
 
-FLAGS: dict[str, tuple] = {
+FLAGS: Dict[str, tuple] = {
     "username": ("--username", "-u"),
     "search": ("--search", "-s"),
     "admin": ("--admin", "--owner"),
@@ -48,21 +47,21 @@ def paginate(text: str):
 
 
 def get_user(db, username: str) -> User:
-    user: User | None = crud.get_user(db=db, username=username)
+    user: Union[User, None] = crud.get_user(db=db, username=username)
     if not user:
         error(f'User "{username}" not found!')
 
     return user
 
 
-def print_table(table: Table, rows: Iterable[Iterable[Any]], console: Console | None = None):
+def print_table(table: Table, rows: Iterable[Iterable[Any]], console: Optional[Console] = None):
     for row in rows:
         table.add_row(*row)
 
     (console or rich_console).print(table)
 
 
-def readable_datetime(date_time: datetime | int | None, include_date: bool = True, include_time: bool = True):
+def readable_datetime(date_time: Union[datetime, int, None], include_date: bool = True, include_time: bool = True):
     def get_datetime_format():
         dt_format = ""
         if include_date:

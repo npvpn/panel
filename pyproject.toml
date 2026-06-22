@@ -131,3 +131,8 @@ quote-style = "double"
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "config", "main"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer 0.7.0 не понимает PEP 604 (`X | None`) и PEP 585 (`list[...]`) в аннотациях
+# CLI-параметров — оставляем typing.Optional/List, иначе marzban-cli падает на старте.
+"cli/*" = ["UP006", "UP007", "UP035", "UP045"]

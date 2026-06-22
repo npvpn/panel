@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -37,7 +38,7 @@ def get_link(username: str = typer.Option(..., *utils.FLAGS["username"], prompt=
 def get_config(
     username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True),
     config_format: ConfigFormat = typer.Option(..., *utils.FLAGS["format"], prompt=True),
-    output_file: str | None = typer.Option(
+    output_file: Optional[str] = typer.Option(
         None, *utils.FLAGS["output_file"], help="Writes the generated config in the file if provided"
     ),
     as_base64: bool = typer.Option(False, "--base64", is_flag=True, help="Encodes output in base64 format if present"),
