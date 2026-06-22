@@ -11,8 +11,12 @@ def parse_custom_headers(raw: str) -> dict[str, str]:
     - сплит по первому ':'; имя и значение strip();
     - строки без ':' пропускаются;
     - имя обязано быть RFC-7230 token, иначе строка пропускается;
-    - значение с управляющими символами (ord < 32) отбрасывается
-      (защита от порчи ответа);
+    - имя приводится к нижнему регистру (HTTP-имена регистронезависимы;
+      встроенные хедеры уже в нижнем регистре — это обеспечивает override
+      без дублей при любом регистре входного имени);
+    - значение с символами вне печатного Latin-1 диапазона отбрасывается:
+      ord < 32 (управляющие), ord == 127 (DEL) или ord > 255 (выше U+00FF);
+      защищает от UnicodeEncodeError в Starlette (latin-1 кодировка хедеров);
     - при дубликате имени побеждает последняя строка.
     """
     headers: dict[str, str] = {}
@@ -29,7 +33,7 @@ def parse_custom_headers(raw: str) -> dict[str, str]:
         value = value.strip()
         if not name or not _TOKEN_RE.match(name):
             continue
-        if any(ord(ch) < 32 for ch in value):
+        if any(ord(ch) < 32 or ord(ch) == 127 or ord(ch) > 255 for ch in value):
             continue
-        headers[name] = value
+        headers[name.lower()] = value
     return headers
