@@ -147,67 +147,21 @@ def generate_subscription(
     if config_format in ("v2ray", "v2ray-json") and (
         revoked or expired or unsupported_client or device_limited_hard
     ):
-        from app.subscription.v2ray import V2rayJsonConfig, V2rayShareLink
+        from app.subscription.sub_stub import build_v2ray_status_stub, pick_status_stub_text_list
 
-        if revoked:
-            text_list = resolved_settings["sub_revoked_server_text"]
-        elif expired:
-            text_list = resolved_settings["sub_expired_server_text"]
-        elif device_limited_hard:
-            text_list = resolved_settings["sub_device_limit_server_text"]
-        else:
-            text_list = resolved_settings["sub_unsupported_client_server_text"]
-
-        if not text_list:
-            if config_format == "v2ray":
-                return base64.b64encode("".encode()).decode()
-            config = "[]"
-            if as_base64:
-                config = base64.b64encode(config.encode()).decode()
-            return config
-
-        zero_id = "00000000-0000-0000-0000-000000000000"
-        if config_format == "v2ray":
-            links = [
-                V2rayShareLink.vless(
-                    remark=remark,
-                    address="0.0.0.0",
-                    port=0,
-                    id=zero_id,
-                    net="ws",
-                    tls="none",
-                    path="",
-                    host="",
-                )
-                for remark in text_list
-            ]
-            payload = "\n".join(links)
-            return base64.b64encode(payload.encode()).decode()
-
-        stub_inbound = {
-            "network": "ws",
-            "protocol": "vless",
-            "port": 0,
-            "tls": "none",
-            "header_type": "",
-            "fragment_setting": "",
-            "noise_setting": "",
-            "path": "",
-            "host": "",
-            "sni": "",
-        }
-        conf = V2rayJsonConfig()
-        for remark in text_list:
-            conf.add(
-                remark=remark,
-                address="0.0.0.0",
-                inbound=stub_inbound,
-                settings={"id": zero_id},
-            )
-        config = conf.render(reverse=reverse)
-        if as_base64:
-            config = base64.b64encode(config.encode()).decode()
-        return config
+        text_list = pick_status_stub_text_list(
+            revoked=revoked,
+            expired=expired,
+            device_limited_hard=device_limited_hard,
+            unsupported_client=unsupported_client,
+            settings=resolved_settings,
+        )
+        return build_v2ray_status_stub(
+            text_list,
+            config_format,
+            as_base64=as_base64,
+            reverse=reverse,
+        )
 
     device_limit_links = []
     device_limit_text = []

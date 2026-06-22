@@ -52,6 +52,7 @@ from app.models.user import (
     UserUsageResponse,
 )
 from app.models.bot import apply_bot_settings_fallback
+from app.subscription.device_ua import unknown_user_agents_match as _unknown_user_agents_match
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app.utils.jwt import create_subscription_token
@@ -797,23 +798,6 @@ def revoke_user_device(db: Session, dbdevice: UserDevice) -> UserDevice:
     db.commit()
     db.refresh(dbdevice)
     return dbdevice
-
-
-def _unknown_user_agents_match(stored: Optional[str], incoming: Optional[str]) -> bool:
-    def norm(v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return None
-        s = v.strip()
-        return s if s else None
-
-    stored_n = norm(stored)
-    incoming_n = norm(incoming)
-    # Legacy unknown devices were saved with placeholder/empty UA before UA checks existed.
-    if stored_n in (None, "Неизвестно"):
-        return True
-    if incoming_n is None:
-        return False
-    return stored_n == incoming_n
 
 
 def _update_unknown_device_metadata(
