@@ -433,7 +433,10 @@ class Node(Base):
         passive_deletes=True,
     )
     cascade_balancer_strategy = Column(
-        Enum(NodeBalancerStrategy),
+        # values_callable: persist enum *values* (e.g. "leastLoad"), not member
+        # names ("least_load"). The migration declares the SQL ENUM by value, so
+        # without this SQLAlchemy would send names and MySQL truncates the column.
+        Enum(NodeBalancerStrategy, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=NodeBalancerStrategy.random,
         server_default=NodeBalancerStrategy.random.value,

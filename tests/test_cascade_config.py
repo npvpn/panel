@@ -1,4 +1,6 @@
+import ast
 import copy
+import pathlib
 
 from app.xray.cascade_config import (
     cascade_config,
@@ -263,3 +265,43 @@ def test_entry_appends_cascade_rules_after_base_rules():
     balancer_rules = [r for r in rules if r.get("balancerTag") == bal_tag]
     assert len(balancer_rules) == 1
     assert rules.index(balancer_rules[0]) > 0
+
+
+def _strategy_values_from_source():
+    """NodeBalancerStrategy member values straight from source (no import — the
+    test venv can't import app.models; see project_venv_app_import memory)."""
+    src = pathlib.Path("app/models/node.py").read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "NodeBalancerStrategy":
+            return {
+                stmt.value.value
+                for stmt in node.body
+                if isinstance(stmt, ast.Assign)
+                and isinstance(stmt.value, ast.Constant)
+            }
+    raise AssertionError("NodeBalancerStrategy not found in app/models/node.py")
+
+
+def test_migration_enum_matches_strategy_values():
+    """Regression for the 'Data truncated' bug: the SQL ENUM declared in the
+    migration must list NodeBalancerStrategy *values* (e.g. "leastLoad"), because
+    the ORM column uses values_callable to persist values rather than member names
+    (e.g. "least_load"). If these drift, MySQL truncates on any non-trivial member.
+    """
+    migration = pathlib.Path(
+        "app/db/migrations/versions/"
+        "e1f2a3b4c5d6_node_cascade_balancer_strategy.py"
+    ).read_text()
+    tree = ast.parse(migration)
+    enum_args = None
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "Enum"
+        ):
+            enum_args = [a.value for a in node.args if isinstance(a, ast.Constant)]
+            break
+    assert enum_args is not None, "sa.Enum(...) not found in migration"
+    assert set(enum_args) == _strategy_values_from_source()
