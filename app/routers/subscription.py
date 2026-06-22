@@ -14,6 +14,7 @@ from app import logger
 from app.db import GetDB, Session, crud, get_db
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
+from app.subscription.custom_headers import parse_custom_headers
 from app.subscription.share import encode_title, generate_subscription
 from app.xray.bs_limit import bs_stub_remark
 from app.subscription.bot_settings import resolve_bot_settings
@@ -330,6 +331,7 @@ def user_subscription(
         )
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
+    response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
 
     def build_subscription(config_format: str, as_base64: bool, reverse: bool) -> str:
         return generate_subscription(
@@ -533,6 +535,7 @@ def user_subscription_with_client_type(
         )
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
+    response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
 
     config = client_config.get(client_type)
     conf = generate_subscription(user=user,
