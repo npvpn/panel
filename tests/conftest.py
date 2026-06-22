@@ -15,7 +15,7 @@ if "app" not in sys.modules:
     sys.modules["app"] = app_stub
 
 if "app.xray" not in sys.modules:
-    import importlib.util, pathlib
+    import pathlib
 
     # Загружаем реальный app/xray/__init__.py напрямую через spec,
     # но он тоже тяжёлый — вместо этого регистрируем заглушку пакета,
@@ -24,3 +24,15 @@ if "app.xray" not in sys.modules:
     xray_stub.__path__ = [str(pathlib.Path(__file__).parent.parent / "app" / "xray")]
     xray_stub.__package__ = "app.xray"
     sys.modules["app.xray"] = xray_stub
+
+if "app.subscription" not in sys.modules:
+    import pathlib
+
+    # Заглушка пакета app.subscription с реальным путём — Python найдёт
+    # app/subscription/custom_headers.py, не выполняя app/subscription/__init__.py.
+    subscription_stub = types.ModuleType("app.subscription")
+    subscription_stub.__path__ = [
+        str(pathlib.Path(__file__).parent.parent / "app" / "subscription")
+    ]
+    subscription_stub.__package__ = "app.subscription"
+    sys.modules["app.subscription"] = subscription_stub
