@@ -250,7 +250,11 @@ class ReSTXRayNode:
     @property
     def started(self):
         res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
-        return res.get('started', False)
+        remote_started = res.get('started', False)
+        self._started = remote_started
+        if not remote_started:
+            self._close_grpc_api()
+        return remote_started
 
     @property
     def api(self):
