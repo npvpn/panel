@@ -28,6 +28,7 @@ export type BotSettings = {
   sub_v2ray_json_template: string;
   sub_routing_json_default: string;
   sub_routing_json_bs: string;
+  sub_custom_headers: string;
   bs_daily_limit: number;
   bs_monthly_limit: number;
   updated_at?: string;
