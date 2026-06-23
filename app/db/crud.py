@@ -4,7 +4,7 @@ Functions for managing proxy hosts, users, user templates, nodes, and administra
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, delete, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -819,7 +819,7 @@ def register_user_device(
     if not hwid:
         dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
         if dbdevice:
-            if _unknown_user_agents_match(dbdevice.user_agent, user_agent):
+            if _unknown_user_agents_match(cast(str | None, dbdevice.user_agent), user_agent):
                 _update_unknown_device_metadata(dbdevice, device_os, ver_os, device_model, user_agent)
                 db.commit()
                 return True, False
