@@ -31,7 +31,10 @@ if "app.xray" not in sys.modules:
     sys.modules["app.xray"] = xray_stub
 
 if "app.subscription" not in sys.modules:
-    sub_stub = types.ModuleType("app.subscription")
-    sub_stub.__path__ = [str(_APP_DIR / "subscription")]
-    sub_stub.__package__ = "app.subscription"
-    sys.modules["app.subscription"] = sub_stub
+    # Заглушка пакета app.subscription с реальным путём — Python найдёт
+    # app/subscription/device_ua.py, sub_stub.py, custom_headers.py и др.,
+    # не выполняя app/subscription/__init__.py.
+    subscription_stub = types.ModuleType("app.subscription")
+    subscription_stub.__path__ = [str(_APP_DIR / "subscription")]
+    subscription_stub.__package__ = "app.subscription"
+    sys.modules["app.subscription"] = subscription_stub
