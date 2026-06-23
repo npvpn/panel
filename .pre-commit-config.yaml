@@ -14,7 +14,9 @@ repos:
     hooks:
       - id: mypy-baseline
         name: mypy (baseline)
-        entry: bash -c 'uv run mypy app | uv run mypy-baseline filter'
+        # --no-incremental: гоняем без .mypy_cache, чтобы локальный хук всегда совпадал
+        # с чистым прогоном в CI (инкрементальный кэш + pydantic «уплывает» → ложные new/fixed).
+        entry: bash -c 'uv run mypy --no-incremental app | uv run mypy-baseline filter'
         language: system
         types: [python]
         pass_filenames: false
