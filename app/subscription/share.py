@@ -183,9 +183,7 @@ def generate_subscription(
     routing_bs_override = _safe_json(resolved_settings.get("sub_routing_json_bs"), "sub_routing_json_bs")
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format in ("v2ray", "v2ray-json") and (
-        revoked or expired or unsupported_client or device_limited_hard
-    ):
+    if config_format in ("v2ray", "v2ray-json") and (revoked or expired or unsupported_client or device_limited_hard):
         from app.subscription.sub_stub import build_v2ray_status_stub, pick_status_stub_text_list
 
         text_list = pick_status_stub_text_list(

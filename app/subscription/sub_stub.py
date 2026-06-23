@@ -22,12 +22,7 @@ def _vless_stub_link(remark: str) -> str:
         "path": "",
         "host": "",
     }
-    return (
-        "vless://"
-        + f"{ZERO_STUB_ID}@0.0.0.0:0?"
-        + urlparse.urlencode(payload)
-        + f"#{urlparse.quote(remark)}"
-    )
+    return "vless://" + f"{ZERO_STUB_ID}@0.0.0.0:0?" + urlparse.urlencode(payload) + f"#{urlparse.quote(remark)}"
 
 
 def pick_status_stub_text_list(
