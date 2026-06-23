@@ -1,14 +1,15 @@
 from fastapi import APIRouter
+
 from . import (
-    admin, 
+    admin,
     bot,
-    core, 
-    node, 
-    subscription, 
-    system, 
-    user_template, 
-    user,
+    core,
     home,
+    node,
+    subscription,
+    system,
+    user,
+    user_template,
 )
 
 api_router = APIRouter()

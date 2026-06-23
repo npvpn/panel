@@ -11,9 +11,7 @@ from config import DEBUG
 
 
 class XRayCore:
-    def __init__(self,
-                 executable_path: str = "/usr/bin/xray",
-                 assets_path: str = "/usr/share/xray"):
+    def __init__(self, executable_path: str = "/usr/bin/xray", assets_path: str = "/usr/share/xray"):
         self.executable_path = executable_path
         self.assets_path = assets_path
 
@@ -25,28 +23,26 @@ class XRayCore:
         self._temp_log_buffers = {}
         self._on_start_funcs = []
         self._on_stop_funcs = []
-        self._env = {
-            "XRAY_LOCATION_ASSET": assets_path
-        }
+        self._env = {"XRAY_LOCATION_ASSET": assets_path}
 
         atexit.register(lambda: self.stop() if self.started else None)
 
     def get_version(self):
         cmd = [self.executable_path, "version"]
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
-        m = re.match(r'^Xray (\d+\.\d+\.\d+)', output)
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+        m = re.match(r"^Xray (\d+\.\d+\.\d+)", output)
         if m:
             return m.groups()[0]
 
     def get_x25519(self, private_key: str = None):
         cmd = [self.executable_path, "x25519"]
         if private_key:
-            cmd.extend(['-i', private_key])
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
+            cmd.extend(["-i", private_key])
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
         # Старые сборки xray печатают "Private key:/Public key:", новые (26.x) —
         # "PrivateKey:/Password (PublicKey):". Парсим оба формата.
-        priv_m = re.search(r'Private ?[Kk]ey:\s*(\S+)', output)
-        pub_m = re.search(r'(?:Public ?[Kk]ey|Password \(PublicKey\)):\s*(\S+)', output)
+        priv_m = re.search(r"Private ?[Kk]ey:\s*(\S+)", output)
+        pub_m = re.search(r"(?:Public ?[Kk]ey|Password \(PublicKey\)):\s*(\S+)", output)
         if priv_m and pub_m:
             return {
                 "private_key": priv_m.group(1),
@@ -109,22 +105,17 @@ class XRayCore:
         if self.started is True:
             raise RuntimeError("Xray is started already")
 
-        if config.get('log', {}).get('logLevel') in ('none', 'error'):
-            config['log']['logLevel'] = 'warning'
+        if config.get("log", {}).get("logLevel") in ("none", "error"):
+            config["log"]["logLevel"] = "warning"
 
-        cmd = [
-            self.executable_path,
-            "run",
-            '-config',
-            'stdin:'
-        ]
+        cmd = [self.executable_path, "run", "-config", "stdin:"]
         self.process = subprocess.Popen(
             cmd,
             env=self._env,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            universal_newlines=True
+            universal_newlines=True,
         )
         self.process.stdin.write(config.to_json())
         self.process.stdin.flush()

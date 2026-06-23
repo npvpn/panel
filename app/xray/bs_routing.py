@@ -2,11 +2,11 @@
 
 Без зависимостей от БД/окружения — тестируются как bs_limit/inbound_filter.
 """
+
 import json
-from typing import Optional
 
 
-def parse_json_object(raw: Optional[str]) -> Optional[dict]:
+def parse_json_object(raw: str | None) -> dict | None:
     """Распарсить JSON-строку в объект.
 
     '' / пробелы / None → None (поле не задано, использовать фолбэк).
@@ -26,8 +26,8 @@ def parse_json_object(raw: Optional[str]) -> Optional[dict]:
 
 def select_routing(
     template_routing: dict,
-    routing_default: Optional[dict],
-    routing_bs: Optional[dict],
+    routing_default: dict | None,
+    routing_bs: dict | None,
     is_bs: bool,
 ) -> dict:
     """Выбрать секцию routing для объекта-конфига одного сервера.

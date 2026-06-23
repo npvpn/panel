@@ -5,7 +5,7 @@ import secrets
 from collections import defaultdict
 from datetime import datetime as dt
 from datetime import timedelta
-from typing import TYPE_CHECKING, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal
 
 from jdatetime import date as jd
 
@@ -25,7 +25,7 @@ from config import (
     ONHOLD_STATUS_TEXT,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.subscription.share")
 
 SERVER_IP = get_public_ip()
 SERVER_IPV6 = get_public_ipv6()
@@ -47,17 +47,35 @@ STATUS_TEXTS = {
 }
 
 
-def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-                         bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "") -> list:
+def generate_v2ray_links(
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
+) -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
-    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-                                     bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text)
+    return process_inbounds_and_tags(
+        inbounds,
+        proxies,
+        format_variables,
+        conf=conf,
+        reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses,
+        bs_stub_text=bs_stub_text,
+    )
 
 
 def generate_clash_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, is_meta: bool = False,
-        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
+    is_meta: bool = False,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -66,62 +84,86 @@ def generate_clash_subscription(
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
+        inbounds,
+        proxies,
+        format_variables,
+        conf=conf,
+        reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses,
+        bs_stub_text=bs_stub_text,
     )
 
 
 def generate_singbox_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
 ) -> str:
     conf = SingBoxConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
+        inbounds,
+        proxies,
+        format_variables,
+        conf=conf,
+        reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses,
+        bs_stub_text=bs_stub_text,
     )
 
 
 def generate_outline_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-        bs_stub_addresses: Optional[set] = None, bs_stub_text: str = "",
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
 ) -> str:
     conf = OutlineConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses, bs_stub_text=bs_stub_text
+        inbounds,
+        proxies,
+        format_variables,
+        conf=conf,
+        reverse=reverse,
+        bs_stub_addresses=bs_stub_addresses,
+        bs_stub_text=bs_stub_text,
     )
 
 
 def generate_v2ray_json_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
 ) -> str:
     conf = V2rayJsonConfig()
 
     format_variables = setup_format_variables(extra_data)
-    return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
-    )
+    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
 
 
 def generate_subscription(
-        user: "UserResponse",
-        config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json"],
-        as_base64: bool,
-        reverse: bool,
-        revoked: bool = False,
-        expired: bool = False,
-        device_limited: bool = False,
-        device_limited_hard: bool = False,
-        unsupported_client: bool = False,
-        settings: Optional[dict] = None,
-        bs_stub_addresses: Optional[set] = None,
-        bs_stub_text: str = "",
-        bs_addresses: Optional[set] = None,
+    user: "UserResponse",
+    config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json"],
+    as_base64: bool,
+    reverse: bool,
+    revoked: bool = False,
+    expired: bool = False,
+    device_limited: bool = False,
+    device_limited_hard: bool = False,
+    unsupported_client: bool = False,
+    settings: dict | None = None,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
+    bs_addresses: set | None = None,
 ) -> str:
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
 
@@ -136,17 +178,12 @@ def generate_subscription(
             logger.warning("[sub] ignoring invalid %s: %s", name, exc)
             return None
 
-    v2ray_template_override = _safe_json(
-        resolved_settings.get("sub_v2ray_json_template"), "sub_v2ray_json_template")
-    routing_default_override = _safe_json(
-        resolved_settings.get("sub_routing_json_default"), "sub_routing_json_default")
-    routing_bs_override = _safe_json(
-        resolved_settings.get("sub_routing_json_bs"), "sub_routing_json_bs")
+    v2ray_template_override = _safe_json(resolved_settings.get("sub_v2ray_json_template"), "sub_v2ray_json_template")
+    routing_default_override = _safe_json(resolved_settings.get("sub_routing_json_default"), "sub_routing_json_default")
+    routing_bs_override = _safe_json(resolved_settings.get("sub_routing_json_bs"), "sub_routing_json_bs")
 
     # Special handling for inactive tokens: placeholder nodes for V2Ray
-    if config_format in ("v2ray", "v2ray-json") and (
-        revoked or expired or unsupported_client or device_limited_hard
-    ):
+    if config_format in ("v2ray", "v2ray-json") and (revoked or expired or unsupported_client or device_limited_hard):
         from app.subscription.v2ray import V2rayJsonConfig, V2rayShareLink
 
         if revoked:
@@ -160,7 +197,7 @@ def generate_subscription(
 
         if not text_list:
             if config_format == "v2ray":
-                return base64.b64encode("".encode()).decode()
+                return base64.b64encode(b"").decode()
             config = "[]"
             if as_base64:
                 config = base64.b64encode(config.encode()).decode()
@@ -403,22 +440,20 @@ def setup_format_variables(extra_data: dict) -> dict:
 
 
 def process_inbounds_and_tags(
-        inbounds: dict,
-        proxies: dict,
-        format_variables: dict,
-        conf: Union[
-            V2rayShareLink,
-            V2rayJsonConfig,
-            SingBoxConfiguration,
-            ClashConfiguration,
-            ClashMetaConfiguration,
-            OutlineConfiguration
-        ],
-        reverse=False,
-        bs_stub_addresses: Optional[set] = None,
-        bs_stub_text: str = "",
-        bs_addresses: Optional[set] = None,
-) -> Union[List, str]:
+    inbounds: dict,
+    proxies: dict,
+    format_variables: dict,
+    conf: V2rayShareLink
+    | V2rayJsonConfig
+    | SingBoxConfiguration
+    | ClashConfiguration
+    | ClashMetaConfiguration
+    | OutlineConfiguration,
+    reverse=False,
+    bs_stub_addresses: set | None = None,
+    bs_stub_text: str = "",
+    bs_addresses: set | None = None,
+) -> list | str:
     from app.xray.bs_limit import host_matches_blocked
 
     bs_stub_addresses = bs_stub_addresses or set()
@@ -427,10 +462,8 @@ def process_inbounds_and_tags(
     for protocol, tags in inbounds.items():
         for tag in tags:
             _inbounds.append((protocol, [tag]))
-    index_dict = {proxy: index for index, proxy in enumerate(
-        xray.config.inbounds_by_tag.keys())}
-    inbounds = sorted(
-        _inbounds, key=lambda x: index_dict.get(x[1][0], float('inf')))
+    index_dict = {proxy: index for index, proxy in enumerate(xray.config.inbounds_by_tag.keys())}
+    inbounds = sorted(_inbounds, key=lambda x: index_dict.get(x[1][0], float("inf")))
     user_bot_username = format_variables.get("BOT_USERNAME")
 
     for protocol, tags in inbounds:
@@ -448,11 +481,7 @@ def process_inbounds_and_tags(
             host_inbound = inbound.copy()
             for host in xray.hosts.get(tag, []):
                 allowed_bot_usernames = host.get("bot_usernames") or []
-                if (
-                    allowed_bot_usernames
-                    and user_bot_username
-                    and user_bot_username not in allowed_bot_usernames
-                ):
+                if allowed_bot_usernames and user_bot_username and user_bot_username not in allowed_bot_usernames:
                     continue
 
                 sni = ""
@@ -471,10 +500,10 @@ def process_inbounds_and_tags(
                     req_host = random.choice(req_host_list).replace("*", salt)
 
                 address = ""
-                address_list = host['address']
-                if host['address']:
+                address_list = host["address"]
+                if host["address"]:
                     salt = secrets.token_hex(8)
-                    address = random.choice(address_list).replace('*', salt)
+                    address = random.choice(address_list).replace("*", salt)
 
                 if host["path"] is not None:
                     path = host["path"].format_map(format_variables)
@@ -493,8 +522,7 @@ def process_inbounds_and_tags(
                         "alpn": host["alpn"] if host["alpn"] else None,
                         "path": path,
                         "fp": host["fingerprint"] or inbound.get("fp", ""),
-                        "ais": host["allowinsecure"]
-                        or inbound.get("allowinsecure", ""),
+                        "ais": host["allowinsecure"] or inbound.get("allowinsecure", ""),
                         "mux_enable": host["mux_enable"],
                         "fragment_setting": host["fragment_setting"],
                         "noise_setting": host["noise_setting"],
@@ -509,10 +537,7 @@ def process_inbounds_and_tags(
                 if host_matches_blocked(host["address"], bs_stub_addresses):
                     host_inbound["port"] = 0
                     conf.add(
-                        remark=bs_stub_text,
-                        address="0.0.0.0",
-                        inbound=host_inbound,
-                        settings=settings.model_dump()
+                        remark=bs_stub_text, address="0.0.0.0", inbound=host_inbound, settings=settings.model_dump()
                     )
                     continue
 
@@ -520,9 +545,7 @@ def process_inbounds_and_tags(
                 # совпал с is_bs-нодой) получает routing_bs, остальные — default.
                 # Другие форматы не знают про is_bs — туда флаг не передаём.
                 add_kwargs = {}
-                if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(
-                    host["address"], bs_addresses
-                ):
+                if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(host["address"], bs_addresses):
                     add_kwargs["is_bs"] = True
                 conf.add(
                     remark=host["remark"].format_map(format_variables),

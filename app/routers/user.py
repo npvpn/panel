@@ -1,9 +1,8 @@
 import threading
-from concurrent.futures import as_completed, ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from uuid import uuid4
-from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
@@ -11,10 +10,18 @@ from sqlalchemy.orm import selectinload
 
 from app import logger, xray
 from app.db import Session, crud, get_db
+from app.db.models import Proxy as DBProxy
 from app.db.models import User as DBUser
 from app.dependencies import get_expired_users_list, get_validated_user, validate_dates
 from app.models.admin import Admin
-from config import SYNC_INBOUNDS_DB_CHUNK_SIZE, SYNC_INBOUNDS_MAX_CONCURRENCY
+from app.models.proxy import (
+    ProxyTypes,
+    ShadowsocksSettings,
+    TrojanSettings,
+    VLESSSettings,
+    VMessSettings,
+    XTLSFlows,
+)
 from app.models.user import (
     UserCreate,
     UserDeviceCreate,
@@ -30,15 +37,7 @@ from app.models.user import (
 )
 from app.utils import report, responses
 from app.utils.request_context import request_id_var
-from app.db.models import Proxy as DBProxy
-from app.models.proxy import (
-    ProxyTypes,
-    VMessSettings,
-    VLESSSettings,
-    TrojanSettings,
-    ShadowsocksSettings,
-    XTLSFlows,
-)
+from config import SYNC_INBOUNDS_DB_CHUNK_SIZE, SYNC_INBOUNDS_MAX_CONCURRENCY
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
@@ -49,7 +48,7 @@ SYNC_PROGRESS = {}
 # tasks there and starve every other xray operation (user CRUD, node restarts,
 # periodic update_user_by_id) of worker threads. With its own pool, sync's
 # concurrency is hard-bounded and independent.
-_SYNC_EXECUTOR: Optional[ThreadPoolExecutor] = None
+_SYNC_EXECUTOR: ThreadPoolExecutor | None = None
 _SYNC_EXECUTOR_LOCK = threading.Lock()
 
 
@@ -74,6 +73,7 @@ def _update_single_user(user_id: int) -> bool:
     slow node round-trips.
     """
     from app.db import GetDB
+
     with GetDB() as db:
         dbuser = (
             db.query(DBUser)
@@ -304,7 +304,11 @@ def delete_user_device(
     return {"detail": "Device successfully deleted"}
 
 
-@router.put("/user/{username}", response_model=UserResponse, responses={400: responses._400, 403: responses._403, 404: responses._404})
+@router.put(
+    "/user/{username}",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
 def modify_user(
     modified_user: UserModify,
     bg: BackgroundTasks,
@@ -373,9 +377,7 @@ def modify_user(
             user_admin=dbuser.admin,
             by=admin,
         )
-        logger.info(
-            f'User "{dbuser.username}" status changed from {old_status} to {user.status}'
-        )
+        logger.info(f'User "{dbuser.username}" status changed from {old_status} to {user.status}')
 
     return user
 
@@ -401,15 +403,15 @@ def remove_user(
         )
     bg.add_task(xray.operations.remove_user, dbuser=dbuser)
 
-    bg.add_task(
-        report.user_deleted, username=dbuser.username, user_admin=Admin.model_validate(dbuser.admin), by=admin
-    )
+    bg.add_task(report.user_deleted, username=dbuser.username, user_admin=Admin.model_validate(dbuser.admin), by=admin)
 
     logger.info(f'User "{dbuser.username}" deleted')
     return {"detail": "User successfully deleted"}
 
 
-@router.post("/user/{username}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+@router.post(
+    "/user/{username}/reset", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+)
 def reset_user_data_usage(
     bg: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -422,15 +424,15 @@ def reset_user_data_usage(
         bg.add_task(xray.operations.add_user, dbuser=dbuser)
 
     user = UserResponse.model_validate(dbuser)
-    bg.add_task(
-        report.user_data_usage_reset, user=user, user_admin=dbuser.admin, by=admin
-    )
+    bg.add_task(report.user_data_usage_reset, user=user, user_admin=dbuser.admin, by=admin)
 
     logger.info(f'User "{dbuser.username}"\'s usage was reset')
     return dbuser
 
 
-@router.post("/user/{username}/revoke_sub", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+@router.post(
+    "/user/{username}/revoke_sub", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+)
 def revoke_user_subscription(
     bg: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -443,23 +445,23 @@ def revoke_user_subscription(
     if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
         bg.add_task(xray.operations.update_user, dbuser=dbuser)
     user = UserResponse.model_validate(dbuser)
-    bg.add_task(
-        report.user_subscription_revoked, user=user, user_admin=dbuser.admin, by=admin
-    )
+    bg.add_task(report.user_subscription_revoked, user=user, user_admin=dbuser.admin, by=admin)
 
     logger.info(f'User "{dbuser.username}" subscription revoked')
 
     return user
 
 
-@router.get("/users", response_model=UsersResponse, responses={400: responses._400, 403: responses._403, 404: responses._404})
+@router.get(
+    "/users", response_model=UsersResponse, responses={400: responses._400, 403: responses._403, 404: responses._404}
+)
 def get_users(
     offset: int = None,
     limit: int = None,
-    username: List[str] = Query(None),
-    search: Union[str, None] = None,
-    owner: Union[List[str], None] = Query(None, alias="admin"),
-    bot_username: Union[str, None] = None,
+    username: list[str] = Query(None),
+    search: str | None = None,
+    owner: list[str] | None = Query(None, alias="admin"),
+    bot_username: str | None = None,
     status: UserStatus = None,
     sort: str = None,
     db: Session = Depends(get_db),
@@ -473,9 +475,7 @@ def get_users(
             try:
                 sort.append(crud.UsersSortingOptions[opt])
             except KeyError:
-                raise HTTPException(
-                    status_code=400, detail=f'"{opt}" is not a valid sort option'
-                )
+                raise HTTPException(status_code=400, detail=f'"{opt}" is not a valid sort option')
 
     users, count = crud.get_users(
         db=db,
@@ -496,9 +496,7 @@ def get_users(
 
 
 @router.post("/users/reset", responses={403: responses._403, 404: responses._404})
-def reset_users_data_usage(
-    db: Session = Depends(get_db), admin: Admin = Depends(Admin.check_sudo_admin)
-):
+def reset_users_data_usage(db: Session = Depends(get_db), admin: Admin = Depends(Admin.check_sudo_admin)):
     """Reset all users data usage"""
     dbadmin = crud.get_admin(db, admin.username)
     crud.reset_all_users_data_usage(db=db, admin=dbadmin)
@@ -520,9 +518,7 @@ def _reconcile_user_inbounds(dbuser) -> bool:
         existing_types = {p.type for p in dbuser.proxies}
     except Exception:
         existing_types = set()
-    global_protocols = [
-        ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds
-    ]
+    global_protocols = [ProxyTypes(p) for p, inbounds in xray.config.inbounds_by_protocol.items() if inbounds]
     missing_protocols = [p for p in global_protocols if p not in existing_types]
     for protocol in missing_protocols:
         if protocol == ProxyTypes.VLESS:
@@ -548,9 +544,7 @@ def _reconcile_user_inbounds(dbuser) -> bool:
 
         if proxy.excluded_inbounds:
             before_count = len(proxy.excluded_inbounds)
-            filtered_exclusions = [
-                inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags
-            ]
+            filtered_exclusions = [inbound for inbound in proxy.excluded_inbounds if inbound.tag in global_tags]
             cleared = bool(filtered_exclusions)
             if filtered_exclusions:
                 proxy.excluded_inbounds = []
@@ -579,9 +573,7 @@ def _run_sync_inbounds(op_id: str):
 
     try:
         with GetDB() as db:
-            active_user_ids = [
-                uid for (uid,) in db.query(DBUser.id).filter(DBUser.status == UserStatus.active).all()
-            ]
+            active_user_ids = [uid for (uid,) in db.query(DBUser.id).filter(DBUser.status == UserStatus.active).all()]
         total = len(active_user_ids)
         st = SYNC_PROGRESS.get(op_id)
         if st is not None:
@@ -592,7 +584,7 @@ def _run_sync_inbounds(op_id: str):
         scheduled_user_ids: list[int] = []
 
         for chunk_start in range(0, total, SYNC_INBOUNDS_DB_CHUNK_SIZE):
-            chunk_ids = active_user_ids[chunk_start:chunk_start + SYNC_INBOUNDS_DB_CHUNK_SIZE]
+            chunk_ids = active_user_ids[chunk_start : chunk_start + SYNC_INBOUNDS_DB_CHUNK_SIZE]
             with GetDB() as db:
                 chunk_users = (
                     db.query(DBUser)
@@ -619,7 +611,9 @@ def _run_sync_inbounds(op_id: str):
 
         logger.info(
             "[sync-inbounds] op_id=%s db_phase_done updated=%d scheduled=%d",
-            op_id, users_updated, users_scheduled,
+            op_id,
+            users_updated,
+            users_scheduled,
         )
 
         if scheduled_user_ids:
@@ -691,7 +685,9 @@ def get_sync_inbounds_status(op_id: str = None, admin: Admin = Depends(Admin.get
     return {"op_id": op_id, **st}
 
 
-@router.get("/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404})
+@router.get(
+    "/user/{username}/usage", response_model=UserUsagesResponse, responses={403: responses._403, 404: responses._404}
+)
 def get_user_usage(
     dbuser: UserResponse = Depends(get_validated_user),
     start: str = "",
@@ -706,7 +702,9 @@ def get_user_usage(
     return {"usages": usages, "username": dbuser.username}
 
 
-@router.post("/user/{username}/active-next", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
+@router.post(
+    "/user/{username}/active-next", response_model=UserResponse, responses={403: responses._403, 404: responses._404}
+)
 def active_next_plan(
     bg: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -715,10 +713,10 @@ def active_next_plan(
     """Reset user by next plan"""
     dbuser = crud.reset_user_by_next(db=db, dbuser=dbuser)
 
-    if (dbuser is None or dbuser.next_plan is None):
+    if dbuser is None or dbuser.next_plan is None:
         raise HTTPException(
             status_code=404,
-            detail=f"User doesn't have next plan",
+            detail="User doesn't have next plan",
         )
 
     if dbuser.status in [UserStatus.active, UserStatus.on_hold]:
@@ -726,7 +724,9 @@ def active_next_plan(
 
     user = UserResponse.model_validate(dbuser)
     bg.add_task(
-        report.user_data_reset_by_next, user=user, user_admin=dbuser.admin,
+        report.user_data_reset_by_next,
+        user=user,
+        user_admin=dbuser.admin,
     )
 
     logger.info(f'User "{dbuser.username}"\'s usage was reset by next plan')
@@ -738,15 +738,13 @@ def get_users_usage(
     start: str = "",
     end: str = "",
     db: Session = Depends(get_db),
-    owner: Union[List[str], None] = Query(None, alias="admin"),
+    owner: list[str] | None = Query(None, alias="admin"),
     admin: Admin = Depends(Admin.get_current),
 ):
     """Get all users usage"""
     start, end = validate_dates(start, end)
 
-    usages = crud.get_all_users_usages(
-        db=db, start=start, end=end, admin=owner if admin.is_sudo else [admin.username]
-    )
+    usages = crud.get_all_users_usages(db=db, start=start, end=end, admin=owner if admin.is_sudo else [admin.username])
 
     return {"usages": usages}
 
@@ -771,10 +769,10 @@ def set_owner(
     return user
 
 
-@router.get("/users/expired", response_model=List[str])
+@router.get("/users/expired", response_model=list[str])
 def get_expired_users(
-    expired_after: Optional[datetime] = Query(None, example="2024-01-01T00:00:00"),
-    expired_before: Optional[datetime] = Query(None, example="2024-01-31T23:59:59"),
+    expired_after: datetime | None = Query(None, example="2024-01-01T00:00:00"),
+    expired_before: datetime | None = Query(None, example="2024-01-31T23:59:59"),
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
@@ -793,11 +791,11 @@ def get_expired_users(
     return [u.username for u in expired_users]
 
 
-@router.delete("/users/expired", response_model=List[str])
+@router.delete("/users/expired", response_model=list[str])
 def delete_expired_users(
     bg: BackgroundTasks,
-    expired_after: Optional[datetime] = Query(None, example="2024-01-01T00:00:00"),
-    expired_before: Optional[datetime] = Query(None, example="2024-01-31T23:59:59"),
+    expired_after: datetime | None = Query(None, example="2024-01-01T00:00:00"),
+    expired_before: datetime | None = Query(None, example="2024-01-31T23:59:59"),
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
@@ -814,9 +812,7 @@ def delete_expired_users(
     removed_users = [u.username for u in expired_users]
 
     if not removed_users:
-        raise HTTPException(
-            status_code=404, detail="No expired users found in the specified date range"
-        )
+        raise HTTPException(status_code=404, detail="No expired users found in the specified date range")
 
     crud.remove_users(db, expired_users)
 
@@ -825,9 +821,7 @@ def delete_expired_users(
         bg.add_task(
             report.user_deleted,
             username=removed_user,
-            user_admin=next(
-                (u.admin for u in expired_users if u.username == removed_user), None
-            ),
+            user_admin=next((u.admin for u in expired_users if u.username == removed_user), None),
             by=admin,
         )
 

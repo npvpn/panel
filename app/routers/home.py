@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from config import HOME_PAGE_TEMPLATE
 from app.templates import render_template
+from config import HOME_PAGE_TEMPLATE
 
 router = APIRouter()
 

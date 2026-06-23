@@ -1,7 +1,6 @@
 import contextvars
 from dataclasses import dataclass
 
-
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
 request_method_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_method", default=None)
 request_path_template_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -25,4 +24,3 @@ def snapshot() -> RequestContextSnapshot:
         path_template=request_path_template_var.get(),
         handler=request_handler_var.get(),
     )
-

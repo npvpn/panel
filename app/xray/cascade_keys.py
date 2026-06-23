@@ -5,6 +5,7 @@
 служебного cascade-клиента, который инъектится в выбранный инбаунд. publicKey для outbound
 деривится из privateKey инбаунда в operations.py (через app.xray.core.get_x25519).
 """
+
 from __future__ import annotations
 
 from uuid import uuid4
