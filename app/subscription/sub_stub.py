@@ -1,0 +1,93 @@
+"""V2Ray-заглушки подписки для revoked/expired/unsupported/device_limit.
+
+Выбор текста — без тяжёлых зависимостей; сборка payload лениво импортирует v2ray.
+"""
+
+from __future__ import annotations
+
+import base64
+import urllib.parse as urlparse
+from collections.abc import Mapping, Sequence
+from typing import Literal
+
+ZERO_STUB_ID = "00000000-0000-0000-0000-000000000000"
+
+
+def _vless_stub_link(remark: str) -> str:
+    """Минимальная vless-ссылка заглушки (0.0.0.0:0), без импорта v2ray.py."""
+    payload = {
+        "security": "none",
+        "type": "ws",
+        "headerType": "",
+        "path": "",
+        "host": "",
+    }
+    return "vless://" + f"{ZERO_STUB_ID}@0.0.0.0:0?" + urlparse.urlencode(payload) + f"#{urlparse.quote(remark)}"
+
+
+def pick_status_stub_text_list(
+    *,
+    revoked: bool,
+    expired: bool,
+    device_limited_hard: bool,
+    unsupported_client: bool,
+    settings: Mapping[str, Sequence[str]],
+) -> list[str]:
+    """Приоритет статусов как в generate_subscription."""
+    if revoked:
+        return list(settings["sub_revoked_server_text"])
+    if expired:
+        return list(settings["sub_expired_server_text"])
+    if device_limited_hard:
+        return list(settings["sub_device_limit_server_text"])
+    if unsupported_client:
+        return list(settings["sub_unsupported_client_server_text"])
+    return []
+
+
+def build_v2ray_status_stub(
+    text_list: Sequence[str],
+    config_format: Literal["v2ray", "v2ray-json"],
+    *,
+    as_base64: bool,
+    reverse: bool = False,
+) -> str:
+    """Мёртвые vless-узлы 0.0.0.0:0 с remark из text_list."""
+    if not text_list:
+        if config_format == "v2ray":
+            return base64.b64encode(b"").decode()
+        config = "[]"
+        if as_base64:
+            config = base64.b64encode(config.encode()).decode()
+        return config
+
+    if config_format == "v2ray":
+        payload = "\n".join(_vless_stub_link(remark) for remark in text_list)
+        return base64.b64encode(payload.encode()).decode()
+
+    from app.subscription.v2ray import V2rayJsonConfig
+
+    stub_inbound = {
+        "network": "ws",
+        "protocol": "vless",
+        "port": 0,
+        "tls": "none",
+        "header_type": "",
+        "fragment_setting": "",
+        "noise_setting": "",
+        "path": "",
+        "host": "",
+        "sni": "",
+    }
+    conf = V2rayJsonConfig()
+    for remark in text_list:
+        conf.add(
+            remark=remark,
+            address="0.0.0.0",
+            inbound=stub_inbound,
+            settings={"id": ZERO_STUB_ID},
+        )
+    config = conf.render(reverse=reverse)
+    if as_base64:
+        config = base64.b64encode(config.encode()).decode()
+    return config

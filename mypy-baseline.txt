@@ -405,7 +405,6 @@ app/db/crud.py:0: error: Incompatible types in assignment (expression has type "
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "str | Column[str]", variable has type "Column[str]")  [assignment]
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "str", variable has type "Column[str]")  [assignment]
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "datetime", variable has type "Column[datetime]")  [assignment]
-app/db/crud.py:0: error: Argument 1 to "_unknown_user_agents_match" has incompatible type "Column[str]"; expected "str | None"  [arg-type]
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "str | Column[str]", variable has type "Column[str]")  [assignment]
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "str | Column[str]", variable has type "Column[str]")  [assignment]
 app/db/crud.py:0: error: Incompatible types in assignment (expression has type "str | Column[str]", variable has type "Column[str]")  [assignment]

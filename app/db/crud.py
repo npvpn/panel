@@ -4,7 +4,7 @@ Functions for managing proxy hosts, users, user templates, nodes, and administra
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, delete, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -52,6 +52,7 @@ from app.models.user import (
     UserUsageResponse,
 )
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.subscription.device_ua import unknown_user_agents_match as _unknown_user_agents_match
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app.utils.jwt import create_subscription_token
 from app.xray.cascade_keys import generate_cascade_identity
@@ -789,24 +790,6 @@ def revoke_user_device(db: Session, dbdevice: UserDevice) -> UserDevice:
     return dbdevice
 
 
-def _unknown_user_agents_match(stored: str | None, incoming: str | None) -> bool:
-    def norm(v: str | None) -> str | None:
-        if v is None:
-            return None
-        s = v.strip()
-        return s if s else None
-
-    stored_n = norm(stored)
-    incoming_n = norm(incoming)
-    if stored_n == "Неизвестно":
-        stored_n = None
-    if stored_n is None and incoming_n is None:
-        return True
-    if stored_n is None or incoming_n is None:
-        return stored_n == incoming_n
-    return stored_n == incoming_n
-
-
 def _update_unknown_device_metadata(
     dbdevice: UserDevice,
     device_os: str | None,
@@ -836,7 +819,7 @@ def register_user_device(
     if not hwid:
         dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
         if dbdevice:
-            if _unknown_user_agents_match(dbdevice.user_agent, user_agent):
+            if _unknown_user_agents_match(cast(str | None, dbdevice.user_agent), user_agent):
                 _update_unknown_device_metadata(dbdevice, device_os, ver_os, device_model, user_agent)
                 db.commit()
                 return True, False
