@@ -19,9 +19,7 @@ def test_multiple_lines_blanks_and_comments_skipped():
 
 
 def test_value_with_colon_splits_on_first_only():
-    assert parse_custom_headers("X-Url: https://example.com/x") == {
-        "x-url": "https://example.com/x"
-    }
+    assert parse_custom_headers("X-Url: https://example.com/x") == {"x-url": "https://example.com/x"}
 
 
 def test_line_without_colon_skipped():
@@ -59,9 +57,7 @@ def test_latin1_value_kept():
 
 def test_header_name_lowercased():
     assert parse_custom_headers("Routing-Enable: 0") == {"routing-enable": "0"}
-    assert parse_custom_headers("Content-Disposition: inline") == {
-        "content-disposition": "inline"
-    }
+    assert parse_custom_headers("Content-Disposition: inline") == {"content-disposition": "inline"}
 
 
 def test_starlette_response_single_content_disposition():
@@ -75,11 +71,7 @@ def test_starlette_response_single_content_disposition():
             **parse_custom_headers("Content-Disposition: custom"),
         },
     )
-    cd_headers = [
-        (name, val)
-        for name, val in resp.raw_headers
-        if name.lower() == b"content-disposition"
-    ]
+    cd_headers = [(name, val) for name, val in resp.raw_headers if name.lower() == b"content-disposition"]
     assert len(cd_headers) == 1
     assert cd_headers[0][1] == b"custom"
 

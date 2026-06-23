@@ -38,8 +38,6 @@ if "app.subscription" not in sys.modules:
     # Заглушка пакета app.subscription с реальным путём — Python найдёт
     # app/subscription/custom_headers.py, не выполняя app/subscription/__init__.py.
     subscription_stub = types.ModuleType("app.subscription")
-    subscription_stub.__path__ = [
-        str(pathlib.Path(__file__).parent.parent / "app" / "subscription")
-    ]
+    subscription_stub.__path__ = [str(pathlib.Path(__file__).parent.parent / "app" / "subscription")]
     subscription_stub.__package__ = "app.subscription"
     sys.modules["app.subscription"] = subscription_stub

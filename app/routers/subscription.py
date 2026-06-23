@@ -15,10 +15,8 @@ from app.db import GetDB, Session, crud, get_db
 from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
-from app.subscription.custom_headers import parse_custom_headers
-from app.subscription.share import encode_title, generate_subscription
-from app.xray.bs_limit import bs_stub_remark
 from app.subscription.bot_settings import resolve_bot_settings
+from app.subscription.custom_headers import parse_custom_headers
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from app.utils.jwt import get_subscription_payload
