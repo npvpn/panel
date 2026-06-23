@@ -3,11 +3,9 @@
 Без зависимостей от БД/окружения — тестируется как bs_limit/inbound_filter.
 """
 
-from typing import Optional
 
-
-def unknown_user_agents_match(stored: Optional[str], incoming: Optional[str]) -> bool:
-    def norm(v: Optional[str]) -> Optional[str]:
+def unknown_user_agents_match(stored: str | None, incoming: str | None) -> bool:
+    def norm(v: str | None) -> str | None:
         if v is None:
             return None
         s = v.strip()

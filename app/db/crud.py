@@ -51,9 +51,8 @@ from app.models.user import (
     UserStatus,
     UserUsageResponse,
 )
-from app.models.bot import apply_bot_settings_fallback
-from app.subscription.device_ua import unknown_user_agents_match as _unknown_user_agents_match
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.subscription.device_ua import unknown_user_agents_match as _unknown_user_agents_match
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app.utils.jwt import create_subscription_token
 from app.xray.cascade_keys import generate_cascade_identity

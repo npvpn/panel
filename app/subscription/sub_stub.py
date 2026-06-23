@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import base64
 import urllib.parse as urlparse
-from typing import Literal, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Literal
 
 ZERO_STUB_ID = "00000000-0000-0000-0000-000000000000"
 
