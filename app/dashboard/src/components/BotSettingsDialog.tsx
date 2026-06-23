@@ -65,6 +65,7 @@ const emptySettings: BotSettings = {
   sub_v2ray_json_template: "",
   sub_routing_json_default: "",
   sub_routing_json_bs: "",
+  sub_custom_headers: "",
   bs_daily_limit: 0,
   bs_monthly_limit: 0,
 };
@@ -324,6 +325,7 @@ export const BotSettingsDialog: FC = () => {
       sub_v2ray_json_template: current.sub_v2ray_json_template,
       sub_routing_json_default: current.sub_routing_json_default,
       sub_routing_json_bs: current.sub_routing_json_bs,
+      sub_custom_headers: current.sub_custom_headers,
       bs_daily_limit: current.bs_daily_limit,
       bs_monthly_limit: current.bs_monthly_limit,
     };
@@ -785,6 +787,19 @@ export const BotSettingsDialog: FC = () => {
                         updateSettings({ sub_client_note: e.target.value })
                       }
                     />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>{t("botSettings.subCustomHeaders")}</FormLabel>
+                    <Textarea
+                      value={settings.sub_custom_headers}
+                      placeholder={"routing-enable: 0"}
+                      onChange={(e) =>
+                        updateSettings({ sub_custom_headers: e.target.value })
+                      }
+                    />
+                    <FormHelperText>
+                      {t("botSettings.subCustomHeadersHint")}
+                    </FormHelperText>
                   </FormControl>
                   <HStack align="start">
                     <FormControl>

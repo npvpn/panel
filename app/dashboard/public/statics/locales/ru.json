@@ -265,6 +265,8 @@
   "botSettings.subRoutingHapp": "Routing для Happ",
   "botSettings.subRoutingV2raytun": "Routing для v2raytun",
   "botSettings.subClientNote": "Шаблон заметки клиента",
+  "botSettings.subCustomHeaders": "Кастомные response-хедеры",
+  "botSettings.subCustomHeadersHint": "По одному 'Name: Value' в строке, добавляются в ответ подписки и переопределяют встроенные. Пример: routing-enable: 0 отключает routing в Happ.",
   "botSettings.subRevokedAnnounceText": "Текст объявления при отзыве",
   "botSettings.subExpiredAnnounceText": "Текст объявления при истечении",
   "botSettings.subDeviceLimitHardMode": "Жёсткая заглушка при лимите устройств",

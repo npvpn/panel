@@ -22,6 +22,8 @@ if "app" not in sys.modules:
     sys.modules["app"] = app_stub
 
 if "app.xray" not in sys.modules:
+    import pathlib
+
     # Загружаем реальный app/xray/__init__.py напрямую через spec,
     # но он тоже тяжёлый — вместо этого регистрируем заглушку пакета,
     # и Python найдёт app/xray/inbound_filter.py через обычный механизм.
