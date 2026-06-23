@@ -1,0 +1,22 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-check
+        name: ruff-strict (staged)
+        alias: ruff-strict
+        args: [--config, ruff-strict.toml]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy-baseline
+        name: mypy (baseline)
+        # --no-incremental: гоняем без .mypy_cache, чтобы локальный хук всегда совпадал
+        # с чистым прогоном в CI (инкрементальный кэш + pydantic «уплывает» → ложные new/fixed).
+        entry: bash -c 'uv run mypy --no-incremental app | uv run mypy-baseline filter'
+        language: system
+        types: [python]
+        pass_filenames: false

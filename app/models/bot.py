@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -23,7 +23,7 @@ from config import (
 )
 
 
-def _normalize_server_text(value: Any) -> List[str]:
+def _normalize_server_text(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -33,7 +33,7 @@ def _normalize_server_text(value: Any) -> List[str]:
     return []
 
 
-DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
+DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_update_interval": str(SUB_UPDATE_INTERVAL),
     "sub_support_url": SUB_SUPPORT_URL,
     "sub_profile_title": SUB_PROFILE_TITLE,
@@ -64,7 +64,7 @@ DEFAULT_BOT_SETTINGS: Dict[str, Any] = {
 
 class BotBase(BaseModel):
     username: str = Field(min_length=1, max_length=64)
-    title: Optional[str] = Field(None, max_length=128)
+    title: str | None = Field(None, max_length=128)
 
     @field_validator("username")
     @classmethod
@@ -73,13 +73,13 @@ class BotBase(BaseModel):
 
 
 class BotCreate(BotBase):
-    web_url: Optional[str] = None
+    web_url: str | None = None
 
 
 class BotUpdate(BaseModel):
     username: str = Field(min_length=1, max_length=64)
-    title: Optional[str] = Field(None, max_length=128)
-    web_url: Optional[str] = None
+    title: str | None = Field(None, max_length=128)
+    web_url: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -109,11 +109,11 @@ class BotSettingsPayload(BaseModel):
     bs_daily_limit: int = 0
     bs_monthly_limit: int = 0
     sub_unsupported_client_announce_text: str = ""
-    sub_revoked_server_text: List[str] = []
-    sub_expired_server_text: List[str] = []
-    sub_device_limit_server_text: List[str] = []
-    sub_unsupported_client_server_text: List[str] = []
-    sub_bs_limit_server_text: List[str] = []
+    sub_revoked_server_text: list[str] = []
+    sub_expired_server_text: list[str] = []
+    sub_device_limit_server_text: list[str] = []
+    sub_unsupported_client_server_text: list[str] = []
+    sub_bs_limit_server_text: list[str] = []
     sub_bs_limit_announce_text: str = ""
     sub_v2ray_json_template: str = ""
     sub_routing_json_default: str = ""
@@ -146,7 +146,7 @@ class BotSettingsPayload(BaseModel):
         return value if value is not None else ""
 
 
-def apply_bot_settings_fallback(raw_settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str, Any]:
     base = dict(DEFAULT_BOT_SETTINGS)
     if raw_settings:
         for key, value in raw_settings.items():

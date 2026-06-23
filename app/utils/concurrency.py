@@ -25,8 +25,10 @@ def shutdown_xray_executor(wait: bool = True):
 def threaded_function(func):
     """Submit work to the global xray thread pool instead of spawning a new Thread per call.
     Returns a Future (ignored by current callers, but available if needed)."""
+
     def wrapper(*args, **kwargs) -> Future:
         return _xray_executor.submit(func, *args, **kwargs)
+
     wrapper.__wrapped__ = func
     return wrapper
 

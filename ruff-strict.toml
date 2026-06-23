@@ -1,0 +1,32 @@
+# Строгие структурные правила. Применяются к изменённым/staged файлам (ratchet).
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = [
+    "C901",    # сложность функции (mccabe)
+    "PLR0911", # слишком много return
+    "PLR0912", # слишком много веток
+    "PLR0913", # слишком много аргументов
+    "PLR0915", # слишком много операторов
+    "B",       # flake8-bugbear
+    "SIM",     # flake8-simplify
+    "RET",     # flake8-return
+    "ARG",     # неиспользуемые аргументы
+    "TRY",     # корректная работа с исключениями
+    "PTH",     # переход на pathlib
+    "PERF",    # антипаттерны производительности
+    "E722",    # bare except (в base globally ignored — здесь блокируем для нового кода)
+    "F811",    # переопределение имени
+    "F841",    # неиспользуемая локальная
+    "UP042",   # str+Enum → StrEnum
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+max-args = 6
+max-branches = 12
+max-returns = 6
+max-statements = 50

@@ -1,16 +1,17 @@
 import datetime
+from datetime import datetime
+
+from telebot.apihelper import ApiTelegramException
+from telebot.formatting import escape_html
 
 from app import logger
 from app.db.models import User
+from app.models.admin import Admin
+from app.models.user import UserDataLimitResetStrategy
 from app.telegram import bot
-from telebot.apihelper import ApiTelegramException
-from datetime import datetime
 from app.telegram.utils.keyboard import BotKeyboard
 from app.utils.system import readable_size
 from config import TELEGRAM_ADMIN_ID, TELEGRAM_LOGGER_CHANNEL_ID
-from telebot.formatting import escape_html
-from app.models.admin import Admin
-from app.models.user import UserDataLimitResetStrategy
 
 
 def report(text: str, chat_id: int = None, parse_mode="html", keyboard=None):
@@ -28,17 +29,17 @@ def report(text: str, chat_id: int = None, parse_mode="html", keyboard=None):
 
 
 def report_new_user(
-        user_id: int,
-        username: str,
-        by: str,
-        expire_date: int,
-        data_limit: int,
-        proxies: list,
-        has_next_plan: bool,
-        data_limit_reset_strategy: UserDataLimitResetStrategy,
-        admin: Admin = None
+    user_id: int,
+    username: str,
+    by: str,
+    expire_date: int,
+    data_limit: int,
+    proxies: list,
+    has_next_plan: bool,
+    data_limit_reset_strategy: UserDataLimitResetStrategy,
+    admin: Admin = None,
 ):
-    text = '''\
+    text = """\
 🆕 <b>#Created</b>
 ➖➖➖➖➖➖➖➖➖
 <b>Username :</b> <code>{username}</code>
@@ -49,7 +50,7 @@ def report_new_user(
 <b>Has Next Plan :</b> <code>{next_plan}</code>
 ➖➖➖➖➖➖➖➖➖
 <b>Belongs To :</b> <code>{belong_to}</code>
-<b>By :</b> <b>#{by}</b>'''.format(
+<b>By :</b> <b>#{by}</b>""".format(
         belong_to=escape_html(admin.username) if admin else None,
         by=escape_html(by),
         username=escape_html(username),
@@ -63,25 +64,21 @@ def report_new_user(
     return report(
         chat_id=admin.telegram_id if admin and admin.telegram_id else None,
         text=text,
-        keyboard=BotKeyboard.user_menu({
-            'username': username,
-            'id': user_id,
-            'status': 'active'
-        }, with_back=False)
+        keyboard=BotKeyboard.user_menu({"username": username, "id": user_id, "status": "active"}, with_back=False),
     )
 
 
 def report_user_modification(
-        username: str,
-        expire_date: int,
-        data_limit: int,
-        proxies: list,
-        has_next_plan: bool,
-        by: str,
-        data_limit_reset_strategy: UserDataLimitResetStrategy,
-        admin: Admin = None
+    username: str,
+    expire_date: int,
+    data_limit: int,
+    proxies: list,
+    has_next_plan: bool,
+    by: str,
+    data_limit_reset_strategy: UserDataLimitResetStrategy,
+    admin: Admin = None,
 ):
-    text = '''\
+    text = """\
 ✏️ <b>#Modified</b>
 ➖➖➖➖➖➖➖➖➖
 <b>Username :</b> <code>{username}</code>
@@ -93,13 +90,13 @@ def report_user_modification(
 ➖➖➖➖➖➖➖➖➖
 <b>Belongs To :</b> <code>{belong_to}</code>
 <b>By :</b> <b>#{by}</b>\
-    '''.format(
+    """.format(
         belong_to=escape_html(admin.username) if admin else None,
         by=escape_html(by),
         username=escape_html(username),
         data_limit=readable_size(data_limit) if data_limit else "Unlimited",
         expire_date=datetime.fromtimestamp(expire_date).strftime("%H:%M:%S %Y-%m-%d") if expire_date else "Never",
-        protocols=', '.join([p for p in proxies]),
+        protocols=", ".join([p for p in proxies]),
         data_limit_reset_strategy=escape_html(data_limit_reset_strategy),
         next_plan="True" if has_next_plan else "False",
     )
@@ -107,59 +104,49 @@ def report_user_modification(
     return report(
         chat_id=admin.telegram_id if admin and admin.telegram_id else None,
         text=text,
-        keyboard=BotKeyboard.user_menu({'username': username, 'status': 'active'}, with_back=False))
+        keyboard=BotKeyboard.user_menu({"username": username, "status": "active"}, with_back=False),
+    )
 
 
 def report_user_deletion(username: str, by: str, admin: Admin = None):
-    text = '''\
+    text = f"""\
 🗑 <b>#Deleted</b>
 ➖➖➖➖➖➖➖➖➖
-<b>Username</b> : <code>{username}</code>
+<b>Username</b> : <code>{escape_html(username)}</code>
 ➖➖➖➖➖➖➖➖➖
-<b>Belongs To :</b> <code>{belong_to}</code>
-<b>By</b> : <b>#{by}</b>\
-    '''.format(
-        belong_to=escape_html(admin.username) if admin else None,
-        by=escape_html(by),
-        username=escape_html(username)
-    )
+<b>Belongs To :</b> <code>{escape_html(admin.username) if admin else None}</code>
+<b>By</b> : <b>#{escape_html(by)}</b>\
+    """
     return report(chat_id=admin.telegram_id if admin and admin.telegram_id else None, text=text)
 
 
 def report_status_change(username: str, status: str, admin: Admin = None):
     _status = {
-        'active': '✅ <b>#Activated</b>',
-        'disabled': '❌ <b>#Disabled</b>',
-        'limited': '🪫 <b>#Limited</b>',
-        'expired': '🕔 <b>#Expired</b>'
+        "active": "✅ <b>#Activated</b>",
+        "disabled": "❌ <b>#Disabled</b>",
+        "limited": "🪫 <b>#Limited</b>",
+        "expired": "🕔 <b>#Expired</b>",
     }
-    text = '''\
-{status}
+    text = f"""\
+{_status[status]}
 ➖➖➖➖➖➖➖➖➖
-<b>Username</b> : <code>{username}</code>
-<b>Belongs To :</b> <code>{belong_to}</code>\
-    '''.format(
-        belong_to=escape_html(admin.username) if admin else None,
-        username=escape_html(username),
-        status=_status[status]
-    )
+<b>Username</b> : <code>{escape_html(username)}</code>
+<b>Belongs To :</b> <code>{escape_html(admin.username) if admin else None}</code>\
+    """
     return report(chat_id=admin.telegram_id if admin and admin.telegram_id else None, text=text)
 
 
 def report_user_usage_reset(username: str, by: str, admin: Admin = None):
-    text = """  
+    text = f"""  
 🔁 <b>#Reset</b>
 ➖➖➖➖➖➖➖➖➖
-<b>Username</b> : <code>{username}</code>
+<b>Username</b> : <code>{escape_html(username)}</code>
 ➖➖➖➖➖➖➖➖➖
-<b>Belongs To :</b> <code>{belong_to}</code>
-<b>By</b> : <b>#{by}</b>\
-    """.format(
-        belong_to=escape_html(admin.username) if admin else None,
-        by=escape_html(by),
-        username=escape_html(username)
-    )
+<b>Belongs To :</b> <code>{escape_html(admin.username) if admin else None}</code>
+<b>By</b> : <b>#{escape_html(by)}</b>\
+    """
     return report(chat_id=admin.telegram_id if admin and admin.telegram_id else None, text=text)
+
 
 def report_user_data_reset_by_next(user: User, admin: Admin = None):
     text = """  
@@ -178,34 +165,25 @@ def report_user_data_reset_by_next(user: User, admin: Admin = None):
 
 
 def report_user_subscription_revoked(username: str, by: str, admin: Admin = None):
-    text = """  
+    text = f"""  
 🔁 <b>#Revoked</b>
 ➖➖➖➖➖➖➖➖➖
-<b>Username</b> : <code>{username}</code>
+<b>Username</b> : <code>{escape_html(username)}</code>
 ➖➖➖➖➖➖➖➖➖
-<b>Belongs To :</b> <code>{belong_to}</code>
-<b>By</b> : <b>#{by}</b>\
-    """.format(
-        belong_to=escape_html(admin.username) if admin else None,
-        by=escape_html(by),
-        username=escape_html(username)
-    )
+<b>Belongs To :</b> <code>{escape_html(admin.username) if admin else None}</code>
+<b>By</b> : <b>#{escape_html(by)}</b>\
+    """
     return report(chat_id=admin.telegram_id if admin and admin.telegram_id else None, text=text)
 
 
 def report_login(username: str, password: str, client_ip: str, status: str):
-    text = """  
+    text = f"""  
 🔐 <b>#Login</b>
 ➖➖➖➖➖➖➖➖➖
-<b>Username</b> : <code>{username}</code>
-<b>Password</b> : <code>{password}</code>
-<b>Client ip </b>: <code>{client_ip}</code>
+<b>Username</b> : <code>{escape_html(username)}</code>
+<b>Password</b> : <code>{escape_html(password)}</code>
+<b>Client ip </b>: <code>{escape_html(client_ip)}</code>
 ➖➖➖➖➖➖➖➖➖
-<b>login status </b>: <code>{status}</code>  
-    """.format(
-        username=escape_html(username),
-        password=escape_html(password),
-        status=escape_html(status),
-        client_ip=escape_html(client_ip)
-    )
+<b>login status </b>: <code>{escape_html(status)}</code>  
+    """
     return report(text=text)

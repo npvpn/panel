@@ -21,7 +21,14 @@ import { Statistics } from "../components/Statistics";
 
 export const Dashboard: FC = () => {
   useEffect(() => {
-    useDashboard.getState().refetchUsers();
+    // Префилл поиска из URL (#/?search=<username>) — deep-link из Chatwoot.
+    const params = new URLSearchParams(window.location.hash.split("?")[1] || "");
+    const search = params.get("search");
+    if (search) {
+      useDashboard.getState().onFilterChange({ search });
+    } else {
+      useDashboard.getState().refetchUsers();
+    }
     useDashboard.getState().onEditingBotSettings(false);
     fetchInbounds();
   }, []);

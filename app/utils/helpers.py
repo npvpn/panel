@@ -12,7 +12,7 @@ def calculate_expiration_days(expire: int) -> int:
 
 
 def yml_uuid_representer(dumper, data):
-    return dumper.represent_scalar('tag:yaml.org,2002:str', str(data))
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
 class UUIDEncoder(json.JSONEncoder):

@@ -1,12 +1,11 @@
-import socket
 import re
+import socket
 import ssl
 import tempfile
 import threading
 import time
 from collections import deque
 from contextlib import contextmanager
-from typing import List
 
 import grpc
 import requests
@@ -34,7 +33,7 @@ from xray_api import XRay as XRayAPI
 
 
 def string_to_temp_file(content: str):
-    file = tempfile.NamedTemporaryFile(mode='w+t')
+    file = tempfile.NamedTemporaryFile(mode="w+t")
     file.write(content)
     file.flush()
     return file
@@ -42,10 +41,7 @@ def string_to_temp_file(content: str):
 
 class SANIgnoringAdaptor(HTTPAdapter):
     def init_poolmanager(self, connections, maxsize, block=False):
-        self.poolmanager = PoolManager(num_pools=connections,
-                                       maxsize=maxsize,
-                                       block=block,
-                                       assert_hostname=False)
+        self.poolmanager = PoolManager(num_pools=connections, maxsize=maxsize, block=block, assert_hostname=False)
 
 
 class NodeAPIError(Exception):
@@ -105,20 +101,16 @@ def fetch_server_certificate(address: str, port: int, timeout: int) -> str:
             with context.wrap_socket(sock, server_hostname=address) as tls_sock:
                 cert = tls_sock.getpeercert(binary_form=True)
         return ssl.DER_cert_to_PEM_cert(cert)
-    except socket.timeout as exc:
+    except TimeoutError as exc:
         raise ConnectionError(f"Timed out while fetching node certificate from {address}:{port}") from exc
     except Exception as exc:
         raise ConnectionError(f"Failed to fetch node certificate from {address}:{port}: {exc}") from exc
 
 
 class ReSTXRayNode:
-    def __init__(self,
-                 address: str,
-                 port: int,
-                 api_port: int,
-                 ssl_key: str,
-                 ssl_cert: str,
-                 usage_coefficient: float = 1):
+    def __init__(
+        self, address: str, port: int, api_port: int, ssl_key: str, ssl_cert: str, usage_coefficient: float = 1
+    ):
 
         self.address = address
         self.port = port
@@ -131,7 +123,7 @@ class ReSTXRayNode:
         self._certfile = string_to_temp_file(ssl_cert)
 
         self.session = requests.Session()
-        self.session.mount('https://', SANIgnoringAdaptor())
+        self.session.mount("https://", SANIgnoringAdaptor())
         self.session.cert = (self._certfile.name, self._keyfile.name)
 
         self._session_id = None
@@ -155,7 +147,7 @@ class ReSTXRayNode:
         except Exception:
             pass
         self.session = requests.Session()
-        self.session.mount('https://', SANIgnoringAdaptor())
+        self.session.mount("https://", SANIgnoringAdaptor())
         self.session.cert = (self._certfile.name, self._keyfile.name)
 
     def _discard_grpc_api_unlocked(self):
@@ -201,18 +193,14 @@ class ReSTXRayNode:
             certificates = tlsSettings.get("certificates") or []
             for certificate in certificates:
                 if certificate.get("certificateFile"):
-                    with open(certificate['certificateFile']) as file:
-                        certificate['certificate'] = [
-                            line.strip() for line in file.readlines()
-                        ]
-                        del certificate['certificateFile']
+                    with open(certificate["certificateFile"]) as file:
+                        certificate["certificate"] = [line.strip() for line in file.readlines()]
+                        del certificate["certificateFile"]
 
                 if certificate.get("keyFile"):
-                    with open(certificate['keyFile']) as file:
-                        certificate['key'] = [
-                            line.strip() for line in file.readlines()
-                        ]
-                        del certificate['keyFile']
+                    with open(certificate["keyFile"]) as file:
+                        certificate["key"] = [line.strip() for line in file.readlines()]
+                        del certificate["keyFile"]
 
         return config
 
@@ -233,7 +221,7 @@ class ReSTXRayNode:
         if res.status_code == 200:
             return data
         else:
-            exc = NodeAPIError(res.status_code, data['detail'])
+            exc = NodeAPIError(res.status_code, data["detail"])
             raise exc
 
     @property
@@ -250,7 +238,11 @@ class ReSTXRayNode:
     @property
     def started(self):
         res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
-        return res.get('started', False)
+        remote_started = res.get("started", False)
+        self._started = remote_started
+        if not remote_started:
+            self._close_grpc_api()
+        return remote_started
 
     @property
     def api(self):
@@ -263,7 +255,7 @@ class ReSTXRayNode:
                     address=self.address,
                     port=self.api_port,
                     ssl_cert=self._node_cert.encode(),
-                    ssl_target_name="Gozargah"
+                    ssl_target_name="Gozargah",
                 )
             else:
                 raise ConnectionError("Node is not started")
@@ -289,14 +281,12 @@ class ReSTXRayNode:
         self._reset_local_state()
 
         self._close_temp_file(getattr(self, "_node_certfile", None))
-        self._node_cert = fetch_server_certificate(
-            self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
-        )
+        self._node_cert = fetch_server_certificate(self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT)
         self._node_certfile = string_to_temp_file(self._node_cert)
         self.session.verify = self._node_certfile.name
 
         res = self.make_request("/connect", timeout=XRAY_NODE_REST_CONNECT_TIMEOUT)
-        self._session_id = res['session_id']
+        self._session_id = res["session_id"]
 
     def disconnect(self):
         try:
@@ -309,7 +299,7 @@ class ReSTXRayNode:
 
     def get_version(self):
         res = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
-        return res.get('core_version')
+        return res.get("core_version")
 
     def start(self, config: XRayConfig):
         if not self._session_id:
@@ -322,7 +312,7 @@ class ReSTXRayNode:
 
         try:
             info = self.make_request("/", timeout=XRAY_NODE_REST_INFO_TIMEOUT)
-            if info.get('started'):
+            if info.get("started"):
                 self._started = True
                 self._setup_api()
                 return info
@@ -333,13 +323,9 @@ class ReSTXRayNode:
         json_config = config.to_json()
 
         try:
-            res = self.make_request(
-                "/start",
-                timeout=XRAY_NODE_REST_START_TIMEOUT,
-                config=json_config
-            )
+            res = self.make_request("/start", timeout=XRAY_NODE_REST_START_TIMEOUT, config=json_config)
         except NodeAPIError as exc:
-            if exc.detail == 'Xray is started already':
+            if exc.detail == "Xray is started already":
                 self._started = True
                 self._setup_api()
                 return {"started": True}
@@ -355,7 +341,7 @@ class ReSTXRayNode:
         if not self.connected:
             self.connect()
 
-        self.make_request('/stop', timeout=XRAY_NODE_REST_STOP_TIMEOUT)
+        self.make_request("/stop", timeout=XRAY_NODE_REST_STOP_TIMEOUT)
         self._close_grpc_api()
         self._started = False
 
@@ -366,11 +352,7 @@ class ReSTXRayNode:
         config = self._prepare_config(config)
         json_config = config.to_json()
 
-        res = self.make_request(
-            "/restart",
-            timeout=XRAY_NODE_REST_RESTART_TIMEOUT,
-            config=json_config
-        )
+        res = self.make_request("/restart", timeout=XRAY_NODE_REST_RESTART_TIMEOUT, config=json_config)
 
         self._started = True
         self._setup_api()
@@ -422,18 +404,12 @@ class ReSTXRayNode:
 
 
 class RPyCXRayNode:
-    def __init__(self,
-                 address: str,
-                 port: int,
-                 api_port: int,
-                 ssl_key: str,
-                 ssl_cert: str,
-                 usage_coefficient: float = 1):
+    def __init__(
+        self, address: str, port: int, api_port: int, ssl_key: str, ssl_cert: str, usage_coefficient: float = 1
+    ):
 
         class Service(rpyc.Service):
-            def __init__(self,
-                         on_start_funcs: List[callable] = [],
-                         on_stop_funcs: List[callable] = []):
+            def __init__(self, on_start_funcs: list[callable] = [], on_stop_funcs: list[callable] = []):
                 self.on_start_funcs = on_start_funcs
                 self.on_stop_funcs = on_stop_funcs
 
@@ -485,17 +461,17 @@ class RPyCXRayNode:
         tries = 0
         while True:
             tries += 1
-            self._node_cert = fetch_server_certificate(
-                self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT
-            )
+            self._node_cert = fetch_server_certificate(self.address, self.port, XRAY_NODE_CERT_FETCH_TIMEOUT)
             self._node_certfile = string_to_temp_file(self._node_cert)
-            conn = rpyc.ssl_connect(self.address,
-                                    self.port,
-                                    service=self._service,
-                                    keyfile=self._keyfile.name,
-                                    certfile=self._certfile.name,
-                                    ca_certs=self._node_certfile.name,
-                                    keepalive=True)
+            conn = rpyc.ssl_connect(
+                self.address,
+                self.port,
+                service=self._service,
+                keyfile=self._keyfile.name,
+                certfile=self._certfile.name,
+                ca_certs=self._node_certfile.name,
+                keepalive=True,
+            )
             try:
                 conn.ping()
                 self.connection = conn
@@ -509,7 +485,7 @@ class RPyCXRayNode:
     def connected(self):
         try:
             self.connection.ping()
-            return (not self.connection.closed)
+            return not self.connection.closed
         except (AttributeError, EOFError, TimeoutError):
             self.disconnect()
             return False
@@ -540,18 +516,14 @@ class RPyCXRayNode:
             certificates = tlsSettings.get("certificates") or []
             for certificate in certificates:
                 if certificate.get("certificateFile"):
-                    with open(certificate['certificateFile']) as file:
-                        certificate['certificate'] = [
-                            line.strip() for line in file.readlines()
-                        ]
-                        del certificate['certificateFile']
+                    with open(certificate["certificateFile"]) as file:
+                        certificate["certificate"] = [line.strip() for line in file.readlines()]
+                        del certificate["certificateFile"]
 
                 if certificate.get("keyFile"):
-                    with open(certificate['keyFile']) as file:
-                        certificate['key'] = [
-                            line.strip() for line in file.readlines()
-                        ]
-                        del certificate['keyFile']
+                    with open(certificate["keyFile"]) as file:
+                        certificate["key"] = [line.strip() for line in file.readlines()]
+                        del certificate["keyFile"]
 
         return config
 
@@ -571,19 +543,19 @@ class RPyCXRayNode:
         except ConnectionError:
             start_time = time.time()
             end_time = start_time + 3  # check logs for 3 seconds
-            last_log = ''
+            last_log = ""
             with self.get_logs() as logs:
                 while time.time() < end_time:
                     if logs:
-                        last_log = logs[-1].strip().split('\n')[-1]
+                        last_log = logs[-1].strip().split("\n")[-1]
                     time.sleep(0.1)
 
             self.disconnect()
 
-            if re.search(r'[Ff]ailed', last_log):
+            if re.search(r"[Ff]ailed", last_log):
                 raise RuntimeError(last_log)
 
-            raise ConnectionError('Failed to connect to node\'s API')
+            raise ConnectionError("Failed to connect to node's API")
 
     def stop(self):
         self.remote.stop()
@@ -643,14 +615,16 @@ class RPyCXRayNode:
 
 
 class XRayNode:
-    def __new__(self,
-                address: str,
-                port: int,
-                api_port: int,
-                ssl_key: str,
-                ssl_cert: str,
-                protocol: NodeProtocol = NodeProtocol.rest,
-                usage_coefficient: float = 1):
+    def __new__(
+        self,
+        address: str,
+        port: int,
+        api_port: int,
+        ssl_key: str,
+        ssl_cert: str,
+        protocol: NodeProtocol = NodeProtocol.rest,
+        usage_coefficient: float = 1,
+    ):
         if protocol == NodeProtocol.rest or protocol == NodeProtocol.rest.value:
             return ReSTXRayNode(
                 address=address,
@@ -658,7 +632,7 @@ class XRayNode:
                 api_port=api_port,
                 ssl_key=ssl_key,
                 ssl_cert=ssl_cert,
-                usage_coefficient=usage_coefficient
+                usage_coefficient=usage_coefficient,
             )
 
         if protocol == NodeProtocol.rpyc or protocol == NodeProtocol.rpyc.value:
@@ -668,7 +642,7 @@ class XRayNode:
                 api_port=api_port,
                 ssl_key=ssl_key,
                 ssl_cert=ssl_cert,
-                usage_coefficient=usage_coefficient
+                usage_coefficient=usage_coefficient,
             )
 
         raise ValueError(f"Unsupported node protocol: {protocol}")

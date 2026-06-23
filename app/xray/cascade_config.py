@@ -9,6 +9,7 @@ xray_config.json (а не служебного сгенерённого инба
 cascade_config копирует входной конфиг (base_config.copy() → deepcopy у XRayConfig)
 и не мутирует оригинал.
 """
+
 from __future__ import annotations
 
 CASCADE_CLIENT_FLOW = "xtls-rprx-vision"
@@ -41,15 +42,19 @@ def build_cascade_outbound(route: dict) -> dict:
         "tag": cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"]),
         "protocol": "vless",
         "settings": {
-            "vnext": [{
-                "address": route["address"],
-                "port": route["port"],
-                "users": [{
-                    "id": route["uuid"],
-                    "encryption": "none",
-                    "flow": CASCADE_CLIENT_FLOW,
-                }],
-            }],
+            "vnext": [
+                {
+                    "address": route["address"],
+                    "port": route["port"],
+                    "users": [
+                        {
+                            "id": route["uuid"],
+                            "encryption": "none",
+                            "flow": CASCADE_CLIENT_FLOW,
+                        }
+                    ],
+                }
+            ],
         },
         "streamSettings": {
             "network": "tcp",
@@ -74,7 +79,56 @@ def build_routing_rule(route: dict) -> dict:
     }
 
 
-def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None):
+BALANCER_STRATEGIES = ("random", "roundRobin", "leastPing", "leastLoad")
+OBSERVATORY_PROBE_URL = "https://www.google.com/generate_204"
+OBSERVATORY_INTERVAL = "10s"
+CASCADE_OUTBOUND_PREFIX = "CASCADE_OUT_"
+
+
+def cascade_balancer_tag(entry_inbound_tag: str) -> str:
+    return f"CASCADE_BAL_{entry_inbound_tag}"
+
+
+def build_balancer(balancer_tag: str, selector: list, strategy: str) -> dict:
+    """Балансировщик xray по группе cascade-outbound'ов одного входного инбаунда."""
+    strategy_type = strategy if strategy in BALANCER_STRATEGIES else "random"
+    return {
+        "tag": balancer_tag,
+        "selector": selector,
+        "strategy": {"type": strategy_type},
+    }
+
+
+def build_balancer_rule(entry_inbound_tag: str, balancer_tag: str) -> dict:
+    return {
+        "type": "field",
+        "inboundTag": [entry_inbound_tag],
+        "balancerTag": balancer_tag,
+    }
+
+
+def build_observatory() -> dict:
+    return {
+        "subjectSelector": [CASCADE_OUTBOUND_PREFIX],
+        "probeUrl": OBSERVATORY_PROBE_URL,
+        "probeInterval": OBSERVATORY_INTERVAL,
+    }
+
+
+def build_burst_observatory() -> dict:
+    return {
+        "subjectSelector": [CASCADE_OUTBOUND_PREFIX],
+        "pingConfig": {
+            "destination": OBSERVATORY_PROBE_URL,
+            "interval": OBSERVATORY_INTERVAL,
+            "connectivity": "",
+            "timeout": "3s",
+            "sampling": 3,
+        },
+    }
+
+
+def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None, strategy="random"):
     """Добавить каскадную часть конфига по роли ноды.
 
     role="exit"  → в указанные каталожные инбаунды дописать служебный cascade-client.
@@ -90,22 +144,62 @@ def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None
         for c in cascade_clients:
             uuid_by_tag.setdefault(c["inbound_tag"], c["uuid"])
         cfg["inbounds"] = [
-            _inject_cascade_client(ib, uuid_by_tag[ib.get("tag")])
-            if ib.get("tag") in uuid_by_tag else ib
+            _inject_cascade_client(ib, uuid_by_tag[ib.get("tag")]) if ib.get("tag") in uuid_by_tag else ib
             for ib in cfg["inbounds"]
         ]
         return cfg
 
     if role == "entry" and entry_routes:
         cfg = base_config.copy()
+
+        # 1) outbounds: по одному на (exit, cascade_inbound), dedup по тегу.
         seen_outbounds = set()
         for route in entry_routes:
             tag = cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"])
             if tag not in seen_outbounds:
                 cfg["outbounds"] = cfg["outbounds"] + [build_cascade_outbound(route)]
                 seen_outbounds.add(tag)
-            routing = cfg.setdefault("routing", {})
-            routing["rules"] = routing.get("rules", []) + [build_routing_rule(route)]
+
+        # 2) группировка route'ов по entry_inbound_tag (сохраняя порядок появления).
+        groups = {}
+        for route in entry_routes:
+            groups.setdefault(route["entry_inbound_tag"], []).append(route)
+
+        routing = cfg.setdefault("routing", {})
+        has_balancer = False
+        for entry_tag, group in groups.items():
+            # уникальные outbound-теги группы, сохраняя порядок.
+            selector = []
+            for route in group:
+                out_tag = cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"])
+                if out_tag not in selector:
+                    selector.append(out_tag)
+
+            if len(selector) > 1:
+                bal_tag = cascade_balancer_tag(entry_tag)
+                routing["balancers"] = routing.get("balancers", []) + [build_balancer(bal_tag, selector, strategy)]
+                # Cascade routing rules are appended AFTER any pre-existing base rules.
+                # xray matches rules top-to-bottom, first match wins — so the base config
+                # must not carry an earlier rule matching a cascade entry_inbound_tag,
+                # or this appended balancer/outbound rule would never be reached.
+                routing["rules"] = routing.get("rules", []) + [build_balancer_rule(entry_tag, bal_tag)]
+                has_balancer = True
+            else:
+                # одиночный exit на инбаунд — прежнее поведение.
+                # Same append-after invariant applies (see comment above).
+                routing["rules"] = routing.get("rules", []) + [build_routing_rule(group[0])]
+
+        # 3) observatory только для ping/load-стратегий и только если есть балансировщики.
+        if has_balancer:
+            if strategy == "leastPing":
+                cfg["observatory"] = build_observatory()
+                # subjectSelector prefix "CASCADE_OUT_" intentionally covers ALL cascade
+                # outbounds on the node, including single-exit (non-balanced) ones —
+                # accepted as harmless over-probing for v1.
+            elif strategy == "leastLoad":
+                cfg["burstObservatory"] = build_burst_observatory()
+                # Same intentional over-probing rationale as observatory above.
+
         return cfg
 
     return base_config

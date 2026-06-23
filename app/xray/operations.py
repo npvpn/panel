@@ -1,6 +1,6 @@
-from functools import lru_cache
 import threading
 import time
+from functools import cache
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,10 +10,10 @@ from app.db import GetDB, crud
 from app.models.node import NodeStatus
 from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
-from app.xray.node import XRayNode
-from app.xray.inbound_filter import filtered_inbounds
-from app.xray.cascade_config import cascade_config
 from app.xray.bs_limit import strip_blocked_clients
+from app.xray.cascade_config import cascade_config
+from app.xray.inbound_filter import filtered_inbounds
+from app.xray.node import XRayNode
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
     XRAY_NODE_CONNECT_RETRY_DELAY,
@@ -59,15 +59,13 @@ def _get_ready_nodes():
     return ready
 
 
-@lru_cache(maxsize=None)
+@cache
 def get_tls():
     from app.db import GetDB, get_tls_certificate
+
     with GetDB() as db:
         tls = get_tls_certificate(db)
-        return {
-            "key": tls.key,
-            "certificate": tls.certificate
-        }
+        return {"key": tls.key, "certificate": tls.certificate}
 
 
 @threaded_function
@@ -76,14 +74,22 @@ def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except xray.exc.EmailNotFoundError as e:
         # User may be absent on this inbound/node; removal is idempotent.
-        logger.debug(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        logger.debug(
+            f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}"
+        )
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
-        logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+        logger.warning(
+            f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}"
+        )
     except Exception as e:
         if _is_closed_grpc_channel_error(e):
-            logger.warning(f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+            logger.warning(
+                f"[xray.add_user.call][error] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}"
+            )
         else:
-            logger.error(f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}")
+            logger.error(
+                f"[xray.add_user.call][unexpected] inbound={inbound_tag} email={getattr(account, 'email', 'unknown')} error={type(e).__name__}: {e}"
+            )
 
 
 @threaded_function
@@ -92,14 +98,22 @@ def _remove_user_from_inbound(api: XRayAPI, inbound_tag: str, email: str):
         api.remove_inbound_user(tag=inbound_tag, email=email, timeout=10)
     except xray.exc.EmailNotFoundError as e:
         # User may be absent on this inbound/node; removal is idempotent.
-        logger.debug(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        logger.debug(
+            f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}"
+        )
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
-        logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+        logger.warning(
+            f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}"
+        )
     except Exception as e:
         if _is_closed_grpc_channel_error(e):
-            logger.warning(f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+            logger.warning(
+                f"[xray.remove_user.call][error] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}"
+            )
         else:
-            logger.error(f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}")
+            logger.error(
+                f"[xray.remove_user.call][unexpected] inbound={inbound_tag} email={email} error={type(e).__name__}: {e}"
+            )
 
 
 @threaded_function
@@ -108,23 +122,37 @@ def _alter_inbound_user(api: XRayAPI, inbound_tag: str, account: Account):
         api.remove_inbound_user(tag=inbound_tag, email=account.email, timeout=10)
     except xray.exc.EmailNotFoundError as e:
         # User may be absent on this inbound/node; removal is idempotent.
-        logger.debug(f"[xray.alter_user.call][skip] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        logger.debug(
+            f"[xray.alter_user.call][skip] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+        )
     except (xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
-        logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        logger.warning(
+            f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+        )
     except Exception as e:
         if _is_closed_grpc_channel_error(e):
-            logger.warning(f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+            logger.warning(
+                f"[xray.alter_user.call][error] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+            )
         else:
-            logger.error(f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+            logger.error(
+                f"[xray.alter_user.call][unexpected] step=remove inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+            )
     try:
         api.add_inbound_user(tag=inbound_tag, user=account, timeout=10)
     except (xray.exc.EmailExistsError, xray.exc.ConnectionError, xray.exc.TimeoutError) as e:
-        logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+        logger.warning(
+            f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+        )
     except Exception as e:
         if _is_closed_grpc_channel_error(e):
-            logger.warning(f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+            logger.warning(
+                f"[xray.alter_user.call][error] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+            )
         else:
-            logger.error(f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}")
+            logger.error(
+                f"[xray.alter_user.call][unexpected] step=add inbound={inbound_tag} email={account.email} error={type(e).__name__}: {e}"
+            )
 
 
 def add_user(dbuser: "DBUser"):
@@ -149,16 +177,10 @@ def add_user(dbuser: "DBUser"):
             account = proxy_type.account_model(email=email, **proxy_settings)
 
             # XTLS currently only supports transmission methods of TCP and mKCP
-            if getattr(account, 'flow', None) and (
-                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
-                or
-                (
-                    inbound.get('network', 'tcp') in ('tcp', 'kcp')
-                    and
-                    inbound.get('tls') not in ('tls', 'reality')
-                )
-                or
-                inbound.get('header_type') == 'http'
+            if getattr(account, "flow", None) and (
+                inbound.get("network", "tcp") not in ("tcp", "kcp")
+                or (inbound.get("network", "tcp") in ("tcp", "kcp") and inbound.get("tls") not in ("tls", "reality"))
+                or inbound.get("header_type") == "http"
             ):
                 account.flow = XTLSFlows.NONE
 
@@ -168,8 +190,8 @@ def add_user(dbuser: "DBUser"):
                     _add_user_to_inbound(node.api, inbound_tag, account)
                 except Exception as e:
                     logger.warning(
-                        f"[xray.add_user] node call failed user=\"{dbuser.username}\" "
-                        f"inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                        f'[xray.add_user] node call failed user="{dbuser.username}" '
+                        f'inbound="{inbound_tag}": {type(e).__name__}: {e}'
                     )
     logger.info(
         f"[xray.add_user] done email={email} nodes_ready={len(ready_nodes)} "
@@ -205,7 +227,9 @@ def remove_user(dbuser: "DBUser"):
         total_nodes = len(xray.nodes)
     except Exception:
         total_nodes = 0
-    logger.info(f"[xray.remove_user] start email={email} target_inbounds={len(target_inbounds)} total_inbounds={total_inbounds} nodes={total_nodes}")
+    logger.info(
+        f"[xray.remove_user] start email={email} target_inbounds={len(target_inbounds)} total_inbounds={total_inbounds} nodes={total_nodes}"
+    )
 
     ready_nodes = _get_ready_nodes()
     logger.info(f"[xray.remove_user] nodes_ready={len(ready_nodes)} nodes_total={total_nodes}")
@@ -217,7 +241,9 @@ def remove_user(dbuser: "DBUser"):
             try:
                 _remove_user_from_inbound(node.api, inbound_tag, email)
             except Exception as e:
-                logger.warning(f"XRAY node check/remove failed for user \"{dbuser.username}\" on inbound \"{inbound_tag}\": {type(e).__name__}: {e}")
+                logger.warning(
+                    f'XRAY node check/remove failed for user "{dbuser.username}" on inbound "{inbound_tag}": {type(e).__name__}: {e}'
+                )
 
 
 def update_user(dbuser: "DBUser"):
@@ -244,16 +270,10 @@ def update_user(dbuser: "DBUser"):
             account = proxy_type.account_model(email=email, **proxy_settings)
 
             # XTLS currently only supports transmission methods of TCP and mKCP
-            if getattr(account, 'flow', None) and (
-                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
-                or
-                (
-                    inbound.get('network', 'tcp') in ('tcp', 'kcp')
-                    and
-                    inbound.get('tls') not in ('tls', 'reality')
-                )
-                or
-                inbound.get('header_type') == 'http'
+            if getattr(account, "flow", None) and (
+                inbound.get("network", "tcp") not in ("tcp", "kcp")
+                or (inbound.get("network", "tcp") in ("tcp", "kcp") and inbound.get("tls") not in ("tls", "reality"))
+                or inbound.get("header_type") == "http"
             ):
                 account.flow = XTLSFlows.NONE
 
@@ -263,8 +283,8 @@ def update_user(dbuser: "DBUser"):
                     _alter_inbound_user(node.api, inbound_tag, account)
                 except Exception as e:
                     logger.warning(
-                        f"[xray.update_user] node alter failed user=\"{dbuser.username}\" "
-                        f"inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                        f'[xray.update_user] node alter failed user="{dbuser.username}" '
+                        f'inbound="{inbound_tag}": {type(e).__name__}: {e}'
                     )
 
     for inbound_tag in xray.config.inbounds_by_tag:
@@ -278,7 +298,7 @@ def update_user(dbuser: "DBUser"):
             except Exception as e:
                 logger.warning(
                     f"[xray.update_user] node remove (disabled inbound) failed "
-                    f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": {type(e).__name__}: {e}"
+                    f'user="{dbuser.username}" inbound="{inbound_tag}": {type(e).__name__}: {e}'
                 )
     logger.info(
         f"[xray.update_user] done email={email} nodes_ready={len(ready_nodes)} "
@@ -324,9 +344,11 @@ def remove_user_from_node(dbuser: "DBUser", node_id: int):
         try:
             _remove_user_from_inbound(node.api, inbound_tag, email)
         except Exception as e:
-            logger.warning(f"[xray.remove_user_from_node] node={node_id} "
-                           f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": "
-                           f"{type(e).__name__}: {e}")
+            logger.warning(
+                f"[xray.remove_user_from_node] node={node_id} "
+                f'user="{dbuser.username}" inbound="{inbound_tag}": '
+                f"{type(e).__name__}: {e}"
+            )
     logger.info(f"[xray.remove_user_from_node] email={email} node_id={node_id}")
 
 
@@ -347,32 +369,33 @@ def add_user_to_node(dbuser: "DBUser", node_id: int):
             except KeyError:
                 proxy_settings = {}
             account = proxy_type.account_model(email=email, **proxy_settings)
-            if getattr(account, 'flow', None) and (
-                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
-                or (inbound.get('network', 'tcp') in ('tcp', 'kcp')
-                    and inbound.get('tls') not in ('tls', 'reality'))
-                or inbound.get('header_type') == 'http'
+            if getattr(account, "flow", None) and (
+                inbound.get("network", "tcp") not in ("tcp", "kcp")
+                or (inbound.get("network", "tcp") in ("tcp", "kcp") and inbound.get("tls") not in ("tls", "reality"))
+                or inbound.get("header_type") == "http"
             ):
                 account.flow = XTLSFlows.NONE
             try:
                 _add_user_to_inbound(node.api, inbound_tag, account)
             except Exception as e:
-                logger.warning(f"[xray.add_user_to_node] node={node_id} "
-                               f"user=\"{dbuser.username}\" inbound=\"{inbound_tag}\": "
-                               f"{type(e).__name__}: {e}")
+                logger.warning(
+                    f"[xray.add_user_to_node] node={node_id} "
+                    f'user="{dbuser.username}" inbound="{inbound_tag}": '
+                    f"{type(e).__name__}: {e}"
+                )
     logger.info(f"[xray.add_user_to_node] email={email} node_id={node_id}")
 
 
 def _blocked_user_ids(db, node_id: int) -> set:
     """user_id, заблокированные на данной ноде (читать в открытой DB-сессии)."""
     from app.db.models import NodeUserBlock
-    return {b.user_id for b in db.query(NodeUserBlock.user_id)
-            .filter(NodeUserBlock.node_id == node_id).all()}
+
+    return {b.user_id for b in db.query(NodeUserBlock.user_id).filter(NodeUserBlock.node_id == node_id).all()}
 
 
 def _find_inbound(config, tag):
     """Найти определение инбаунда по tag в общем xray-конфиге (None, если нет)."""
-    for inbound in (config.get("inbounds") or []):
+    for inbound in config.get("inbounds") or []:
         if inbound.get("tag") == tag:
             return inbound
     return None
@@ -396,15 +419,8 @@ def _cascade_kwargs(db, dbnode) -> dict:
         uuid = params.get("uuid")
         if not uuid:
             return {"role": "exit"}  # роль есть, но uuid ещё не сгенерён — нечего инъектить
-        exit_routes = (
-            db.query(CascadeRoute)
-            .filter(CascadeRoute.exit_node_id == dbnode.id)
-            .all()
-        )
-        clients = [
-            {"inbound_tag": r.cascade_inbound_tag, "uuid": uuid}
-            for r in exit_routes
-        ]
+        exit_routes = db.query(CascadeRoute).filter(CascadeRoute.exit_node_id == dbnode.id).all()
+        clients = [{"inbound_tag": r.cascade_inbound_tag, "uuid": uuid} for r in exit_routes]
         return {"role": "exit", "cascade_clients": clients}
 
     if role == "entry":
@@ -428,19 +444,22 @@ def _cascade_kwargs(db, dbnode) -> dict:
                 continue
             server_names = reality.get("serverNames") or []
             short_ids = reality.get("shortIds") or []
-            routes.append({
-                "entry_inbound_tag": r.entry_inbound_tag,
-                "exit_node_id": r.exit_node_id,
-                "cascade_inbound_tag": r.cascade_inbound_tag,
-                "address": exit_node.address,
-                "port": inbound.get("port"),
-                "uuid": uuid,
-                "public_key": keys["public_key"],
-                "short_id": short_ids[0] if short_ids else "",
-                "sni": server_names[0] if server_names else "",
-                "fingerprint": reality.get("fingerprint") or "",
-            })
-        return {"role": "entry", "entry_routes": routes}
+            routes.append(
+                {
+                    "entry_inbound_tag": r.entry_inbound_tag,
+                    "exit_node_id": r.exit_node_id,
+                    "cascade_inbound_tag": r.cascade_inbound_tag,
+                    "address": exit_node.address,
+                    "port": inbound.get("port"),
+                    "uuid": uuid,
+                    "public_key": keys["public_key"],
+                    "short_id": short_ids[0] if short_ids else "",
+                    "sni": server_names[0] if server_names else "",
+                    "fingerprint": reality.get("fingerprint") or "",
+                }
+            )
+        strategy = getattr(dbnode.cascade_balancer_strategy, "value", None) or "random"
+        return {"role": "entry", "entry_routes": routes, "strategy": strategy}
 
     return {"role": "direct"}
 
@@ -484,13 +503,15 @@ def add_node(dbnode: "DBNode"):
     remove_node(dbnode.id)
 
     tls = get_tls()
-    xray.nodes[dbnode.id] = XRayNode(address=dbnode.address,
-                                     port=dbnode.port,
-                                     api_port=dbnode.api_port,
-                                     ssl_key=tls['key'],
-                                     ssl_cert=tls['certificate'],
-                                     protocol=dbnode.protocol,
-                                     usage_coefficient=dbnode.usage_coefficient)
+    xray.nodes[dbnode.id] = XRayNode(
+        address=dbnode.address,
+        port=dbnode.port,
+        api_port=dbnode.api_port,
+        ssl_key=tls["key"],
+        ssl_cert=tls["certificate"],
+        protocol=dbnode.protocol,
+        usage_coefficient=dbnode.usage_coefficient,
+    )
 
     return xray.nodes[dbnode.id]
 
@@ -559,9 +580,7 @@ def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
     with _connecting_nodes_lock:
         if node_id in _connecting_nodes:
             if force:
-                logger.warning(
-                    f"[connect_node] force-acquire for node_id={node_id}"
-                )
+                logger.warning(f"[connect_node] force-acquire for node_id={node_id}")
                 _connecting_nodes.discard(node_id)
                 _connecting_started_at.pop(node_id, None)
             else:
@@ -569,15 +588,11 @@ def _acquire_connect_slot(node_id: int, force: bool = False) -> bool:
                 age = now - started_at
 
                 if age >= XRAY_NODE_CONNECT_STALE_TIMEOUT:
-                    logger.warning(
-                        f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s"
-                    )
+                    logger.warning(f"[connect_node] force-acquire for stale lock, node_id={node_id}, age={age:.1f}s")
                     _connecting_nodes.discard(node_id)
                     _connecting_started_at.pop(node_id, None)
                 else:
-                    logger.debug(
-                        f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s"
-                    )
+                    logger.debug(f"[connect_node] skipped, already connecting node_id={node_id}, age={age:.1f}s")
                     return False
 
         _connecting_nodes.add(node_id)
@@ -639,20 +654,16 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
             _connect_semaphore.acquire()
             try:
                 _cleanup_node_connection(node)
-                logger.info(
-                    f"Connecting to \"{dbnode.name}\" node (attempt {attempt}/{retries})"
-                )
+                logger.info(f'Connecting to "{dbnode.name}" node (attempt {attempt}/{retries})')
                 node.start(
                     strip_blocked_clients(
-                        cascade_config(
-                            _node_specific_config(config, node_inbound_tags), **cascade_kwargs
-                        ),
+                        cascade_config(_node_specific_config(config, node_inbound_tags), **cascade_kwargs),
                         blocked_user_ids,
                     )
                 )
                 version = node.get_version()
                 _change_node_status(node_id, NodeStatus.connected, version=version)
-                logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
+                logger.info(f'Connected to "{dbnode.name}" node, xray run on v{version}')
                 return
             except Exception as exc:
                 last_exc = exc
@@ -679,11 +690,10 @@ def _connect_node_impl(node_id, config=None, force: bool = False):
             _change_node_status(node_id, NodeStatus.error, message=str(exc))
         except Exception as status_exc:
             logger.error(
-                f"[connect_node] failed to mark node_id={node_id} as error: "
-                f"{type(status_exc).__name__}: {status_exc}"
+                f"[connect_node] failed to mark node_id={node_id} as error: {type(status_exc).__name__}: {status_exc}"
             )
         if dbnode:
-            logger.warning(f"Unable to connect to \"{dbnode.name}\" node: {type(exc).__name__}: {exc}")
+            logger.warning(f'Unable to connect to "{dbnode.name}" node: {type(exc).__name__}: {exc}')
         else:
             logger.warning(f"Unable to connect node_id={node_id}: {type(exc).__name__}: {exc}")
     finally:
@@ -726,27 +736,24 @@ def restart_node(node_id, config=None):
         return connect_node(node_id, config)
 
     try:
-        logger.info(f"Restarting Xray core of \"{dbnode.name}\" node")
+        logger.info(f'Restarting Xray core of "{dbnode.name}" node')
 
         if config is None:
             config = xray.config.include_db_users()
 
         node.restart(
             strip_blocked_clients(
-                cascade_config(
-                    _node_specific_config(config, node_inbound_tags), **cascade_kwargs
-                ),
+                cascade_config(_node_specific_config(config, node_inbound_tags), **cascade_kwargs),
                 blocked_user_ids,
             )
         )
-        logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
+        logger.info(f'Xray core of "{dbnode.name}" node restarted')
     except Exception as e:
         try:
             _change_node_status(node_id, NodeStatus.error, message=str(e))
         except Exception as status_exc:
             logger.error(
-                f"[restart_node] failed to mark node_id={node_id} as error: "
-                f"{type(status_exc).__name__}: {status_exc}"
+                f"[restart_node] failed to mark node_id={node_id} as error: {type(status_exc).__name__}: {status_exc}"
             )
         logger.info(f"Unable to restart node {node_id}")
         try:

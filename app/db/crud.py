@@ -4,7 +4,7 @@ Functions for managing proxy hosts, users, user templates, nodes, and administra
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from sqlalchemy import and_, delete, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +22,7 @@ from app.db.models import (
     NextPlan,
     Node,
     NodeUsage,
+    NodeUserBlock,
     NodeUserBsUsage,
     NodeUserUsage,
     NotificationReminder,
@@ -31,14 +32,13 @@ from app.db.models import (
     ProxyTypes,
     System,
     User,
+    UserDevice,
     UserTemplate,
     UserUsageResetLogs,
-    UserDevice,
-    NodeUserBlock,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
+from app.models.bot import apply_bot_settings_fallback
 from app.models.node import NodeCreate, NodeModify, NodeRole, NodeStatus, NodeUsageResponse
-from app.xray.cascade_keys import generate_cascade_identity
 from app.models.proxy import ProxyHost as ProxyHostModify
 from app.models.user import (
     ReminderType,
@@ -56,6 +56,7 @@ from app.subscription.device_ua import unknown_user_agents_match as _unknown_use
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app.utils.jwt import create_subscription_token
+from app.xray.cascade_keys import generate_cascade_identity
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 
 
@@ -93,7 +94,7 @@ def get_or_create_inbound(db: Session, inbound_tag: str) -> ProxyInbound:
     return inbound
 
 
-def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
+def get_hosts(db: Session, inbound_tag: str) -> list[ProxyHost]:
     """
     Retrieves hosts for a given inbound tag.
 
@@ -108,7 +109,7 @@ def get_hosts(db: Session, inbound_tag: str) -> List[ProxyHost]:
     return inbound.hosts
 
 
-def _get_bots_by_usernames(db: Session, bot_usernames: List[str]) -> List[Bot]:
+def _get_bots_by_usernames(db: Session, bot_usernames: list[str]) -> list[Bot]:
     normalized_usernames = []
     for username in bot_usernames or []:
         normalized = _normalize_bot_username(username)
@@ -120,16 +121,14 @@ def _get_bots_by_usernames(db: Session, bot_usernames: List[str]) -> List[Bot]:
 
     bots = db.query(Bot).filter(Bot.username.in_(normalized_usernames)).all()
     bots_by_username = {bot.username: bot for bot in bots}
-    missing_usernames = [
-        username for username in normalized_usernames if username not in bots_by_username
-    ]
+    missing_usernames = [username for username in normalized_usernames if username not in bots_by_username]
     if missing_usernames:
         raise ValueError(f'Bot "{missing_usernames[0]}" not found')
 
     return [bots_by_username[username] for username in normalized_usernames]
 
 
-def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[ProxyHost]:
+def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> list[ProxyHost]:
     """
     Adds a new host to a proxy inbound.
 
@@ -163,7 +162,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
     return inbound.hosts
 
 
-def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostModify]) -> List[ProxyHost]:
+def update_hosts(db: Session, inbound_tag: str, modified_hosts: list[ProxyHostModify]) -> list[ProxyHost]:
     """
     Updates hosts for a given inbound tag.
 
@@ -196,7 +195,8 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
             bots=_get_bots_by_usernames(db, host.bot_usernames),
-        ) for host in modified_hosts
+        )
+        for host in modified_hosts
     ]
     db.commit()
     db.refresh(inbound)
@@ -214,14 +214,11 @@ def get_user_queryset(db: Session) -> Query:
         Query: Base user query.
     """
     return (
-        db.query(User)
-        .options(joinedload(User.admin))
-        .options(joinedload(User.next_plan))
-        .options(joinedload(User.bot))
+        db.query(User).options(joinedload(User.admin)).options(joinedload(User.next_plan)).options(joinedload(User.bot))
     )
 
 
-def get_user(db: Session, username: str) -> Optional[User]:
+def get_user(db: Session, username: str) -> User | None:
     """
     Retrieves a user by username.
 
@@ -235,7 +232,7 @@ def get_user(db: Session, username: str) -> Optional[User]:
     return get_user_queryset(db).filter(User.username == username).first()
 
 
-def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+def get_user_by_id(db: Session, user_id: int) -> User | None:
     """
     Retrieves a user by user ID.
 
@@ -249,7 +246,7 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return get_user_queryset(db).filter(User.id == user_id).first()
 
 
-def _normalize_bot_username(bot_username: Optional[str]) -> Optional[str]:
+def _normalize_bot_username(bot_username: str | None) -> str | None:
     if bot_username is None:
         return None
     bot_username = bot_username.strip()
@@ -258,25 +255,25 @@ def _normalize_bot_username(bot_username: Optional[str]) -> Optional[str]:
     return bot_username.lstrip("@")
 
 
-def get_bot(db: Session, bot_username: str) -> Optional[Bot]:
+def get_bot(db: Session, bot_username: str) -> Bot | None:
     normalized = _normalize_bot_username(bot_username)
     if not normalized:
         return None
     return db.query(Bot).filter(Bot.username == normalized).first()
 
 
-def get_bots(db: Session) -> List[Bot]:
+def get_bots(db: Session) -> list[Bot]:
     return db.query(Bot).order_by(Bot.username.asc()).all()
 
 
-def _normalize_web_url(value: Optional[str]) -> str:
+def _normalize_web_url(value: str | None) -> str:
     domain = str(value or "").strip().replace("https://", "").replace("http://", "").strip("/")
     if not domain:
         return ""
     return f"https://{domain}"
 
 
-def _set_bot_web_url(db: Session, bot: Bot, web_url: Optional[str]) -> None:
+def _set_bot_web_url(db: Session, bot: Bot, web_url: str | None) -> None:
     if web_url is None:
         return
     settings = get_or_create_bot_settings(db, bot)
@@ -287,7 +284,7 @@ def _set_bot_web_url(db: Session, bot: Bot, web_url: Optional[str]) -> None:
     db.commit()
 
 
-def create_bot(db: Session, username: str, title: Optional[str] = None, web_url: Optional[str] = None) -> Bot:
+def create_bot(db: Session, username: str, title: str | None = None, web_url: str | None = None) -> Bot:
     normalized = _normalize_bot_username(username)
     if not normalized:
         raise ValueError("Bot username is required")
@@ -303,9 +300,7 @@ def create_bot(db: Session, username: str, title: Optional[str] = None, web_url:
     return bot
 
 
-def update_bot(
-    db: Session, bot: Bot, username: str, title: Optional[str] = None, web_url: Optional[str] = None
-) -> Bot:
+def update_bot(db: Session, bot: Bot, username: str, title: str | None = None, web_url: str | None = None) -> Bot:
     normalized = _normalize_bot_username(username)
     if not normalized:
         raise ValueError("Bot username is required")
@@ -343,11 +338,11 @@ def get_or_create_bot_settings(db: Session, bot: Bot) -> BotSettings:
     return settings
 
 
-def get_bot_settings(db: Session, bot: Bot) -> Dict[str, Any]:
+def get_bot_settings(db: Session, bot: Bot) -> dict[str, Any]:
     return dict(get_or_create_bot_settings(db, bot).data or {})
 
 
-def update_bot_settings(db: Session, bot: Bot, settings_data: Dict[str, Any]) -> Dict[str, Any]:
+def update_bot_settings(db: Session, bot: Bot, settings_data: dict[str, Any]) -> dict[str, Any]:
     settings = get_or_create_bot_settings(db, bot)
     settings.data = settings_data
     settings.updated_at = datetime.utcnow()
@@ -356,32 +351,37 @@ def update_bot_settings(db: Session, bot: Bot, settings_data: Dict[str, Any]) ->
     return dict(settings.data or {})
 
 
-UsersSortingOptions = Enum('UsersSortingOptions', {
-    'username': User.username.asc(),
-    'used_traffic': User.used_traffic.asc(),
-    'data_limit': User.data_limit.asc(),
-    'expire': User.expire.asc(),
-    'created_at': User.created_at.asc(),
-    '-username': User.username.desc(),
-    '-used_traffic': User.used_traffic.desc(),
-    '-data_limit': User.data_limit.desc(),
-    '-expire': User.expire.desc(),
-    '-created_at': User.created_at.desc(),
-})
+UsersSortingOptions = Enum(
+    "UsersSortingOptions",
+    {
+        "username": User.username.asc(),
+        "used_traffic": User.used_traffic.asc(),
+        "data_limit": User.data_limit.asc(),
+        "expire": User.expire.asc(),
+        "created_at": User.created_at.asc(),
+        "-username": User.username.desc(),
+        "-used_traffic": User.used_traffic.desc(),
+        "-data_limit": User.data_limit.desc(),
+        "-expire": User.expire.desc(),
+        "-created_at": User.created_at.desc(),
+    },
+)
 
 
-def get_users(db: Session,
-              offset: Optional[int] = None,
-              limit: Optional[int] = None,
-              usernames: Optional[List[str]] = None,
-              search: Optional[str] = None,
-              bot_username: Optional[str] = None,
-              status: Optional[Union[UserStatus, list]] = None,
-              sort: Optional[List[UsersSortingOptions]] = None,
-              admin: Optional[Admin] = None,
-              admins: Optional[List[str]] = None,
-              reset_strategy: Optional[Union[UserDataLimitResetStrategy, list]] = None,
-              return_with_count: bool = False) -> Union[List[User], Tuple[List[User], int]]:
+def get_users(
+    db: Session,
+    offset: int | None = None,
+    limit: int | None = None,
+    usernames: list[str] | None = None,
+    search: str | None = None,
+    bot_username: str | None = None,
+    status: UserStatus | list | None = None,
+    sort: list[UsersSortingOptions] | None = None,
+    admin: Admin | None = None,
+    admins: list[str] | None = None,
+    reset_strategy: UserDataLimitResetStrategy | list | None = None,
+    return_with_count: bool = False,
+) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters and options.
 
@@ -450,7 +450,7 @@ def get_users(db: Session,
     return query.all()
 
 
-def get_user_usages(db: Session, dbuser: User, start: datetime, end: datetime) -> List[UserUsageResponse]:
+def get_user_usages(db: Session, dbuser: User, start: datetime, end: datetime) -> list[UserUsageResponse]:
     """
     Retrieves user usages within a specified date range.
 
@@ -464,22 +464,16 @@ def get_user_usages(db: Session, dbuser: User, start: datetime, end: datetime) -
         List[UserUsageResponse]: List of user usage responses.
     """
 
-    usages = {0: UserUsageResponse(  # Main Core
-        node_id=None,
-        node_name="Master",
-        used_traffic=0
-    )}
+    usages = {
+        0: UserUsageResponse(  # Main Core
+            node_id=None, node_name="Master", used_traffic=0
+        )
+    }
 
     for node in db.query(Node).all():
-        usages[node.id] = UserUsageResponse(
-            node_id=node.id,
-            node_name=node.name,
-            used_traffic=0
-        )
+        usages[node.id] = UserUsageResponse(node_id=node.id, node_name=node.name, used_traffic=0)
 
-    cond = and_(NodeUserUsage.user_id == dbuser.id,
-                NodeUserUsage.created_at >= start,
-                NodeUserUsage.created_at <= end)
+    cond = and_(NodeUserUsage.user_id == dbuser.id, NodeUserUsage.created_at >= start, NodeUserUsage.created_at <= end)
 
     for v in db.query(NodeUserUsage).filter(cond):
         try:
@@ -525,13 +519,9 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
     excluded_inbounds_tags = user.excluded_inbounds
     proxies = []
     for proxy_type, settings in user.proxies.items():
-        excluded_inbounds = [
-            get_or_create_inbound(db, tag) for tag in excluded_inbounds_tags[proxy_type]
-        ]
+        excluded_inbounds = [get_or_create_inbound(db, tag) for tag in excluded_inbounds_tags[proxy_type]]
         proxies.append(
-            Proxy(type=proxy_type.value,
-                  settings=settings.dict(no_obj=True),
-                  excluded_inbounds=excluded_inbounds)
+            Proxy(type=proxy_type.value, settings=settings.dict(no_obj=True), excluded_inbounds=excluded_inbounds)
         )
 
     bot = get_bot(db, user.bot_username) if user.bot_username else None
@@ -557,7 +547,9 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
             expire=user.next_plan.expire,
             add_remaining_traffic=user.next_plan.add_remaining_traffic,
             fire_on_either=user.next_plan.fire_on_either,
-        ) if user.next_plan else None
+        )
+        if user.next_plan
+        else None,
     )
     # Ensure stable subscription token exists from day one
     dbuser.subscription_token = create_subscription_token(user.username)
@@ -583,7 +575,7 @@ def remove_user(db: Session, dbuser: User) -> User:
     return dbuser
 
 
-def remove_users(db: Session, dbusers: List[User]):
+def remove_users(db: Session, dbusers: list[User]):
     """
     Removes multiple users from the database.
 
@@ -609,12 +601,10 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
     Returns:
         User: The updated user object.
     """
-    added_proxies: Dict[ProxyTypes, Proxy] = {}
+    added_proxies: dict[ProxyTypes, Proxy] = {}
     if modify.proxies:
         for proxy_type, settings in modify.proxies.items():
-            dbproxy = db.query(Proxy) \
-                .where(Proxy.user == dbuser, Proxy.type == proxy_type) \
-                .first()
+            dbproxy = db.query(Proxy).where(Proxy.user == dbuser, Proxy.type == proxy_type).first()
             if dbproxy:
                 dbproxy.settings = settings.dict(no_obj=True)
             else:
@@ -626,9 +616,9 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
                 db.delete(proxy)
     if modify.inbounds:
         for proxy_type, tags in modify.excluded_inbounds.items():
-            dbproxy = db.query(Proxy) \
-                .where(Proxy.user == dbuser, Proxy.type == proxy_type) \
-                .first() or added_proxies.get(proxy_type)
+            dbproxy = db.query(Proxy).where(
+                Proxy.user == dbuser, Proxy.type == proxy_type
+            ).first() or added_proxies.get(proxy_type)
             if dbproxy:
                 dbproxy.excluded_inbounds = [get_or_create_inbound(db, tag) for tag in tags]
 
@@ -636,15 +626,16 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
         dbuser.status = modify.status
 
     if modify.data_limit is not None:
-        dbuser.data_limit = (modify.data_limit or None)
+        dbuser.data_limit = modify.data_limit or None
         if dbuser.status not in (UserStatus.expired, UserStatus.disabled):
             if not dbuser.data_limit or dbuser.used_traffic < dbuser.data_limit:
                 if dbuser.status != UserStatus.on_hold:
                     dbuser.status = UserStatus.active
 
                 for percent in sorted(NOTIFY_REACHED_USAGE_PERCENT, reverse=True):
-                    if not dbuser.data_limit or (calculate_usage_percent(
-                            dbuser.used_traffic, dbuser.data_limit) < percent):
+                    if not dbuser.data_limit or (
+                        calculate_usage_percent(dbuser.used_traffic, dbuser.data_limit) < percent
+                    ):
                         reminder = get_notification_reminder(db, dbuser.id, ReminderType.data_usage, threshold=percent)
                         if reminder:
                             delete_notification_reminder(db, reminder)
@@ -653,18 +644,18 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
                 dbuser.status = UserStatus.limited
 
     if modify.device_limit is not None:
-        dbuser.device_limit = (modify.device_limit or None)
+        dbuser.device_limit = modify.device_limit or None
 
     if modify.expire is not None:
-        dbuser.expire = (modify.expire or None)
+        dbuser.expire = modify.expire or None
         if dbuser.status in (UserStatus.active, UserStatus.expired):
             if not dbuser.expire or dbuser.expire > datetime.utcnow().timestamp():
                 dbuser.status = UserStatus.active
                 for days_left in sorted(NOTIFY_DAYS_LEFT):
-                    if not dbuser.expire or (calculate_expiration_days(
-                            dbuser.expire) > days_left):
+                    if not dbuser.expire or (calculate_expiration_days(dbuser.expire) > days_left):
                         reminder = get_notification_reminder(
-                            db, dbuser.id, ReminderType.expiration_date, threshold=days_left)
+                            db, dbuser.id, ReminderType.expiration_date, threshold=days_left
+                        )
                         if reminder:
                             delete_notification_reminder(db, reminder)
             else:
@@ -709,11 +700,11 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
     return dbuser
 
 
-def get_user_devices(db: Session, dbuser: User) -> List[UserDevice]:
+def get_user_devices(db: Session, dbuser: User) -> list[UserDevice]:
     return db.query(UserDevice).filter(UserDevice.user_id == dbuser.id).order_by(UserDevice.last_seen.desc()).all()
 
 
-def get_user_active_devices(db: Session, dbuser: User) -> List[UserDevice]:
+def get_user_active_devices(db: Session, dbuser: User) -> list[UserDevice]:
     return (
         db.query(UserDevice)
         .filter(
@@ -725,11 +716,11 @@ def get_user_active_devices(db: Session, dbuser: User) -> List[UserDevice]:
     )
 
 
-def get_user_device(db: Session, dbuser: User, device_id: int) -> Optional[UserDevice]:
+def get_user_device(db: Session, dbuser: User, device_id: int) -> UserDevice | None:
     return db.query(UserDevice).filter(UserDevice.user_id == dbuser.id, UserDevice.id == device_id).first()
 
 
-def get_user_device_by_hwid(db: Session, dbuser: User, hwid: str) -> Optional[UserDevice]:
+def get_user_device_by_hwid(db: Session, dbuser: User, hwid: str) -> UserDevice | None:
     return db.query(UserDevice).filter(UserDevice.user_id == dbuser.id, UserDevice.hwid == hwid).first()
 
 
@@ -802,10 +793,10 @@ def revoke_user_device(db: Session, dbdevice: UserDevice) -> UserDevice:
 
 def _update_unknown_device_metadata(
     dbdevice: UserDevice,
-    device_os: Optional[str],
-    ver_os: Optional[str],
-    device_model: Optional[str],
-    user_agent: Optional[str],
+    device_os: str | None,
+    ver_os: str | None,
+    device_model: str | None,
+    user_agent: str | None,
 ) -> None:
     dbdevice.device_os = device_os or dbdevice.device_os
     dbdevice.ver_os = ver_os or dbdevice.ver_os
@@ -819,20 +810,18 @@ def _update_unknown_device_metadata(
 def register_user_device(
     db: Session,
     dbuser: User,
-    hwid: Optional[str],
-    device_os: Optional[str],
-    ver_os: Optional[str],
-    device_model: Optional[str],
-    user_agent: Optional[str],
+    hwid: str | None,
+    device_os: str | None,
+    ver_os: str | None,
+    device_model: str | None,
+    user_agent: str | None,
 ) -> tuple[bool, bool]:
     unknown_hwid = "Неизвестное устройство"
     if not hwid:
         dbdevice = get_user_device_by_hwid(db, dbuser, unknown_hwid)
         if dbdevice:
             if _unknown_user_agents_match(dbdevice.user_agent, user_agent):
-                _update_unknown_device_metadata(
-                    dbdevice, device_os, ver_os, device_model, user_agent
-                )
+                _update_unknown_device_metadata(dbdevice, device_os, ver_os, device_model, user_agent)
                 db.commit()
                 return True, False
             return False, True
@@ -915,9 +904,7 @@ def reset_user_data_usage(db: Session, dbuser: User) -> User:
     # над лимитом и review_bs_nodes держит его заблокированным. Блок (node_user_blocks)
     # снимет сама джоба на следующем тике (≤ JOB_REVIEW_BS_NODES_INTERVAL), заодно
     # вернув юзера на ноды в xray.
-    db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id == dbuser.id).delete(
-        synchronize_session=False
-    )
+    db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id == dbuser.id).delete(synchronize_session=False)
     if dbuser.status not in (UserStatus.expired or UserStatus.disabled):
         dbuser.status = UserStatus.active.value
 
@@ -944,7 +931,7 @@ def reset_user_by_next(db: Session, dbuser: User, commit: bool = True) -> User:
         User: The updated user object.
     """
 
-    if (dbuser.next_plan is None):
+    if dbuser.next_plan is None:
         # Контракт функции -> User: возвращаем самого пользователя без изменений,
         # а не None. Иначе вызывающий код (review job) пропускает None в xray
         # операции и report.* и роняет весь джоб.
@@ -959,8 +946,9 @@ def reset_user_by_next(db: Session, dbuser: User, commit: bool = True) -> User:
     dbuser.node_usages.clear()
     dbuser.status = UserStatus.active.value
 
-    dbuser.data_limit = dbuser.next_plan.data_limit + \
-        (0 if dbuser.next_plan.add_remaining_traffic else dbuser.data_limit - dbuser.used_traffic)
+    dbuser.data_limit = dbuser.next_plan.data_limit + (
+        0 if dbuser.next_plan.add_remaining_traffic else dbuser.data_limit - dbuser.used_traffic
+    )
     dbuser.expire = dbuser.next_plan.expire
 
     dbuser.used_traffic = 0
@@ -1026,6 +1014,7 @@ def update_user_sub(db: Session, dbuser: User, user_agent: str) -> User:
     db.refresh(dbuser)
     return dbuser
 
+
 def ensure_subscription_token(db: Session, dbuser: User) -> User:
     """
     Ensures the user has a persistent subscription token stored.
@@ -1038,7 +1027,7 @@ def ensure_subscription_token(db: Session, dbuser: User) -> User:
     return dbuser
 
 
-def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
+def reset_all_users_data_usage(db: Session, admin: Admin | None = None):
     """
     Resets the data usage for all users or users under a specific admin.
 
@@ -1067,14 +1056,12 @@ def reset_all_users_data_usage(db: Session, admin: Optional[Admin] = None):
     # после массового reset (см. reset_user_data_usage).
     user_ids = [u.id for u in users]
     if user_ids:
-        db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id.in_(user_ids)).delete(
-            synchronize_session=False
-        )
+        db.query(NodeUserBsUsage).filter(NodeUserBsUsage.user_id.in_(user_ids)).delete(synchronize_session=False)
 
     db.commit()
 
 
-def disable_all_active_users(db: Session, admin: Optional[Admin] = None):
+def disable_all_active_users(db: Session, admin: Admin | None = None):
     """
     Disable all active users or users under a specific admin.
 
@@ -1086,12 +1073,14 @@ def disable_all_active_users(db: Session, admin: Optional[Admin] = None):
     if admin:
         query = query.filter(User.admin == admin)
 
-    query.update({User.status: UserStatus.disabled, User.last_status_change: datetime.utcnow()}, synchronize_session=False)
+    query.update(
+        {User.status: UserStatus.disabled, User.last_status_change: datetime.utcnow()}, synchronize_session=False
+    )
 
     db.commit()
 
 
-def activate_all_disabled_users(db: Session, admin: Optional[Admin] = None):
+def activate_all_disabled_users(db: Session, admin: Admin | None = None):
     """
     Activate all disabled users or users under a specific admin.
 
@@ -1102,23 +1091,27 @@ def activate_all_disabled_users(db: Session, admin: Optional[Admin] = None):
     query_for_active_users = db.query(User).filter(User.status == UserStatus.disabled)
     query_for_on_hold_users = db.query(User).filter(
         and_(
-            User.status == UserStatus.disabled, User.expire.is_(
-                None), User.on_hold_expire_duration.isnot(None), User.online_at.is_(None)
-        ))
+            User.status == UserStatus.disabled,
+            User.expire.is_(None),
+            User.on_hold_expire_duration.isnot(None),
+            User.online_at.is_(None),
+        )
+    )
     if admin:
         query_for_active_users = query_for_active_users.filter(User.admin == admin)
         query_for_on_hold_users = query_for_on_hold_users.filter(User.admin == admin)
 
     query_for_on_hold_users.update(
-        {User.status: UserStatus.on_hold, User.last_status_change: datetime.utcnow()}, synchronize_session=False)
+        {User.status: UserStatus.on_hold, User.last_status_change: datetime.utcnow()}, synchronize_session=False
+    )
     query_for_active_users.update(
-        {User.status: UserStatus.active, User.last_status_change: datetime.utcnow()}, synchronize_session=False)
+        {User.status: UserStatus.active, User.last_status_change: datetime.utcnow()}, synchronize_session=False
+    )
 
     db.commit()
 
 
-def autodelete_expired_users(db: Session,
-                             include_limited_users: bool = False) -> List[User]:
+def autodelete_expired_users(db: Session, include_limited_users: bool = False) -> list[User]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
 
@@ -1130,19 +1123,21 @@ def autodelete_expired_users(db: Session,
     Returns:
         list[User]: List of deleted users.
     """
-    target_status = (
-        [UserStatus.expired] if not include_limited_users
-        else [UserStatus.expired, UserStatus.limited]
-    )
+    target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
     auto_delete = coalesce(User.auto_delete_in_days, USERS_AUTODELETE_DAYS)
 
-    query = db.query(
-        User, auto_delete,  # Use global auto-delete days as fallback
-    ).filter(
-        auto_delete >= 0,  # Negative values prevent auto-deletion
-        User.status.in_(target_status),
-    ).options(joinedload(User.admin))
+    query = (
+        db.query(
+            User,
+            auto_delete,  # Use global auto-delete days as fallback
+        )
+        .filter(
+            auto_delete >= 0,  # Negative values prevent auto-deletion
+            User.status.in_(target_status),
+        )
+        .options(joinedload(User.admin))
+    )
 
     # TODO: Handle time filter in query itself (NOTE: Be careful with sqlite's strange datetime handling)
     expired_users = [
@@ -1157,9 +1152,7 @@ def autodelete_expired_users(db: Session,
     return expired_users
 
 
-def get_all_users_usages(
-        db: Session, admin: Admin, start: datetime, end: datetime
-) -> List[UserUsageResponse]:
+def get_all_users_usages(db: Session, admin: Admin, start: datetime, end: datetime) -> list[UserUsageResponse]:
     """
     Retrieves usage data for all users associated with an admin within a specified time range.
 
@@ -1176,25 +1169,19 @@ def get_all_users_usages(
         List[UserUsageResponse]: A list of UserUsageResponse objects, each representing
         the usage data for a specific node or the main core.
     """
-    usages = {0: UserUsageResponse(  # Main Core
-        node_id=None,
-        node_name="Master",
-        used_traffic=0
-    )}
+    usages = {
+        0: UserUsageResponse(  # Main Core
+            node_id=None, node_name="Master", used_traffic=0
+        )
+    }
 
     for node in db.query(Node).all():
-        usages[node.id] = UserUsageResponse(
-            node_id=node.id,
-            node_name=node.name,
-            used_traffic=0
-        )
+        usages[node.id] = UserUsageResponse(node_id=node.id, node_name=node.name, used_traffic=0)
 
     admin_users = set(user.id for user in get_users(db=db, admins=admin))
 
     cond = and_(
-        NodeUserUsage.created_at >= start,
-        NodeUserUsage.created_at <= end,
-        NodeUserUsage.user_id.in_(admin_users)
+        NodeUserUsage.created_at >= start, NodeUserUsage.created_at <= end, NodeUserUsage.user_id.in_(admin_users)
     )
 
     for v in db.query(NodeUserUsage).filter(cond):
@@ -1336,7 +1323,7 @@ def create_admin(db: Session, admin: AdminCreate) -> Admin:
         hashed_password=admin.hashed_password,
         is_sudo=admin.is_sudo,
         telegram_id=admin.telegram_id if admin.telegram_id else None,
-        discord_webhook=admin.discord_webhook if admin.discord_webhook else None
+        discord_webhook=admin.discord_webhook if admin.discord_webhook else None,
     )
     db.add(dbadmin)
     db.commit()
@@ -1442,10 +1429,9 @@ def get_admin_by_telegram_id(db: Session, telegram_id: int) -> Admin:
     return db.query(Admin).filter(Admin.telegram_id == telegram_id).first()
 
 
-def get_admins(db: Session,
-               offset: Optional[int] = None,
-               limit: Optional[int] = None,
-               username: Optional[str] = None) -> List[Admin]:
+def get_admins(
+    db: Session, offset: int | None = None, limit: int | None = None, username: str | None = None
+) -> list[Admin]:
     """
     Retrieves a list of admins with optional filters and pagination.
 
@@ -1460,7 +1446,7 @@ def get_admins(db: Session,
     """
     query = db.query(Admin)
     if username:
-        query = query.filter(Admin.username.ilike(f'%{username}%'))
+        query = query.filter(Admin.username.ilike(f"%{username}%"))
     if offset:
         query = query.offset(offset)
     if limit:
@@ -1477,13 +1463,10 @@ def reset_admin_usage(db: Session, dbadmin: Admin) -> int:
     Returns:
         Admin: The updated admin.
     """
-    if (dbadmin.users_usage == 0):
+    if dbadmin.users_usage == 0:
         return dbadmin
 
-    usage_log = AdminUsageLogs(
-        admin=dbadmin,
-        used_traffic_at_reset=dbadmin.users_usage
-    )
+    usage_log = AdminUsageLogs(admin=dbadmin, used_traffic_at_reset=dbadmin.users_usage)
     db.add(usage_log)
     dbadmin.users_usage = 0
 
@@ -1503,7 +1486,7 @@ def create_user_template(db: Session, user_template: UserTemplateCreate) -> User
     Returns:
         UserTemplate: The created user template object.
     """
-    inbound_tags: List[str] = []
+    inbound_tags: list[str] = []
     for _, i in user_template.inbounds.items():
         inbound_tags.extend(i)
     dbuser_template = UserTemplate(
@@ -1512,7 +1495,7 @@ def create_user_template(db: Session, user_template: UserTemplateCreate) -> User
         expire_duration=user_template.expire_duration,
         username_prefix=user_template.username_prefix,
         username_suffix=user_template.username_suffix,
-        inbounds=db.query(ProxyInbound).filter(ProxyInbound.tag.in_(inbound_tags)).all()
+        inbounds=db.query(ProxyInbound).filter(ProxyInbound.tag.in_(inbound_tags)).all(),
     )
     db.add(dbuser_template)
     db.commit()
@@ -1521,7 +1504,8 @@ def create_user_template(db: Session, user_template: UserTemplateCreate) -> User
 
 
 def update_user_template(
-        db: Session, dbuser_template: UserTemplate, modified_user_template: UserTemplateModify) -> UserTemplate:
+    db: Session, dbuser_template: UserTemplate, modified_user_template: UserTemplateModify
+) -> UserTemplate:
     """
     Updates a user template's details.
 
@@ -1545,7 +1529,7 @@ def update_user_template(
         dbuser_template.username_suffix = modified_user_template.username_suffix
 
     if modified_user_template.inbounds:
-        inbound_tags: List[str] = []
+        inbound_tags: list[str] = []
         for _, i in modified_user_template.inbounds.items():
             inbound_tags.extend(i)
         dbuser_template.inbounds = db.query(ProxyInbound).filter(ProxyInbound.tag.in_(inbound_tags)).all()
@@ -1581,8 +1565,7 @@ def get_user_template(db: Session, user_template_id: int) -> UserTemplate:
     return db.query(UserTemplate).filter(UserTemplate.id == user_template_id).first()
 
 
-def get_user_templates(
-        db: Session, offset: Union[int, None] = None, limit: Union[int, None] = None) -> List[UserTemplate]:
+def get_user_templates(db: Session, offset: int | None = None, limit: int | None = None) -> list[UserTemplate]:
     """
     Retrieves a list of user templates with optional pagination.
 
@@ -1603,7 +1586,7 @@ def get_user_templates(
     return dbuser_templates.all()
 
 
-def get_node(db: Session, name: str) -> Optional[Node]:
+def get_node(db: Session, name: str) -> Node | None:
     """
     Retrieves a node by its name.
 
@@ -1617,7 +1600,7 @@ def get_node(db: Session, name: str) -> Optional[Node]:
     return db.query(Node).filter(Node.name == name).first()
 
 
-def get_node_by_id(db: Session, node_id: int) -> Optional[Node]:
+def get_node_by_id(db: Session, node_id: int) -> Node | None:
     """
     Retrieves a node by its ID.
 
@@ -1631,9 +1614,7 @@ def get_node_by_id(db: Session, node_id: int) -> Optional[Node]:
     return db.query(Node).filter(Node.id == node_id).first()
 
 
-def get_nodes(db: Session,
-              status: Optional[Union[NodeStatus, list]] = None,
-              enabled: bool = None) -> List[Node]:
+def get_nodes(db: Session, status: NodeStatus | list | None = None, enabled: bool = None) -> list[Node]:
     """
     Retrieves nodes based on optional status and enabled filters.
 
@@ -1659,7 +1640,7 @@ def get_nodes(db: Session,
     return query.all()
 
 
-def get_nodes_usage(db: Session, start: datetime, end: datetime) -> List[NodeUsageResponse]:
+def get_nodes_usage(db: Session, start: datetime, end: datetime) -> list[NodeUsageResponse]:
     """
     Retrieves usage data for all nodes within a specified time range.
 
@@ -1671,20 +1652,14 @@ def get_nodes_usage(db: Session, start: datetime, end: datetime) -> List[NodeUsa
     Returns:
         List[NodeUsageResponse]: A list of NodeUsageResponse objects containing usage data.
     """
-    usages = {0: NodeUsageResponse(  # Main Core
-        node_id=None,
-        node_name="Master",
-        uplink=0,
-        downlink=0
-    )}
+    usages = {
+        0: NodeUsageResponse(  # Main Core
+            node_id=None, node_name="Master", uplink=0, downlink=0
+        )
+    }
 
     for node in db.query(Node).all():
-        usages[node.id] = NodeUsageResponse(
-            node_id=node.id,
-            node_name=node.name,
-            uplink=0,
-            downlink=0
-        )
+        usages[node.id] = NodeUsageResponse(node_id=node.id, node_name=node.name, uplink=0, downlink=0)
 
     cond = and_(NodeUsage.created_at >= start, NodeUsage.created_at <= end)
 
@@ -1728,17 +1703,14 @@ def create_node(db: Session, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    dbnode = Node(name=node.name,
-                  address=node.address,
-                  port=node.port,
-                  api_port=node.api_port,
-                  protocol=node.protocol)
+    dbnode = Node(name=node.name, address=node.address, port=node.port, api_port=node.api_port, protocol=node.protocol)
 
     if node.inbounds is not None:
         dbnode.inbounds = [get_or_create_inbound(db, tag) for tag in node.inbounds]
 
     _apply_node_role(dbnode, node.role)
     dbnode.is_bs = node.is_bs
+    dbnode.cascade_balancer_strategy = node.cascade_balancer_strategy
     if node.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, node.cascade_routes)
 
@@ -1810,6 +1782,9 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
     if modify.is_bs is not None:
         dbnode.is_bs = modify.is_bs
 
+    if modify.cascade_balancer_strategy is not None:
+        dbnode.cascade_balancer_strategy = modify.cascade_balancer_strategy
+
     if modify.cascade_routes is not None:
         _sync_cascade_routes(db, dbnode, modify.cascade_routes)
 
@@ -1846,23 +1821,35 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     → (daily_used, monthly_used) в байтах. Один индексированный запрос по user_id."""
     from app.xray.bs_limit import aggregate_bs_usage
 
-    rows = db.query(
-        NodeUserBsUsage.user_id,
-        NodeUserBsUsage.daily_used,
-        NodeUserBsUsage.daily_period,
-        NodeUserBsUsage.monthly_used,
-        NodeUserBsUsage.monthly_period,
-    ).join(
-        Node, Node.id == NodeUserBsUsage.node_id
-    ).filter(
-        Node.is_bs.is_(True),
-        NodeUserBsUsage.user_id == user_id,
-    ).all()
+    rows = (
+        db.query(
+            NodeUserBsUsage.user_id,
+            NodeUserBsUsage.daily_used,
+            NodeUserBsUsage.daily_period,
+            NodeUserBsUsage.monthly_used,
+            NodeUserBsUsage.monthly_period,
+        )
+        .join(Node, Node.id == NodeUserBsUsage.node_id)
+        .filter(
+            Node.is_bs.is_(True),
+            NodeUserBsUsage.user_id == user_id,
+        )
+        .all()
+    )
 
     totals = aggregate_bs_usage(
-        [{"user_id": r.user_id, "daily_used": r.daily_used, "daily_period": r.daily_period,
-          "monthly_used": r.monthly_used, "monthly_period": r.monthly_period} for r in rows],
-        today, yyyymm,
+        [
+            {
+                "user_id": r.user_id,
+                "daily_used": r.daily_used,
+                "daily_period": r.daily_period,
+                "monthly_used": r.monthly_used,
+                "monthly_period": r.monthly_period,
+            }
+            for r in rows
+        ],
+        today,
+        yyyymm,
     )
     t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
     return t["daily_used"], t["monthly_used"]
@@ -1896,7 +1883,8 @@ def get_bs_node_addresses(db: Session) -> set[str]:
 
 
 def create_notification_reminder(
-        db: Session, reminder_type: ReminderType, expires_at: datetime, user_id: int, threshold: Optional[int] = None) -> NotificationReminder:
+    db: Session, reminder_type: ReminderType, expires_at: datetime, user_id: int, threshold: int | None = None
+) -> NotificationReminder:
     """
     Creates a new notification reminder.
 
@@ -1920,8 +1908,8 @@ def create_notification_reminder(
 
 
 def get_notification_reminder(
-        db: Session, user_id: int, reminder_type: ReminderType, threshold: Optional[int] = None
-) -> Union[NotificationReminder, None]:
+    db: Session, user_id: int, reminder_type: ReminderType, threshold: int | None = None
+) -> NotificationReminder | None:
     """
     Retrieves a notification reminder for a user.
 
@@ -1935,8 +1923,7 @@ def get_notification_reminder(
         Union[NotificationReminder, None]: The NotificationReminder object if found and not expired, None otherwise.
     """
     query = db.query(NotificationReminder).filter(
-        NotificationReminder.user_id == user_id,
-        NotificationReminder.type == reminder_type
+        NotificationReminder.user_id == user_id, NotificationReminder.type == reminder_type
     )
 
     # If a threshold is provided, filter for reminders with this threshold
@@ -1958,7 +1945,7 @@ def get_notification_reminder(
 
 
 def delete_notification_reminder_by_type(
-        db: Session, user_id: int, reminder_type: ReminderType, threshold: Optional[int] = None
+    db: Session, user_id: int, reminder_type: ReminderType, threshold: int | None = None
 ) -> None:
     """
     Deletes a notification reminder for a user based on the reminder type and optional threshold.
@@ -1970,8 +1957,7 @@ def delete_notification_reminder_by_type(
         threshold (Optional[int]): The threshold to delete (e.g., days left or usage percent). If not provided, deletes all reminders of that type.
     """
     stmt = delete(NotificationReminder).where(
-        NotificationReminder.user_id == user_id,
-        NotificationReminder.type == reminder_type
+        NotificationReminder.user_id == user_id, NotificationReminder.type == reminder_type
     )
 
     # If a threshold is provided, include it in the filter
@@ -1997,6 +1983,5 @@ def delete_notification_reminder(db: Session, dbreminder: NotificationReminder) 
 
 def count_online_users(db: Session, hours: int = 24):
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=hours)
-    query = db.query(func.count(User.id)).filter(User.online_at.isnot(
-        None), User.online_at >= twenty_four_hours_ago)
+    query = db.query(func.count(User.id)).filter(User.online_at.isnot(None), User.online_at >= twenty_four_hours_ago)
     return query.scalar()

@@ -58,26 +58,36 @@ def list_admins(
     with GetDB() as db:
         admins: list[Admin] = crud.get_admins(db, offset=offset, limit=limit, username=username)
         utils.print_table(
-            table=Table("Username", 'Usage', 'Reseted usage', "Users Usage", "Is sudo",
-                        "Created at", "Telegram ID", "Discord Webhook"),
+            table=Table(
+                "Username",
+                "Usage",
+                "Reseted usage",
+                "Users Usage",
+                "Is sudo",
+                "Created at",
+                "Telegram ID",
+                "Discord Webhook",
+            ),
             rows=[
-                (str(admin.username),
-                 calculate_admin_usage(admin.id),
-                 calculate_admin_reseted_usage(admin.id),
-                 readable_size(admin.users_usage),
-                 "✔️" if admin.is_sudo else "✖️",
-                 utils.readable_datetime(admin.created_at),
-                 str(admin.telegram_id or "✖️"),
-                 str(admin.discord_webhook or "✖️"))
+                (
+                    str(admin.username),
+                    calculate_admin_usage(admin.id),
+                    calculate_admin_reseted_usage(admin.id),
+                    readable_size(admin.users_usage),
+                    "✔️" if admin.is_sudo else "✖️",
+                    utils.readable_datetime(admin.created_at),
+                    str(admin.telegram_id or "✖️"),
+                    str(admin.discord_webhook or "✖️"),
+                )
                 for admin in admins
-            ]
+            ],
         )
 
 
 @app.command(name="delete")
 def delete_admin(
     username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True),
-    yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_all"], help="Skips confirmations")
+    yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_all"], help="Skips confirmations"),
 ):
     """
     Deletes the specified admin
@@ -87,7 +97,7 @@ def delete_admin(
     with GetDB() as db:
         admin: Union[Admin, None] = crud.get_admin(db, username=username)
         if not admin:
-            utils.error(f"There's no admin with username \"{username}\"!")
+            utils.error(f'There\'s no admin with username "{username}"!')
 
         if yes_to_all or typer.confirm(f'Are you sure about deleting "{username}"?', default=False):
             crud.remove_admin(db, admin)
@@ -100,12 +110,15 @@ def delete_admin(
 def create_admin(
     username: str = typer.Option(..., *utils.FLAGS["username"], show_default=False, prompt=True),
     is_sudo: bool = typer.Option(False, *utils.FLAGS["is_sudo"], prompt=True),
-    password: str = typer.Option(..., prompt=True, confirmation_prompt=True,
-                                 hide_input=True, hidden=True, envvar=utils.PASSWORD_ENVIRON_NAME),
-    telegram_id: str = typer.Option('', *utils.FLAGS["telegram_id"], prompt="Telegram ID",
-                                    show_default=False, callback=validate_telegram_id),
-    discord_webhook: str = typer.Option('', *utils.FLAGS["discord_webhook"], prompt=True,
-                                        show_default=False, callback=validate_discord_webhook),
+    password: str = typer.Option(
+        ..., prompt=True, confirmation_prompt=True, hide_input=True, hidden=True, envvar=utils.PASSWORD_ENVIRON_NAME
+    ),
+    telegram_id: str = typer.Option(
+        "", *utils.FLAGS["telegram_id"], prompt="Telegram ID", show_default=False, callback=validate_telegram_id
+    ),
+    discord_webhook: str = typer.Option(
+        "", *utils.FLAGS["discord_webhook"], prompt=True, show_default=False, callback=validate_discord_webhook
+    ),
 ):
     """
     Creates an admin
@@ -114,11 +127,16 @@ def create_admin(
     """
     with GetDB() as db:
         try:
-            crud.create_admin(db, AdminCreate(username=username,
-                                              password=password,
-                                              is_sudo=is_sudo,
-                                              telegram_id=telegram_id,
-                                              discord_webhook=discord_webhook))
+            crud.create_admin(
+                db,
+                AdminCreate(
+                    username=username,
+                    password=password,
+                    is_sudo=is_sudo,
+                    telegram_id=telegram_id,
+                    discord_webhook=discord_webhook,
+                ),
+            )
             utils.success(f'Admin "{username}" created successfully.')
         except IntegrityError:
             utils.error(f'Admin "{username}" already exists!')
@@ -133,38 +151,30 @@ def update_admin(username: str = typer.Option(..., *utils.FLAGS["username"], pro
     """
 
     def _get_modify_model(admin: Admin):
-        Console().print(
-            Panel(f'Editing "{username}". Just press "Enter" to leave each field unchanged.')
-        )
+        Console().print(Panel(f'Editing "{username}". Just press "Enter" to leave each field unchanged.'))
 
         is_sudo: bool = typer.confirm("Is sudo", default=admin.is_sudo)
-        new_password: Union[str, None] = typer.prompt(
-            "New password",
-            default="",
-            show_default=False,
-            confirmation_prompt=True,
-            hide_input=True
-        ) or None
+        new_password: Union[str, None] = (
+            typer.prompt("New password", default="", show_default=False, confirmation_prompt=True, hide_input=True)
+            or None
+        )
 
-        telegram_id: str = typer.prompt("Telegram ID (Enter 0 to clear current value)",
-                                        default=admin.telegram_id or "")
+        telegram_id: str = typer.prompt("Telegram ID (Enter 0 to clear current value)", default=admin.telegram_id or "")
         telegram_id = validate_telegram_id(telegram_id)
 
-        discord_webhook: str = typer.prompt("Discord webhook (Enter 0 to clear current value)",
-                                            default=admin.discord_webhook or "")
+        discord_webhook: str = typer.prompt(
+            "Discord webhook (Enter 0 to clear current value)", default=admin.discord_webhook or ""
+        )
         discord_webhook = validate_discord_webhook(discord_webhook)
 
         return AdminPartialModify(
-            is_sudo=is_sudo,
-            password=new_password,
-            telegram_id=telegram_id,
-            discord_webhook=discord_webhook
+            is_sudo=is_sudo, password=new_password, telegram_id=telegram_id, discord_webhook=discord_webhook
         )
 
     with GetDB() as db:
         admin: Union[Admin, None] = crud.get_admin(db, username=username)
         if not admin:
-            utils.error(f"There's no admin with username \"{username}\"!")
+            utils.error(f'There\'s no admin with username "{username}"!')
 
         crud.partial_update_admin(db, admin, _get_modify_model(admin))
         utils.success(f'Admin "{username}" updated successfully.')
@@ -190,8 +200,9 @@ def import_from_env(yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_
         )
 
     if not (username and password):
-        utils.error("Unable to retrieve username and password.\n"
-                    "Make sure both SUDO_USERNAME and SUDO_PASSWORD are set.")
+        utils.error(
+            "Unable to retrieve username and password.\nMake sure both SUDO_USERNAME and SUDO_PASSWORD are set."
+        )
 
     with GetDB() as db:
         admin: Union[None, Admin] = None
@@ -203,18 +214,10 @@ def import_from_env(yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_
             ):
                 utils.error("Aborted.")
 
-            admin = crud.partial_update_admin(
-                db,
-                current_admin,
-                AdminPartialModify(password=password, is_sudo=True)
-            )
+            admin = crud.partial_update_admin(db, current_admin, AdminPartialModify(password=password, is_sudo=True))
         # If env admin does not exist yet
         else:
-            admin = crud.create_admin(db, AdminCreate(
-                username=username,
-                password=password,
-                is_sudo=True
-            ))
+            admin = crud.create_admin(db, AdminCreate(username=username, password=password, is_sudo=True))
 
         updated_user_count = db.query(User).filter_by(admin_id=None).update({"admin_id": admin.id})
         db.commit()
@@ -222,5 +225,5 @@ def import_from_env(yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_
         utils.success(
             f'Admin "{username}" imported successfully.\n'
             f"{updated_user_count} users' admin_id set to the {username}'s id.\n"
-            'You must delete SUDO_USERNAME and SUDO_PASSWORD from your env file now.'
+            "You must delete SUDO_USERNAME and SUDO_PASSWORD from your env file now."
         )

@@ -14,6 +14,7 @@ RUN VITE_BASE_API=/api/ npm run build -- --outDir build --assetsDir statics \
 FROM python:${PYTHON_VERSION}-slim AS build
 ARG XRAY_VERSION
 ENV PYTHONUNBUFFERED=1
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /code
 
@@ -24,22 +25,19 @@ RUN apt-get update \
     && curl -fsSL https://github.com/Gozargah/Marzban-scripts/raw/master/install_latest_xray.sh | bash -s -- "$XRAY_VERSION" \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt /code/requirements.txt
-RUN python3 -m pip install --upgrade pip \
-    && pip install --no-cache-dir --upgrade -r /code/requirements.txt
+ENV UV_PROJECT_ENVIRONMENT=/code/.venv
+COPY pyproject.toml uv.lock /code/
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Stage 3: Final image
 FROM python:${PYTHON_VERSION}-slim
 ENV PYTHONUNBUFFERED=1
-ARG PYTHON_VERSION
-ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages
+ENV PATH="/code/.venv/bin:$PATH"
 WORKDIR /code
 
-RUN rm -rf $PYTHON_LIB_PATH/*
-
-COPY --from=build $PYTHON_LIB_PATH $PYTHON_LIB_PATH
+COPY --from=build /code/.venv /code/.venv
 RUN mkdir -p /usr/local/share/xray
-COPY --from=build /usr/local/bin /usr/local/bin
+COPY --from=build /usr/local/bin/xray /usr/local/bin/xray
 COPY --from=build /usr/local/share/xray /usr/local/share/xray
 COPY . /code
 COPY --from=frontend /dashboard/build/ /code/app/dashboard/build/

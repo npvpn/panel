@@ -2,30 +2,28 @@ import os
 import time
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+from app import logger
+from app.utils.request_context import snapshot
 from config import (
     SQLALCHEMY_DATABASE_URL,
     SQLALCHEMY_POOL_SIZE,
     SQLALCHEMY_POOL_TIMEOUT,
     SQLIALCHEMY_MAX_OVERFLOW,
 )
-from app import logger
-from app.utils.request_context import snapshot
 
-IS_SQLITE = SQLALCHEMY_DATABASE_URL.startswith('sqlite')
+IS_SQLITE = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
 if IS_SQLITE:
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 else:
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         pool_size=SQLALCHEMY_POOL_SIZE,
         max_overflow=SQLIALCHEMY_MAX_OVERFLOW,
         pool_recycle=3600,
-        pool_timeout=SQLALCHEMY_POOL_TIMEOUT
+        pool_timeout=SQLALCHEMY_POOL_TIMEOUT,
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

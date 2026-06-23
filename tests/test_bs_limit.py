@@ -1,15 +1,15 @@
 import copy
 
 from app.xray.bs_limit import (
-    period_keys,
-    bs_counter_step,
-    diff_blocks,
-    strip_blocked_clients,
     aggregate_bs_usage,
-    over_limit,
-    pick_bs_bar,
+    bs_counter_step,
     bs_stub_remark,
+    diff_blocks,
     host_matches_blocked,
+    over_limit,
+    period_keys,
+    pick_bs_bar,
+    strip_blocked_clients,
 )
 
 
@@ -19,44 +19,45 @@ class FakeConfig(dict):
 
 
 def base():
-    return FakeConfig({
-        "inbounds": [
-            {"tag": "VLESS_TCP", "settings": {"clients": [
-                {"email": "1.alice"}, {"email": "2.bob"}, {"email": "10.carol"}]}},
-            {"tag": "NO_SETTINGS"},
-        ],
-    })
+    return FakeConfig(
+        {
+            "inbounds": [
+                {
+                    "tag": "VLESS_TCP",
+                    "settings": {"clients": [{"email": "1.alice"}, {"email": "2.bob"}, {"email": "10.carol"}]},
+                },
+                {"tag": "NO_SETTINGS"},
+            ],
+        }
+    )
 
 
 def test_period_keys_formats_day_and_month():
     from datetime import datetime
+
     assert period_keys(datetime(2026, 6, 16, 13, 5)) == ("2026-06-16", "2026-06")
 
 
 def test_counter_step_fresh_row_starts_from_delta():
     r = bs_counter_step(None, 100, "2026-06-16", "2026-06")
-    assert r == {"daily_used": 100, "daily_period": "2026-06-16",
-                 "monthly_used": 100, "monthly_period": "2026-06"}
+    assert r == {"daily_used": 100, "daily_period": "2026-06-16", "monthly_used": 100, "monthly_period": "2026-06"}
 
 
 def test_counter_step_same_period_accumulates():
-    existing = {"daily_used": 100, "daily_period": "2026-06-16",
-                "monthly_used": 500, "monthly_period": "2026-06"}
+    existing = {"daily_used": 100, "daily_period": "2026-06-16", "monthly_used": 500, "monthly_period": "2026-06"}
     r = bs_counter_step(existing, 30, "2026-06-16", "2026-06")
     assert r["daily_used"] == 130 and r["monthly_used"] == 530
 
 
 def test_counter_step_new_day_resets_daily_keeps_month():
-    existing = {"daily_used": 100, "daily_period": "2026-06-16",
-                "monthly_used": 500, "monthly_period": "2026-06"}
+    existing = {"daily_used": 100, "daily_period": "2026-06-16", "monthly_used": 500, "monthly_period": "2026-06"}
     r = bs_counter_step(existing, 30, "2026-06-17", "2026-06")
     assert r["daily_used"] == 30 and r["daily_period"] == "2026-06-17"
     assert r["monthly_used"] == 530 and r["monthly_period"] == "2026-06"
 
 
 def test_counter_step_new_month_resets_both():
-    existing = {"daily_used": 100, "daily_period": "2026-06-30",
-                "monthly_used": 500, "monthly_period": "2026-06"}
+    existing = {"daily_used": 100, "daily_period": "2026-06-30", "monthly_used": 500, "monthly_period": "2026-06"}
     r = bs_counter_step(existing, 30, "2026-07-01", "2026-07")
     assert r["daily_used"] == 30 and r["monthly_used"] == 30
     assert r["daily_period"] == "2026-07-01" and r["monthly_period"] == "2026-07"
@@ -99,8 +100,7 @@ def test_strip_no_mutation_with_shallow_copy_plain_dict():
     # plain dict.copy() поверхностный; функция всё равно не должна мутировать вход
     cfg = {
         "inbounds": [
-            {"tag": "VLESS_TCP", "settings": {"clients": [
-                {"email": "1.alice"}, {"email": "2.bob"}]}},
+            {"tag": "VLESS_TCP", "settings": {"clients": [{"email": "1.alice"}, {"email": "2.bob"}]}},
         ],
     }
     snapshot = copy.deepcopy(cfg)
@@ -112,12 +112,15 @@ def test_strip_no_mutation_with_shallow_copy_plain_dict():
 
 def test_aggregate_sums_only_current_periods():
     rows = [
-        {"user_id": 1, "daily_used": 100, "daily_period": "2026-06-16",
-         "monthly_used": 100, "monthly_period": "2026-06"},
-        {"user_id": 1, "daily_used": 50, "daily_period": "2026-06-16",
-         "monthly_used": 50, "monthly_period": "2026-06"},
-        {"user_id": 1, "daily_used": 999, "daily_period": "2026-06-15",
-         "monthly_used": 7, "monthly_period": "2026-05"},
+        {
+            "user_id": 1,
+            "daily_used": 100,
+            "daily_period": "2026-06-16",
+            "monthly_used": 100,
+            "monthly_period": "2026-06",
+        },
+        {"user_id": 1, "daily_used": 50, "daily_period": "2026-06-16", "monthly_used": 50, "monthly_period": "2026-06"},
+        {"user_id": 1, "daily_used": 999, "daily_period": "2026-06-15", "monthly_used": 7, "monthly_period": "2026-05"},
     ]
     totals = aggregate_bs_usage(rows, "2026-06-16", "2026-06")
     assert totals[1]["daily_used"] == 150

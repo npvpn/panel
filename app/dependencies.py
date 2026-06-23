@@ -1,14 +1,15 @@
-from typing import Optional, Union
-from app.models.admin import AdminInDB, AdminValidationResult, Admin
-from app.models.user import UserResponse, UserStatus
-from app.db import Session, crud, get_db
-from config import SUDOERS
+from datetime import UTC, datetime, timedelta
+
 from fastapi import Depends, HTTPException
-from datetime import datetime, timezone, timedelta
+
+from app.db import Session, crud, get_db
+from app.models.admin import Admin, AdminInDB, AdminValidationResult
+from app.models.user import UserResponse, UserStatus
 from app.utils.jwt import get_subscription_payload
+from config import SUDOERS
 
 
-def validate_admin(db: Session, username: str, password: str) -> Optional[AdminValidationResult]:
+def validate_admin(db: Session, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials with environment variables or database."""
     if SUDOERS.get(username) == password:
         return AdminValidationResult(username=username, is_sudo=True)
@@ -36,20 +37,19 @@ def get_dbnode(node_id: int, db: Session = Depends(get_db)):
     return dbnode
 
 
-def validate_dates(start: Optional[Union[str, datetime]], end: Optional[Union[str, datetime]]) -> (datetime, datetime):
+def validate_dates(start: str | datetime | None, end: str | datetime | None) -> (datetime, datetime):
     """Validate if start and end dates are correct and if end is after start."""
     try:
         if start:
-            start_date = start if isinstance(start, datetime) else datetime.fromisoformat(
-                start).astimezone(timezone.utc)
+            start_date = start if isinstance(start, datetime) else datetime.fromisoformat(start).astimezone(UTC)
         else:
-            start_date = datetime.now(timezone.utc) - timedelta(days=30)
+            start_date = datetime.now(UTC) - timedelta(days=30)
         if end:
-            end_date = end if isinstance(end, datetime) else datetime.fromisoformat(end).astimezone(timezone.utc)
+            end_date = end if isinstance(end, datetime) else datetime.fromisoformat(end).astimezone(UTC)
             if start_date and end_date < start_date:
                 raise HTTPException(status_code=400, detail="Start date must be before end date")
         else:
-            end_date = datetime.now(timezone.utc)
+            end_date = datetime.now(UTC)
 
         return start_date, end_date
     except ValueError:
@@ -64,28 +64,23 @@ def get_user_template(template_id: int, db: Session = Depends(get_db)):
     return dbuser_template
 
 
-def get_validated_sub(
-        token: str,
-        db: Session = Depends(get_db)
-) -> UserResponse:
+def get_validated_sub(token: str, db: Session = Depends(get_db)) -> UserResponse:
     sub = get_subscription_payload(token)
     if not sub:
         raise HTTPException(status_code=404, detail="Not Found")
 
-    dbuser = crud.get_user(db, sub['username'])
-    if not dbuser or dbuser.created_at > sub['created_at']:
+    dbuser = crud.get_user(db, sub["username"])
+    if not dbuser or dbuser.created_at > sub["created_at"]:
         raise HTTPException(status_code=404, detail="Not Found")
 
-    if dbuser.sub_revoked_at and dbuser.sub_revoked_at > sub['created_at']:
+    if dbuser.sub_revoked_at and dbuser.sub_revoked_at > sub["created_at"]:
         raise HTTPException(status_code=404, detail="Not Found")
 
     return dbuser
 
 
 def get_validated_user(
-        username: str,
-        admin: Admin = Depends(Admin.get_current),
-        db: Session = Depends(get_db)
+    username: str, admin: Admin = Depends(Admin.get_current), db: Session = Depends(get_db)
 ) -> UserResponse:
     dbuser = crud.get_user(db, username)
     if not dbuser:
@@ -97,19 +92,15 @@ def get_validated_user(
     return dbuser
 
 
-def get_expired_users_list(db: Session, admin: Admin, expired_after: Optional[datetime] = None,
-                           expired_before: Optional[datetime] = None):
-    expired_before = expired_before or datetime.now(timezone.utc)
-    expired_after = expired_after or datetime.min.replace(tzinfo=timezone.utc)
+def get_expired_users_list(
+    db: Session, admin: Admin, expired_after: datetime | None = None, expired_before: datetime | None = None
+):
+    expired_before = expired_before or datetime.now(UTC)
+    expired_after = expired_after or datetime.min.replace(tzinfo=UTC)
 
     dbadmin = crud.get_admin(db, admin.username)
     dbusers = crud.get_users(
-        db=db,
-        status=[UserStatus.expired, UserStatus.limited],
-        admin=dbadmin if not admin.is_sudo else None
+        db=db, status=[UserStatus.expired, UserStatus.limited], admin=dbadmin if not admin.is_sudo else None
     )
 
-    return [
-        u for u in dbusers
-        if u.expire and expired_after.timestamp() <= u.expire <= expired_before.timestamp()
-    ]
+    return [u for u in dbusers if u.expire and expired_after.timestamp() <= u.expire <= expired_before.timestamp()]

@@ -58,7 +58,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
     syncStatus,
   } = useDashboard();
   const { t } = useTranslation();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useDashboard.getState().filters.search || "");
   const [bots, setBots] = useState<Bot[]>([]);
   useEffect(() => {
     fetch<Bot[]>("/bots")
