@@ -59,6 +59,7 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_v2ray_json_template": "",
     "sub_routing_json_default": "",
     "sub_routing_json_bs": "",
+    "sub_custom_headers": "",
 }
 
 
@@ -118,6 +119,7 @@ class BotSettingsPayload(BaseModel):
     sub_v2ray_json_template: str = ""
     sub_routing_json_default: str = ""
     sub_routing_json_bs: str = ""
+    sub_custom_headers: str = ""
 
     @field_validator(
         "sub_revoked_server_text",

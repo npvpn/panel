@@ -265,6 +265,8 @@
   "botSettings.subRoutingHapp": "Routing for Happ",
   "botSettings.subRoutingV2raytun": "Routing for v2raytun",
   "botSettings.subClientNote": "Client note template",
+  "botSettings.subCustomHeaders": "Custom response headers",
+  "botSettings.subCustomHeadersHint": "One 'Name: Value' per line, added to subscription responses and overriding built-in ones. Example: routing-enable: 0 disables Happ routing.",
   "botSettings.subRevokedAnnounceText": "Revoked announce text",
   "botSettings.subExpiredAnnounceText": "Expired announce text",
   "botSettings.subDeviceLimitHardMode": "Hard device limit stub",
