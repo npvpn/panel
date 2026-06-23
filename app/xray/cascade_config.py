@@ -9,6 +9,7 @@ xray_config.json (а не служебного сгенерённого инба
 cascade_config копирует входной конфиг (base_config.copy() → deepcopy у XRayConfig)
 и не мутирует оригинал.
 """
+
 from __future__ import annotations
 
 CASCADE_CLIENT_FLOW = "xtls-rprx-vision"
@@ -41,15 +42,19 @@ def build_cascade_outbound(route: dict) -> dict:
         "tag": cascade_outbound_tag(route["exit_node_id"], route["cascade_inbound_tag"]),
         "protocol": "vless",
         "settings": {
-            "vnext": [{
-                "address": route["address"],
-                "port": route["port"],
-                "users": [{
-                    "id": route["uuid"],
-                    "encryption": "none",
-                    "flow": CASCADE_CLIENT_FLOW,
-                }],
-            }],
+            "vnext": [
+                {
+                    "address": route["address"],
+                    "port": route["port"],
+                    "users": [
+                        {
+                            "id": route["uuid"],
+                            "encryption": "none",
+                            "flow": CASCADE_CLIENT_FLOW,
+                        }
+                    ],
+                }
+            ],
         },
         "streamSettings": {
             "network": "tcp",
@@ -139,8 +144,7 @@ def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None
         for c in cascade_clients:
             uuid_by_tag.setdefault(c["inbound_tag"], c["uuid"])
         cfg["inbounds"] = [
-            _inject_cascade_client(ib, uuid_by_tag[ib.get("tag")])
-            if ib.get("tag") in uuid_by_tag else ib
+            _inject_cascade_client(ib, uuid_by_tag[ib.get("tag")]) if ib.get("tag") in uuid_by_tag else ib
             for ib in cfg["inbounds"]
         ]
         return cfg
@@ -173,16 +177,12 @@ def cascade_config(base_config, *, role, cascade_clients=None, entry_routes=None
 
             if len(selector) > 1:
                 bal_tag = cascade_balancer_tag(entry_tag)
-                routing["balancers"] = routing.get("balancers", []) + [
-                    build_balancer(bal_tag, selector, strategy)
-                ]
+                routing["balancers"] = routing.get("balancers", []) + [build_balancer(bal_tag, selector, strategy)]
                 # Cascade routing rules are appended AFTER any pre-existing base rules.
                 # xray matches rules top-to-bottom, first match wins — so the base config
                 # must not carry an earlier rule matching a cascade entry_inbound_tag,
                 # or this appended balancer/outbound rule would never be reached.
-                routing["rules"] = routing.get("rules", []) + [
-                    build_balancer_rule(entry_tag, bal_tag)
-                ]
+                routing["rules"] = routing.get("rules", []) + [build_balancer_rule(entry_tag, bal_tag)]
                 has_balancer = True
             else:
                 # одиночный exit на инбаунд — прежнее поведение.

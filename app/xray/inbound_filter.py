@@ -3,9 +3,10 @@
 Вынесено в отдельный модуль без тяжёлых импортов (app.db, config, xray_api),
 чтобы покрывалось pytest без поднятия БД/окружения.
 """
+
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 
 def filtered_inbounds(
@@ -24,8 +25,4 @@ def filtered_inbounds(
     """
     managed = set(managed_tags)
     allowed = set(allowed_tags)
-    return [
-        inbound
-        for inbound in inbounds
-        if inbound["tag"] not in managed or inbound["tag"] in allowed
-    ]
+    return [inbound for inbound in inbounds if inbound["tag"] not in managed or inbound["tag"] in allowed]

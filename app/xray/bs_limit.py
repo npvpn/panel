@@ -114,10 +114,7 @@ def strip_blocked_clients(config, blocked_user_ids):
             new_inbounds.append(inbound)
             continue
         new_settings = dict(settings)
-        new_settings["clients"] = [
-            c for c in clients
-            if not str(c.get("email", "")).startswith(prefixes)
-        ]
+        new_settings["clients"] = [c for c in clients if not str(c.get("email", "")).startswith(prefixes)]
         new_inbound = dict(inbound)
         new_inbound["settings"] = new_settings
         new_inbounds.append(new_inbound)

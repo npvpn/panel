@@ -3,10 +3,10 @@ import copy
 import pathlib
 
 from app.xray.cascade_config import (
+    cascade_balancer_tag,
     cascade_config,
     cascade_outbound_tag,
 )
-from app.xray.cascade_config import cascade_balancer_tag
 
 
 class FakeConfig(dict):
@@ -17,16 +17,20 @@ class FakeConfig(dict):
 
 
 def base():
-    return FakeConfig({
-        "inbounds": [
-            {"tag": "VLESS_TCP", "protocol": "vless",
-             "settings": {"clients": [{"id": "user-1"}], "decryption": "none"}},
-            {"tag": "OTHER", "protocol": "vless", "settings": {"clients": []}},
-        ],
-        "outbounds": [{"protocol": "freedom", "tag": "DIRECT"},
-                      {"protocol": "blackhole", "tag": "BLOCK"}],
-        "routing": {"rules": [{"ip": ["geoip:private"], "outboundTag": "BLOCK", "type": "field"}]},
-    })
+    return FakeConfig(
+        {
+            "inbounds": [
+                {
+                    "tag": "VLESS_TCP",
+                    "protocol": "vless",
+                    "settings": {"clients": [{"id": "user-1"}], "decryption": "none"},
+                },
+                {"tag": "OTHER", "protocol": "vless", "settings": {"clients": []}},
+            ],
+            "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+            "routing": {"rules": [{"ip": ["geoip:private"], "outboundTag": "BLOCK", "type": "field"}]},
+        }
+    )
 
 
 def route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"):
@@ -130,8 +134,7 @@ def test_entry_outbound_tag_unique_per_exit_and_inbound():
 
 
 def test_entry_dedupes_outbound_for_same_exit_and_inbound():
-    routes = [route(exit_id=7, entry="A", cascade="VLESS_TCP"),
-              route(exit_id=7, entry="B", cascade="VLESS_TCP")]
+    routes = [route(exit_id=7, entry="A", cascade="VLESS_TCP"), route(exit_id=7, entry="B", cascade="VLESS_TCP")]
     result = cascade_config(base(), role="entry", entry_routes=routes)
     tag = cascade_outbound_tag(7, "VLESS_TCP")
     out_tags = [o["tag"] for o in result["outbounds"]]
@@ -144,26 +147,25 @@ def test_does_not_mutate_input():
     cfg = base()
     snapshot = copy.deepcopy(dict(cfg))
     cascade_config(cfg, role="entry", entry_routes=[route()])
-    cascade_config(cfg, role="exit",
-                   cascade_clients=[{"inbound_tag": "VLESS_TCP", "uuid": "svc-uuid"}])
+    cascade_config(cfg, role="exit", cascade_clients=[{"inbound_tag": "VLESS_TCP", "uuid": "svc-uuid"}])
     assert dict(cfg) == snapshot
 
 
 def test_entry_single_route_per_inbound_keeps_outbound_rule():
     # одна route на entry_inbound_tag → старое поведение, без балансировщика
-    result = cascade_config(base(), role="entry", entry_routes=[route(exit_id=7)],
-                            strategy="leastPing")
+    result = cascade_config(base(), role="entry", entry_routes=[route(exit_id=7)], strategy="leastPing")
     assert "balancers" not in result["routing"]
     rule = result["routing"]["rules"][-1]
-    assert rule == {"type": "field", "inboundTag": ["VLESS_TCP"],
-                    "outboundTag": cascade_outbound_tag(7, "VLESS_TCP")}
+    assert rule == {"type": "field", "inboundTag": ["VLESS_TCP"], "outboundTag": cascade_outbound_tag(7, "VLESS_TCP")}
     # observatory не добавляется, если нет ни одного балансировщика
     assert "observatory" not in result
 
 
 def test_entry_multiple_exits_same_inbound_build_balancer():
-    routes = [route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"),
-              route(exit_id=9, entry="VLESS_TCP", cascade="VLESS_TCP")]
+    routes = [
+        route(exit_id=7, entry="VLESS_TCP", cascade="VLESS_TCP"),
+        route(exit_id=9, entry="VLESS_TCP", cascade="VLESS_TCP"),
+    ]
     result = cascade_config(base(), role="entry", entry_routes=routes, strategy="random")
 
     # оба outbound'а присутствуют
@@ -177,15 +179,12 @@ def test_entry_multiple_exits_same_inbound_build_balancer():
     assert len(balancers) == 1
     bal = balancers[0]
     assert bal["tag"] == bal_tag
-    assert bal["selector"] == [cascade_outbound_tag(7, "VLESS_TCP"),
-                               cascade_outbound_tag(9, "VLESS_TCP")]
+    assert bal["selector"] == [cascade_outbound_tag(7, "VLESS_TCP"), cascade_outbound_tag(9, "VLESS_TCP")]
     assert bal["strategy"] == {"type": "random"}
 
     # одно routing-правило входного инбаунда → balancerTag (а не два outboundTag)
-    inbound_rules = [r for r in result["routing"]["rules"]
-                     if r.get("inboundTag") == ["VLESS_TCP"]]
-    assert inbound_rules == [{"type": "field", "inboundTag": ["VLESS_TCP"],
-                              "balancerTag": bal_tag}]
+    inbound_rules = [r for r in result["routing"]["rules"] if r.get("inboundTag") == ["VLESS_TCP"]]
+    assert inbound_rules == [{"type": "field", "inboundTag": ["VLESS_TCP"], "balancerTag": bal_tag}]
 
 
 def test_entry_observatory_only_for_least_ping():
@@ -277,8 +276,7 @@ def _strategy_values_from_source():
             return {
                 stmt.value.value
                 for stmt in node.body
-                if isinstance(stmt, ast.Assign)
-                and isinstance(stmt.value, ast.Constant)
+                if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Constant)
             }
     raise AssertionError("NodeBalancerStrategy not found in app/models/node.py")
 
@@ -289,18 +287,11 @@ def test_migration_enum_matches_strategy_values():
     the ORM column uses values_callable to persist values rather than member names
     (e.g. "least_load"). If these drift, MySQL truncates on any non-trivial member.
     """
-    migration = pathlib.Path(
-        "app/db/migrations/versions/"
-        "e1f2a3b4c5d6_node_cascade_balancer_strategy.py"
-    ).read_text()
+    migration = pathlib.Path("app/db/migrations/versions/e1f2a3b4c5d6_node_cascade_balancer_strategy.py").read_text()
     tree = ast.parse(migration)
     enum_args = None
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "Enum"
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "Enum":
             enum_args = [a.value for a in node.args if isinstance(a, ast.Constant)]
             break
     assert enum_args is not None, "sa.Enum(...) not found in migration"

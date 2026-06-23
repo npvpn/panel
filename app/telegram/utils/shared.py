@@ -52,14 +52,15 @@ def get_user_info_text(db_user: User) -> str:
     used_traffic = readable_size(user.used_traffic) if user.used_traffic else "-"
     data_left = readable_size(user.data_limit - user.used_traffic) if user.data_limit else "-"
     on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d") if user.on_hold_timeout else "-"
-    on_hold_duration = user.on_hold_expire_duration // (24*60*60) if user.on_hold_expire_duration else None
+    on_hold_duration = user.on_hold_expire_duration // (24 * 60 * 60) if user.on_hold_expire_duration else None
     expiry_date = dt.fromtimestamp(user.expire).date() if user.expire else "Never"
     time_left = time_to_string(dt.fromtimestamp(user.expire)) if user.expire else "-"
     online_at = time_to_string(user.online_at) if user.online_at else "-"
     sub_updated_at = time_to_string(user.sub_updated_at) if user.sub_updated_at else "-"
     if user.status == UserStatus.on_hold:
         expiry_text = f"⏰ <b>On Hold Duration:</b> <code>{on_hold_duration} days</code> (auto start at <code>{
-            on_hold_timeout}</code>)"
+            on_hold_timeout
+        }</code>)"
     else:
         expiry_text = f"📅 <b>Expiry Date:</b> <code>{expiry_date}</code> ({time_left})"
     return f"""\
@@ -86,8 +87,11 @@ def get_template_info_text(template: UserTemplate):
         protocols += f"\n├─ <b>{p.upper()}</b>\n"
         protocols += "├───" + ", ".join([f"<code>{i}</code>" for i in inbounds])
     data_limit = readable_size(template.data_limit) if template.data_limit else "Unlimited"
-    expire = ((dt.now() + relativedelta(seconds=template.expire_duration))
-              .strftime("%Y-%m-%d")) if template.expire_duration else "Never"
+    expire = (
+        ((dt.now() + relativedelta(seconds=template.expire_duration)).strftime("%Y-%m-%d"))
+        if template.expire_duration
+        else "Never"
+    )
     text = f"""
 📊 Template Info:
 ID: <b>{template.id}</b>
@@ -100,6 +104,6 @@ Protocols: {protocols}"""
 
 
 def get_number_at_end(username: str):
-    n = re.search(r'(\d+)$', username)
+    n = re.search(r"(\d+)$", username)
     if n:
         return n.group(1)

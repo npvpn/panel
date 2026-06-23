@@ -1,25 +1,28 @@
 import json
-import re
-from datetime import datetime, timezone
 import math
-from app.db.models import User
-from distutils.version import LooseVersion
+import re
+from datetime import UTC, datetime
 from urllib.parse import quote
 
+from distutils.version import LooseVersion
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.exc import TimeoutError as SATimeoutError, OperationalError
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 from app import logger
 from app.db import GetDB, Session, crud, get_db
+from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.custom_headers import parse_custom_headers
 from app.subscription.share import encode_title, generate_subscription
 from app.xray.bs_limit import bs_stub_remark
 from app.subscription.bot_settings import resolve_bot_settings
+from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from app.utils.jwt import get_subscription_payload
+from app.xray.bs_limit import bs_stub_remark
 from config import (
     SUBSCRIPTION_PAGE_TEMPLATE,
     USE_CUSTOM_JSON_DEFAULT,
@@ -36,11 +39,15 @@ client_config = {
     "clash": {"config_format": "clash", "media_type": "text/yaml", "as_base64": False, "reverse": False},
     "v2ray": {"config_format": "v2ray", "media_type": "text/plain", "as_base64": True, "reverse": False},
     "outline": {"config_format": "outline", "media_type": "application/json", "as_base64": False, "reverse": False},
-    "v2ray-json": {"config_format": "v2ray-json", "media_type": "application/json", "as_base64": False,
-                   "reverse": False}
+    "v2ray-json": {
+        "config_format": "v2ray-json",
+        "media_type": "application/json",
+        "as_base64": False,
+        "reverse": False,
+    },
 }
 
-router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
+router = APIRouter(tags=["Subscription"], prefix=f"/{XRAY_SUBSCRIPTION_PATH}")
 
 
 def devices_json(devices) -> str:
@@ -68,7 +75,7 @@ def get_user_note(user: UserResponse, note_template: str) -> str:
     expire_ts = int(user.expire or 0)
     if expire_ts <= 0:
         return note_template.replace("<days_left>", "0")
-    now_ts = int(datetime.now(timezone.utc).timestamp())
+    now_ts = int(datetime.now(UTC).timestamp())
     seconds_left = max(0, expire_ts - now_ts)
     days_left = math.ceil(seconds_left / 86400)
     return note_template.replace("<days_left>", str(days_left))
@@ -83,25 +90,24 @@ def resolve_subscription_context(token: str, db: Session):
     sub = get_subscription_payload(token)
     if not sub:
         return None, False, None
-    dbuser: User | None = crud.get_user(db, sub['username'])
+    dbuser: User | None = crud.get_user(db, sub["username"])
     if not dbuser:
         return None, False, None
     # If token created before user record (e.g., renamed/recreated), treat as invalid
-    if dbuser.created_at and sub.get('created_at') and dbuser.created_at > sub['created_at']:
+    if dbuser.created_at and sub.get("created_at") and dbuser.created_at > sub["created_at"]:
         return None, False, None
-    revoked = bool(dbuser.sub_revoked_at and sub.get('created_at') and dbuser.sub_revoked_at > sub['created_at'])
-    return dbuser, revoked, sub.get('created_at')
+    revoked = bool(dbuser.sub_revoked_at and sub.get("created_at") and dbuser.sub_revoked_at > sub["created_at"])
+    return dbuser, revoked, sub.get("created_at")
 
 
 def build_content_disposition(username: str) -> str:
     """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
-    fallback = re.sub(r'[^A-Za-z0-9._-]+', '_', username or 'profile')
-    utf8_quoted = quote(username or 'profile', safe='')
-    return f'attachment; filename="{fallback}"; filename*=UTF-8''{utf8_quoted}'
+    fallback = re.sub(r"[^A-Za-z0-9._-]+", "_", username or "profile")
+    utf8_quoted = quote(username or "profile", safe="")
+    return f'attachment; filename="{fallback}"; filename*=UTF-8{{utf8_quoted}}'
 
 
-def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None,
-                               user_id: int | None = None) -> dict:
+def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None, user_id: int | None = None) -> dict:
     """upload/download/total/expire для Happ. Если у бота юзера задан БС-лимит и есть
     БС-расход — download/total отражают агрегат БС (binding day/month), иначе глобальный."""
     info = {
@@ -119,6 +125,7 @@ def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None
         return info
 
     from app.xray.bs_limit import period_keys, pick_bs_bar
+
     today, yyyymm = period_keys(datetime.utcnow())
     daily_used, monthly_used = crud.get_bs_usage_totals(db, user_id, today, yyyymm)
     bar = pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit)
@@ -165,9 +172,7 @@ def resolve_device_limit_subscription_state(
         or (not hard_mode and hard_device_limited)
     ):
         user = get_empty_subscription_user(user)
-    device_limited_hard_for_gen = (hard_mode and device_limited) or (
-        not hard_mode and hard_device_limited
-    )
+    device_limited_hard_for_gen = (hard_mode and device_limited) or (not hard_mode and hard_device_limited)
     return user, device_limited, device_limited_hard_for_gen, unsupported_blocks
 
 
@@ -193,12 +198,16 @@ def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
         # Lock wait / pool timeout — поле обновит следующий /sub-запрос.
         logger.warning(
             "[sub.update_bg] skip user_id=%s due to %s: %s",
-            user_id, type(exc).__name__, exc,
+            user_id,
+            type(exc).__name__,
+            exc,
         )
     except Exception as exc:
         logger.warning(
             "[sub.update_bg] unexpected error user_id=%s: %s: %s",
-            user_id, type(exc).__name__, exc,
+            user_id,
+            type(exc).__name__,
+            exc,
         )
 
 
@@ -231,15 +240,11 @@ def user_subscription(
     if not dbuser:
         return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
-    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp()))
+    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(UTC).timestamp()))
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    is_limited = (
-        not is_revoked
-        and not is_expired
-        and crud.is_device_limit_exceeded(db, dbuser)
-    )
+    is_limited = not is_revoked and not is_expired and crud.is_device_limit_exceeded(db, dbuser)
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
@@ -254,35 +259,25 @@ def user_subscription(
             "bot_url": bot_settings["bot_url"],
         }
         if is_revoked:
-            return HTMLResponse(
-                render_template("sub/revoked.html", html_context)
-            )
+            return HTMLResponse(render_template("sub/revoked.html", html_context))
         if is_expired:
-            return HTMLResponse(
-                render_template("sub/expired.html", html_context)
-            )
+            return HTMLResponse(render_template("sub/expired.html", html_context))
         if is_limited:
-            return HTMLResponse(
-                render_template("sub/limited.html", html_context)
-            )
-        return HTMLResponse(
-            render_template(SUBSCRIPTION_PAGE_TEMPLATE, html_context)
-        )
+            return HTMLResponse(render_template("sub/limited.html", html_context))
+        return HTMLResponse(render_template(SUBSCRIPTION_PAGE_TEMPLATE, html_context))
 
-    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = (
-        resolve_device_limit_subscription_state(
-            user,
-            db,
-            dbuser,
-            is_revoked,
-            is_expired,
-            bot_settings,
-            user_agent=user_agent,
-            x_hwid=x_hwid,
-            x_device_os=x_device_os,
-            x_ver_os=x_ver_os,
-            x_device_model=x_device_model,
-        )
+    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = resolve_device_limit_subscription_state(
+        user,
+        db,
+        dbuser,
+        is_revoked,
+        is_expired,
+        bot_settings,
+        user_agent=user_agent,
+        x_hwid=x_hwid,
+        x_device_os=x_device_os,
+        x_ver_os=x_ver_os,
+        x_device_model=x_device_model,
     )
 
     blocked_bs_addresses = set()
@@ -303,7 +298,7 @@ def user_subscription(
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
     elif is_expired and str(bot_settings["sub_expired_announce_text"]).strip():
-        announce_text = get_user_note(user,bot_settings["sub_expired_announce_text"])
+        announce_text = get_user_note(user, bot_settings["sub_expired_announce_text"])
     elif device_limited and str(bot_settings["sub_device_limit_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
@@ -328,7 +323,7 @@ def user_subscription(
             for key, val in get_subscription_user_info(
                 user, db=db, bot_settings=bot_settings, user_id=dbuser.id
             ).items()
-        )
+        ),
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
     response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
@@ -350,24 +345,24 @@ def user_subscription(
             bs_addresses=bs_addresses,
         )
 
-    if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
+    if re.match(r"^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)", user_agent):
         conf = build_subscription("clash-meta", False, False)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
-    elif re.match(r'^([Cc]lash|[Ss]tash)', user_agent):
+    elif re.match(r"^([Cc]lash|[Ss]tash)", user_agent):
         conf = build_subscription("clash", False, False)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
-    elif re.match(r'^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)', user_agent):
+    elif re.match(r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)", user_agent):
         conf = build_subscription("sing-box", False, False)
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
-    elif re.match(r'^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)', user_agent):
+    elif re.match(r"^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", user_agent):
         conf = build_subscription("outline", False, False)
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
-    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYN) and re.match(r'^v2rayN/(\d+\.\d+)', user_agent):
-        version_str = re.match(r'^v2rayN/(\d+\.\d+)', user_agent).group(1)
+    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYN) and re.match(r"^v2rayN/(\d+\.\d+)", user_agent):
+        version_str = re.match(r"^v2rayN/(\d+\.\d+)", user_agent).group(1)
         if LooseVersion(version_str) >= LooseVersion("6.40"):
             conf = build_subscription("v2ray-json", False, False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
@@ -375,8 +370,8 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYNG) and re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent):
-        version_str = re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent).group(1)
+    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYNG) and re.match(r"^v2rayNG/(\d+\.\d+\.\d+)", user_agent):
+        version_str = re.match(r"^v2rayNG/(\d+\.\d+\.\d+)", user_agent).group(1)
         if LooseVersion(version_str) >= LooseVersion("1.8.29"):
             conf = build_subscription("v2ray-json", False, False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
@@ -387,7 +382,7 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-    elif re.match(r'^[Ss]treisand', user_agent):
+    elif re.match(r"^[Ss]treisand", user_agent):
         if USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_STREISAND:
             conf = build_subscription("v2ray-json", False, False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
@@ -395,16 +390,14 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent):
-        version_str = re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent).group(1)
+    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r"^Happ/(\d+\.\d+\.\d+)", user_agent):
+        version_str = re.match(r"^Happ/(\d+\.\d+\.\d+)", user_agent).group(1)
         if LooseVersion(version_str) >= LooseVersion("1.63.1"):
             conf = build_subscription("v2ray-json", False, False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
-
-
 
     else:
         conf = build_subscription("v2ray", True, False)
@@ -422,9 +415,7 @@ def revoke_subscription_device(
     if not dbuser:
         return Response(status_code=404)
 
-    is_expired = bool(
-        dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp())
-    )
+    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(UTC).timestamp()))
     if is_revoked or is_expired:
         raise HTTPException(status_code=403, detail="Subscription is not active")
 
@@ -446,10 +437,7 @@ def user_subscription_info(
 
 @router.get("/{token}/usage")
 def user_get_usage(
-    dbuser: UserResponse = Depends(get_validated_sub),
-    start: str = "",
-    end: str = "",
-    db: Session = Depends(get_db)
+    dbuser: UserResponse = Depends(get_validated_sub), start: str = "", end: str = "", db: Session = Depends(get_db)
 ):
     """Fetches the usage statistics for the user within a specified date range."""
     start, end = validate_dates(start, end)
@@ -476,24 +464,22 @@ def user_subscription_with_client_type(
     if not dbuser:
         return Response(status_code=404)
     crud.ensure_subscription_token(db, dbuser)
-    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(timezone.utc).timestamp()))
+    is_expired = bool(dbuser.expire and dbuser.expire > 0 and dbuser.expire < int(datetime.now(UTC).timestamp()))
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = (
-        resolve_device_limit_subscription_state(
-            user,
-            db,
-            dbuser,
-            is_revoked,
-            is_expired,
-            bot_settings,
-            user_agent=user_agent,
-            x_hwid=x_hwid,
-            x_device_os=x_device_os,
-            x_ver_os=x_ver_os,
-            x_device_model=x_device_model,
-        )
+    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = resolve_device_limit_subscription_state(
+        user,
+        db,
+        dbuser,
+        is_revoked,
+        is_expired,
+        bot_settings,
+        user_agent=user_agent,
+        x_hwid=x_hwid,
+        x_device_os=x_device_os,
+        x_ver_os=x_ver_os,
+        x_device_model=x_device_model,
     )
 
     blocked_bs_addresses = set()
@@ -507,7 +493,7 @@ def user_subscription_with_client_type(
     if is_revoked and str(bot_settings["sub_revoked_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_revoked_announce_text"])
     elif is_expired and str(bot_settings["sub_expired_announce_text"]).strip():
-        announce_text = get_user_note(user,bot_settings["sub_expired_announce_text"])
+        announce_text = get_user_note(user, bot_settings["sub_expired_announce_text"])
     elif device_limited and str(bot_settings["sub_device_limit_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
@@ -532,23 +518,25 @@ def user_subscription_with_client_type(
             for key, val in get_subscription_user_info(
                 user, db=db, bot_settings=bot_settings, user_id=dbuser.id
             ).items()
-        )
+        ),
     }
     response_headers.update(get_routing_header(user_agent, bot_settings))
     response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
 
     config = client_config.get(client_type)
-    conf = generate_subscription(user=user,
-                                 config_format=config["config_format"],
-                                 as_base64=config["as_base64"],
-                                 reverse=config["reverse"],
-                                 revoked=is_revoked,
-                                 expired=is_expired,
-                                 device_limited=device_limited,
-                                 device_limited_hard=device_limited_hard_for_gen,
-                                 unsupported_client=unsupported_blocks,
-                                 settings=bot_settings,
-                                 bs_stub_addresses=blocked_bs_addresses,
-                                 bs_stub_text=bs_stub_text)
+    conf = generate_subscription(
+        user=user,
+        config_format=config["config_format"],
+        as_base64=config["as_base64"],
+        reverse=config["reverse"],
+        revoked=is_revoked,
+        expired=is_expired,
+        device_limited=device_limited,
+        device_limited_hard=device_limited_hard_for_gen,
+        unsupported_client=unsupported_blocks,
+        settings=bot_settings,
+        bs_stub_addresses=blocked_bs_addresses,
+        bs_stub_text=bs_stub_text,
+    )
 
     return Response(content=conf, media_type=config["media_type"], headers=response_headers)
