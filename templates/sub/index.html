@@ -347,16 +347,16 @@
                     <span>Global</span>
                   </a>
                 </div>
-<!-- 
+
                 <p class="text-sm text-[#7b7b7b] font-[400]">
                   Можно использовать альтернативные приложения для подключения
                 </p>
 
-                <a href="https://apps.apple.com/ru/app/incy/id6756943388"
+                <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
                   target="_blank"
                   class="text-[14px] font-semibold text-[#007aff]">
-                  Incy
-                </a> -->
+                  Happ Proxy Global
+                </a>
 
               </div>
             </template>
@@ -519,13 +519,21 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
                 <p class="text-[14px] font-[400]">
                   После добавления выберите страну и нажмите «Подключить»
                 </p>
-                <a
-                  x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                  :href="`incy://add/${user.subscription_url}`"
-                  class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
-                >
-                  Добавить ключ в <span x-text="currentOs.appName"></span>
-                </a>
+                <div class="flex flex-col gap-2">
+                  <a
+                    x-show="String(selectedOs).toLowerCase() !== 'linux'"
+                    :href="`incy://add/${user.subscription_url}`"
+                    class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
+                  >
+                    Добавить ключ в <span x-text="currentOs.appName"></span>
+                  </a>
+                  <a
+                    :href="`happ://add/${encodeURIComponent(user.subscription_url)}`"
+                    class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
+                  >
+                    Добавить ключ в Happ Proxy
+                  </a>
+                </div>
               </div>
             </template>
           </div>
