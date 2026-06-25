@@ -156,6 +156,7 @@ def modify_node(
     if updated_node.status != NodeStatus.disabled:
         bg.add_task(xray.operations.connect_node, node_id=updated_node.id)
 
+    xray.hosts.update()
     logger.info(f'Node "{dbnode.name}" modified')
     return dbnode
 
@@ -181,6 +182,7 @@ def remove_node(
     crud.remove_node(db, dbnode)
     xray.operations.remove_node(dbnode.id)
 
+    xray.hosts.update()
     logger.info(f'Node "{dbnode.name}" deleted')
     return {}
 
