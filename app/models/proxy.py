@@ -3,7 +3,7 @@ import re
 from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.utils.system import random_password
 from xray_api.types.account import (
@@ -193,12 +193,6 @@ class ProxyHost(BaseModel):
             if len(v) > 2000:
                 raise ValueError("Noise can't be longer that 2000 character")
         return v
-
-    @model_validator(mode="after")
-    def validate_address_or_nodes(self):
-        if not self.address and not self.node_ids:
-            raise ValueError("Either address or node_ids must be set")
-        return self
 
 
 class ProxyInbound(BaseModel):
