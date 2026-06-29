@@ -23,14 +23,8 @@ import {
   Select,
   Spinner,
   Switch,
-  Table,
-  Tbody,
-  Td,
   Text,
-  Th,
-  Thead,
   Textarea,
-  Tr,
   Tooltip,
   VStack,
   chakra,
@@ -72,6 +66,7 @@ import { UsageFilter, createUsageConfig } from "./UsageFilter";
 import { ReloadIcon } from "./Filters";
 import classNames from "classnames";
 import { fetch } from "service/http";
+import { DevicesModal } from "./DevicesModal";
 
 const AddUserIcon = chakra(UserPlusIcon, {
   baseStyle: {
@@ -91,13 +86,6 @@ const UserUsageIcon = chakra(ChartPieIcon, {
   baseStyle: {
     w: 5,
     h: 5,
-  },
-});
-
-const DeleteDeviceIcon = chakra(TrashIcon, {
-  baseStyle: {
-    w: 4,
-    h: 4,
   },
 });
 
@@ -346,8 +334,8 @@ export const UserDialog: FC<UserDialogProps> = () => {
           : "no_reset",
       status:
         values.status === "active" ||
-          values.status === "disabled" ||
-          values.status === "on_hold"
+        values.status === "disabled" ||
+        values.status === "on_hold"
           ? values.status
           : "active",
     };
@@ -514,95 +502,306 @@ export const UserDialog: FC<UserDialogProps> = () => {
                         gridAutoRows="min-content"
                         w="full"
                       >
-                      <Flex flexDirection="row" w="full" gap={2}>
-                        <FormControl mb={"10px"}>
-                          <FormLabel>
-                            <Flex gap={2} alignItems={"center"}>
-                              {t("username")}
-                              {!isEditing && (
-                                <ReloadIcon
-                                  cursor={"pointer"}
-                                  className={classNames({
-                                    "animate-spin": randomUsernameLoading,
-                                  })}
-                                  onClick={() => {
-                                    const randomUsername =
-                                      createRandomUsername();
-                                    form.setValue("username", randomUsername);
-                                    setTimeout(() => {
-                                      setrandomUsernameLoading(false);
-                                    }, 350);
-                                  }}
-                                />
-                              )}
-                            </Flex>
-                          </FormLabel>
-                          <HStack>
-                            <Input
-                              size="sm"
-                              type="text"
-                              borderRadius="6px"
-                              error={form.formState.errors.username?.message}
-                              disabled={disabled || isEditing}
-                              {...form.register("username")}
-                            />
-                            {isEditing && (
-                              <HStack px={1}>
-                                <Controller
-                                  name="status"
-                                  control={form.control}
-                                  render={({ field }) => {
-                                    return (
-                                      <Tooltip
-                                        placement="top"
-                                        label={"status: " + t(`status.${field.value}`)}
-                                        textTransform="capitalize"
-                                      >
-                                        <Box>
-                                          <Switch
-                                            colorScheme="primary"
-                                            isChecked={field.value === "active"}
-                                            onChange={(e) => {
-                                              if (e.target.checked) {
-                                                field.onChange("active");
-                                              } else {
-                                                field.onChange("disabled");
+                        <Flex flexDirection="row" w="full" gap={2}>
+                          <FormControl mb={"10px"}>
+                            <FormLabel>
+                              <Flex gap={2} alignItems={"center"}>
+                                {t("username")}
+                                {!isEditing && (
+                                  <ReloadIcon
+                                    cursor={"pointer"}
+                                    className={classNames({
+                                      "animate-spin": randomUsernameLoading,
+                                    })}
+                                    onClick={() => {
+                                      const randomUsername =
+                                        createRandomUsername();
+                                      form.setValue("username", randomUsername);
+                                      setTimeout(() => {
+                                        setrandomUsernameLoading(false);
+                                      }, 350);
+                                    }}
+                                  />
+                                )}
+                              </Flex>
+                            </FormLabel>
+                            <HStack>
+                              <Input
+                                size="sm"
+                                type="text"
+                                borderRadius="6px"
+                                error={form.formState.errors.username?.message}
+                                disabled={disabled || isEditing}
+                                {...form.register("username")}
+                              />
+                              {isEditing && (
+                                <HStack px={1}>
+                                  <Controller
+                                    name="status"
+                                    control={form.control}
+                                    render={({ field }) => {
+                                      return (
+                                        <Tooltip
+                                          placement="top"
+                                          label={
+                                            "status: " +
+                                            t(`status.${field.value}`)
+                                          }
+                                          textTransform="capitalize"
+                                        >
+                                          <Box>
+                                            <Switch
+                                              colorScheme="primary"
+                                              isChecked={
+                                                field.value === "active"
                                               }
-                                            }}
-                                          />
-                                        </Box>
-                                      </Tooltip>
-                                    );
-                                  }}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  field.onChange("active");
+                                                } else {
+                                                  field.onChange("disabled");
+                                                }
+                                              }}
+                                            />
+                                          </Box>
+                                        </Tooltip>
+                                      );
+                                    }}
+                                  />
+                                </HStack>
+                              )}
+                            </HStack>
+                          </FormControl>
+                          {!isEditing && (
+                            <FormControl flex="1">
+                              <FormLabel whiteSpace={"nowrap"}>
+                                {t("userDialog.onHold")}
+                              </FormLabel>
+                              <Controller
+                                name="status"
+                                control={form.control}
+                                render={({ field }) => {
+                                  const status = field.value;
+                                  return (
+                                    <>
+                                      {status ? (
+                                        <Switch
+                                          colorScheme="primary"
+                                          isChecked={status === "on_hold"}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              field.onChange("on_hold");
+                                            } else {
+                                              field.onChange("active");
+                                            }
+                                          }}
+                                        />
+                                      ) : (
+                                        ""
+                                      )}
+                                    </>
+                                  );
+                                }}
+                              />
+                            </FormControl>
+                          )}
+                        </Flex>
+                        <FormControl mb={"10px"}>
+                          <FormLabel>{t("userDialog.dataLimit")}</FormLabel>
+                          <Controller
+                            control={form.control}
+                            name="data_limit"
+                            render={({ field }) => {
+                              return (
+                                <Input
+                                  endAdornment="GB"
+                                  type="number"
+                                  size="sm"
+                                  borderRadius="6px"
+                                  onChange={field.onChange}
+                                  disabled={disabled}
+                                  error={
+                                    form.formState.errors.data_limit?.message
+                                  }
+                                  value={field.value ? String(field.value) : ""}
                                 />
-                              </HStack>
-                            )}
-                          </HStack>
+                              );
+                            }}
+                          />
                         </FormControl>
-                        {!isEditing && (
-                          <FormControl flex="1">
-                            <FormLabel whiteSpace={"nowrap"}>
-                              {t("userDialog.onHold")}
+                        <FormControl mb={"10px"}>
+                          <FormLabel>{t("userDialog.deviceLimit")}</FormLabel>
+                          <Controller
+                            control={form.control}
+                            name="device_limit"
+                            render={({ field }) => {
+                              return (
+                                <Input
+                                  endAdornment={t("userDialog.devicesUnit")}
+                                  type="number"
+                                  size="sm"
+                                  borderRadius="6px"
+                                  onChange={field.onChange}
+                                  disabled={disabled}
+                                  error={
+                                    form.formState.errors.device_limit?.message
+                                  }
+                                  value={field.value ? String(field.value) : ""}
+                                />
+                              );
+                            }}
+                          />
+                        </FormControl>
+                        <Collapse
+                          in={!!(dataLimit && dataLimit > 0)}
+                          animateOpacity
+                          style={{ width: "100%" }}
+                        >
+                          <FormControl height="66px">
+                            <FormLabel>
+                              {t("userDialog.periodicUsageReset")}
                             </FormLabel>
                             <Controller
-                              name="status"
+                              control={form.control}
+                              name="data_limit_reset_strategy"
+                              render={({ field }) => {
+                                return (
+                                  <Select
+                                    size="sm"
+                                    {...field}
+                                    disabled={disabled}
+                                    bg={disabled ? "gray.100" : "transparent"}
+                                    _dark={{
+                                      bg: disabled ? "gray.600" : "transparent",
+                                    }}
+                                    sx={{
+                                      option: {
+                                        backgroundColor:
+                                          colorMode === "dark"
+                                            ? "#222C3B"
+                                            : "white",
+                                      },
+                                    }}
+                                  >
+                                    {resetStrategy.map((s) => {
+                                      return (
+                                        <option key={s.value} value={s.value}>
+                                          {t(
+                                            "userDialog.resetStrategy" + s.title
+                                          )}
+                                        </option>
+                                      );
+                                    })}
+                                  </Select>
+                                );
+                              }}
+                            />
+                          </FormControl>
+                        </Collapse>
+
+                        <FormControl mb={"10px"}>
+                          <FormLabel>
+                            {isOnHold
+                              ? t("userDialog.onHoldExpireDuration")
+                              : t("userDialog.expiryDate")}
+                          </FormLabel>
+
+                          {isOnHold && (
+                            <Controller
+                              control={form.control}
+                              name="on_hold_expire_duration"
+                              render={({ field }) => {
+                                return (
+                                  <Input
+                                    endAdornment="Days"
+                                    type="number"
+                                    size="sm"
+                                    borderRadius="6px"
+                                    onChange={(on_hold) => {
+                                      form.setValue("expire", null);
+                                      field.onChange({
+                                        target: {
+                                          value: on_hold,
+                                        },
+                                      });
+                                    }}
+                                    disabled={disabled}
+                                    error={
+                                      form.formState.errors
+                                        .on_hold_expire_duration?.message
+                                    }
+                                    value={
+                                      field.value ? String(field.value) : ""
+                                    }
+                                  />
+                                );
+                              }}
+                            />
+                          )}
+                          {!isOnHold && (
+                            <Controller
+                              name="expire"
                               control={form.control}
                               render={({ field }) => {
-                                const status = field.value;
+                                function createDateAsUTC(num: number) {
+                                  return dayjs(
+                                    dayjs(num * 1000).utc()
+                                    // .format("MMMM D, YYYY") // exception with: dayjs.locale(lng);
+                                  ).toDate();
+                                }
+                                const { status, time } = relativeExpiryDate(
+                                  field.value
+                                );
                                 return (
                                   <>
-                                    {status ? (
-                                      <Switch
-                                        colorScheme="primary"
-                                        isChecked={status === "on_hold"}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            field.onChange("on_hold");
-                                          } else {
-                                            field.onChange("active");
+                                    <ReactDatePicker
+                                      locale={i18n.language.toLocaleLowerCase()}
+                                      dateFormat={t("dateFormat")}
+                                      minDate={new Date()}
+                                      selected={
+                                        field.value
+                                          ? createDateAsUTC(field.value)
+                                          : undefined
+                                      }
+                                      onChange={(date: Date) => {
+                                        form.setValue(
+                                          "on_hold_expire_duration",
+                                          null
+                                        );
+                                        field.onChange({
+                                          target: {
+                                            value: date
+                                              ? dayjs(
+                                                  dayjs(date)
+                                                    .set("hour", 23)
+                                                    .set("minute", 59)
+                                                    .set("second", 59)
+                                                )
+                                                  .utc()
+                                                  .valueOf() / 1000
+                                              : 0,
+                                            name: "expire",
+                                          },
+                                        });
+                                      }}
+                                      customInput={
+                                        <Input
+                                          size="sm"
+                                          type="text"
+                                          borderRadius="6px"
+                                          clearable
+                                          disabled={disabled}
+                                          error={
+                                            form.formState.errors.expire
+                                              ?.message
                                           }
-                                        }}
-                                      />
+                                        />
+                                      }
+                                    />
+                                    {field.value ? (
+                                      <FormHelperText>
+                                        {t(status, { time: time })}
+                                      </FormHelperText>
                                     ) : (
                                       ""
                                     )}
@@ -610,319 +809,124 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                 );
                               }}
                             />
-                          </FormControl>
-                        )}
-                      </Flex>
-                      <FormControl mb={"10px"}>
-                        <FormLabel>{t("userDialog.dataLimit")}</FormLabel>
-                        <Controller
-                          control={form.control}
-                          name="data_limit"
-                          render={({ field }) => {
-                            return (
-                              <Input
-                                endAdornment="GB"
-                                type="number"
-                                size="sm"
-                                borderRadius="6px"
-                                onChange={field.onChange}
-                                disabled={disabled}
-                                error={
-                                  form.formState.errors.data_limit?.message
-                                }
-                                value={field.value ? String(field.value) : ""}
-                              />
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <FormControl mb={"10px"}>
-                        <FormLabel>{t("userDialog.deviceLimit")}</FormLabel>
-                        <Controller
-                          control={form.control}
-                          name="device_limit"
-                          render={({ field }) => {
-                            return (
-                              <Input
-                                endAdornment={t("userDialog.devicesUnit")}
-                                type="number"
-                                size="sm"
-                                borderRadius="6px"
-                                onChange={field.onChange}
-                                disabled={disabled}
-                                error={
-                                  form.formState.errors.device_limit?.message
-                                }
-                                value={field.value ? String(field.value) : ""}
-                              />
-                            );
-                          }}
-                        />
-                      </FormControl>
-                      <Collapse
-                        in={!!(dataLimit && dataLimit > 0)}
-                        animateOpacity
-                        style={{ width: "100%" }}
-                      >
-                        <FormControl height="66px">
-                          <FormLabel>
-                            {t("userDialog.periodicUsageReset")}
-                          </FormLabel>
-                          <Controller
-                            control={form.control}
-                            name="data_limit_reset_strategy"
-                            render={({ field }) => {
-                              return (
-                                <Select
-                                  size="sm"
-                                  {...field}
-                                  disabled={disabled}
-                                  bg={disabled ? "gray.100" : "transparent"}
-                                  _dark={{
-                                    bg: disabled ? "gray.600" : "transparent",
-                                  }}
-                                  sx={{
-                                    option: {
-                                      backgroundColor: colorMode === "dark" ? "#222C3B" : "white"
-                                    }
-                                  }}
-                                >
-                                  {resetStrategy.map((s) => {
-                                    return (
-                                      <option key={s.value} value={s.value}>
-                                        {t(
-                                          "userDialog.resetStrategy" + s.title
-                                        )}
-                                      </option>
-                                    );
-                                  })}
-                                </Select>
-                              );
-                            }}
-                          />
+                          )}
                         </FormControl>
-                      </Collapse>
 
-                      <FormControl mb={"10px"}>
-                        <FormLabel>
-                          {isOnHold
-                            ? t("userDialog.onHoldExpireDuration")
-                            : t("userDialog.expiryDate")}
-                        </FormLabel>
+                        <FormControl
+                          mb={"10px"}
+                          isInvalid={!!form.formState.errors.note}
+                        >
+                          <FormLabel>{t("userDialog.note")}</FormLabel>
+                          <Textarea {...form.register("note")} />
+                          <FormErrorMessage>
+                            {form.formState.errors?.note?.message}
+                          </FormErrorMessage>
+                        </FormControl>
 
-                        {isOnHold && (
-                          <Controller
-                            control={form.control}
-                            name="on_hold_expire_duration"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  endAdornment="Days"
-                                  type="number"
-                                  size="sm"
-                                  borderRadius="6px"
-                                  onChange={(on_hold) => {
-                                    form.setValue("expire", null);
-                                    field.onChange({
-                                      target: {
-                                        value: on_hold,
-                                      },
-                                    });
-                                  }}
-                                  disabled={disabled}
-                                  error={
-                                    form.formState.errors
-                                      .on_hold_expire_duration?.message
-                                  }
-                                  value={field.value ? String(field.value) : ""}
-                                />
-                              );
-                            }}
-                          />
-                        )}
-                        {!isOnHold && (
-                          <Controller
-                            name="expire"
-                            control={form.control}
-                            render={({ field }) => {
-                              function createDateAsUTC(num: number) {
-                                return dayjs(
-                                  dayjs(num * 1000).utc()
-                                  // .format("MMMM D, YYYY") // exception with: dayjs.locale(lng);
-                                ).toDate();
-                              }
-                              const { status, time } = relativeExpiryDate(
-                                field.value
-                              );
-                              return (
-                                <>
-                                  <ReactDatePicker
-                                    locale={i18n.language.toLocaleLowerCase()}
-                                    dateFormat={t("dateFormat")}
-                                    minDate={new Date()}
-                                    selected={
-                                      field.value
-                                        ? createDateAsUTC(field.value)
-                                        : undefined
-                                    }
-                                    onChange={(date: Date) => {
-                                      form.setValue(
-                                        "on_hold_expire_duration",
-                                        null
-                                      );
-                                      field.onChange({
-                                        target: {
-                                          value: date
-                                            ? dayjs(
-                                              dayjs(date)
-                                                .set("hour", 23)
-                                                .set("minute", 59)
-                                                .set("second", 59)
-                                            )
-                                              .utc()
-                                              .valueOf() / 1000
-                                            : 0,
-                                          name: "expire",
-                                        },
-                                      });
-                                    }}
-                                    customInput={
-                                      <Input
-                                        size="sm"
-                                        type="text"
-                                        borderRadius="6px"
-                                        clearable
-                                        disabled={disabled}
-                                        error={
-                                          form.formState.errors.expire?.message
-                                        }
-                                      />
-                                    }
-                                  />
-                                  {field.value ? (
-                                    <FormHelperText>
-                                      {t(status, { time: time })}
-                                    </FormHelperText>
-                                  ) : (
-                                    ""
-                                  )}
-                                </>
-                              );
-                            }}
-                          />
-                        )}
-                      </FormControl>
-
-                      <FormControl
-                        mb={"10px"}
-                        isInvalid={!!form.formState.errors.note}
-                      >
-                        <FormLabel>{t("userDialog.note")}</FormLabel>
-                        <Textarea {...form.register("note")} />
-                        <FormErrorMessage>
-                          {form.formState.errors?.note?.message}
-                        </FormErrorMessage>
-                      </FormControl>
-
-                      <FormControl
-                        mb={"10px"}
-                        isInvalid={!!form.formState.errors.bot_username}
-                      >
-                        <FormLabel>{t("userDialog.botUsername")}</FormLabel>
-                        <Select {...form.register("bot_username")}>
-                          <option value="">{t("userDialog.noBot")}</option>
-                          {bots.map((bot) => (
-                            <option key={bot.id} value={bot.username}>
-                              @{bot.username}
-                            </option>
-                          ))}
-                        </Select>
-                        <FormHelperText>{t("userDialog.botUsernameHint")}</FormHelperText>
-                        <FormErrorMessage>
-                          {form.formState.errors?.bot_username?.message as string}
-                        </FormErrorMessage>
-                      </FormControl>
-                    </Flex>
-                    {error && (
-                      <Alert
-                        status="error"
-                        display={{ base: "none", md: "flex" }}
-                      >
-                        <AlertIcon />
-                        {error}
-                      </Alert>
-                    )}
-                  </VStack>
-                </GridItem>
-                <GridItem>
-                  <FormControl
-                    isInvalid={
-                      !!form.formState.errors.selected_proxies?.message
-                    }
-                  >
-                    <FormLabel>{t("userDialog.protocols")}</FormLabel>
-                    <Controller
-                      control={form.control}
-                      name="selected_proxies"
-                      render={({ field }) => {
-                        return (
-                          <RadioGroup
-                            list={[
-                              {
-                                title: "vmess",
-                                description: t("userDialog.vmessDesc"),
-                              },
-                              {
-                                title: "vless",
-                                description: t("userDialog.vlessDesc"),
-                              },
-                              {
-                                title: "trojan",
-                                description: t("userDialog.trojanDesc"),
-                              },
-                              {
-                                title: "shadowsocks",
-                                description: t("userDialog.shadowsocksDesc"),
-                              },
-                            ]}
-                            disabled={disabled}
-                            {...field}
-                          />
-                        );
-                      }}
-                    />
-                    <FormErrorMessage>
-                      {t(
-                        form.formState.errors.selected_proxies
-                          ?.message as string
+                        <FormControl
+                          mb={"10px"}
+                          isInvalid={!!form.formState.errors.bot_username}
+                        >
+                          <FormLabel>{t("userDialog.botUsername")}</FormLabel>
+                          <Select {...form.register("bot_username")}>
+                            <option value="">{t("userDialog.noBot")}</option>
+                            {bots.map((bot) => (
+                              <option key={bot.id} value={bot.username}>
+                                @{bot.username}
+                              </option>
+                            ))}
+                          </Select>
+                          <FormHelperText>
+                            {t("userDialog.botUsernameHint")}
+                          </FormHelperText>
+                          <FormErrorMessage>
+                            {
+                              form.formState.errors?.bot_username
+                                ?.message as string
+                            }
+                          </FormErrorMessage>
+                        </FormControl>
+                      </Flex>
+                      {error && (
+                        <Alert
+                          status="error"
+                          display={{ base: "none", md: "flex" }}
+                        >
+                          <AlertIcon />
+                          {error}
+                        </Alert>
                       )}
-                    </FormErrorMessage>
-                  </FormControl>
-                </GridItem>
-                {isEditing && usageVisible && (
-                  <GridItem pt={6} colSpan={{ base: 1, md: 2 }}>
-                    <VStack gap={4}>
-                      <UsageFilter
-                        defaultValue={usageFilter}
-                        onChange={(filter, query) => {
-                          setUsageFilter(filter);
-                          fetchUsageWithFilter(query);
-                        }}
-                      />
-                      <Box
-                        width={{ base: "100%", md: "70%" }}
-                        justifySelf="center"
-                      >
-                        <ReactApexChart
-                          options={usage.options}
-                          series={usage.series}
-                          type="donut"
-                        />
-                      </Box>
                     </VStack>
                   </GridItem>
-                )}
-              </Grid>
+                  <GridItem>
+                    <FormControl
+                      isInvalid={
+                        !!form.formState.errors.selected_proxies?.message
+                      }
+                    >
+                      <FormLabel>{t("userDialog.protocols")}</FormLabel>
+                      <Controller
+                        control={form.control}
+                        name="selected_proxies"
+                        render={({ field }) => {
+                          return (
+                            <RadioGroup
+                              list={[
+                                {
+                                  title: "vmess",
+                                  description: t("userDialog.vmessDesc"),
+                                },
+                                {
+                                  title: "vless",
+                                  description: t("userDialog.vlessDesc"),
+                                },
+                                {
+                                  title: "trojan",
+                                  description: t("userDialog.trojanDesc"),
+                                },
+                                {
+                                  title: "shadowsocks",
+                                  description: t("userDialog.shadowsocksDesc"),
+                                },
+                              ]}
+                              disabled={disabled}
+                              {...field}
+                            />
+                          );
+                        }}
+                      />
+                      <FormErrorMessage>
+                        {t(
+                          form.formState.errors.selected_proxies
+                            ?.message as string
+                        )}
+                      </FormErrorMessage>
+                    </FormControl>
+                  </GridItem>
+                  {isEditing && usageVisible && (
+                    <GridItem pt={6} colSpan={{ base: 1, md: 2 }}>
+                      <VStack gap={4}>
+                        <UsageFilter
+                          defaultValue={usageFilter}
+                          onChange={(filter, query) => {
+                            setUsageFilter(filter);
+                            fetchUsageWithFilter(query);
+                          }}
+                        />
+                        <Box
+                          width={{ base: "100%", md: "70%" }}
+                          justifySelf="center"
+                        >
+                          <ReactApexChart
+                            options={usage.options}
+                            series={usage.series}
+                            type="donut"
+                          />
+                        </Box>
+                      </VStack>
+                    </GridItem>
+                  )}
+                </Grid>
                 {error && (
                   <Alert
                     mt="3"
@@ -979,7 +983,11 @@ export const UserDialog: FC<UserDialogProps> = () => {
                       </Button>
                     </GridItem>
                     <GridItem>
-                      <Button onClick={handleRevokeSubscription} size="sm" w="full">
+                      <Button
+                        onClick={handleRevokeSubscription}
+                        size="sm"
+                        w="full"
+                      >
                         {t("userDialog.revokeSubscription")}
                       </Button>
                     </GridItem>
@@ -1008,7 +1016,11 @@ export const UserDialog: FC<UserDialogProps> = () => {
         </FormProvider>
       </Modal>
 
-      <Modal isOpen={devicesOpen} onClose={() => setDevicesOpen(false)} size="6xl">
+      <Modal
+        isOpen={devicesOpen}
+        onClose={() => setDevicesOpen(false)}
+        size="6xl"
+      >
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
         <ModalContent mx="3" w="fit-content" maxW="calc(100vw - 2rem)">
           <ModalHeader pt={6}>
@@ -1019,7 +1031,8 @@ export const UserDialog: FC<UserDialogProps> = () => {
             </HStack>
           </ModalHeader>
           <ModalCloseButton mt={3} />
-          <ModalBody overflowX="auto">
+
+          {/* <ModalBody overflowX="auto">
             {devicesError && (
               <Alert status="error" mb="3">
                 <AlertIcon />
@@ -1111,10 +1124,26 @@ export const UserDialog: FC<UserDialogProps> = () => {
             ) : (
               <Text color="gray.500">{t("userDialog.devicesEmpty")}</Text>
             )}
-          </ModalBody>
+          </ModalBody> */}
+          <DevicesModal
+            devicesError={devicesError}
+            devicesLoading={devicesLoading}
+            devices={devices}
+            deletingDeviceId={deletingDeviceId}
+            editingUser={editingUser}
+            setDeletingDeviceId={setDeletingDeviceId}
+            setDevicesError={setDevicesError}
+            setDevices={setDevices}
+            toast={toast}
+          />
+
           <ModalFooter>
             <HStack w="full" justify="flex-end">
-              <Button size="sm" onClick={loadDevices} isLoading={devicesLoading}>
+              <Button
+                size="sm"
+                onClick={loadDevices}
+                isLoading={devicesLoading}
+              >
                 {t("userDialog.devicesRefresh")}
               </Button>
             </HStack>
