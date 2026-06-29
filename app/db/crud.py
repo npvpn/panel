@@ -759,7 +759,7 @@ def count_user_devices(db: Session, dbuser: User) -> int:
 def is_device_limit_exceeded(db: Session, dbuser: User) -> bool:
     if not dbuser.device_limit:
         return False
-    return count_user_devices(db, dbuser) > dbuser.device_limit
+    return count_user_devices(db, dbuser) >= dbuser.device_limit
 
 
 def create_user_device(db: Session, dbuser: User, device: UserDeviceCreate) -> UserDevice:
