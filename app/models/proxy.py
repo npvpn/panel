@@ -149,6 +149,7 @@ class ProxyHost(BaseModel):
     alpn: ProxyHostALPN = ProxyHostALPN.none
     fingerprint: ProxyHostFingerprint = ProxyHostFingerprint.none
     bot_usernames: list[str] = Field(default_factory=list)
+    node_ids: list[int] = Field(default_factory=list)
     allowinsecure: bool | None = None
     is_disabled: bool | None = None
     mux_enable: bool | None = None

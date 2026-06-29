@@ -67,6 +67,7 @@ import "slick-carousel/slick/slick.css";
 import { Bot } from "types/Bot";
 import { z } from "zod";
 import { useDashboard } from "../contexts/DashboardContext";
+import { NodeType } from "../contexts/NodesContext";
 import { DeleteIcon } from "./DeleteUserModal";
 import { Icon } from "./Icon";
 import { Input as CustomInput } from "./Input";
@@ -131,7 +132,7 @@ const hostsSchema = z.record(
   z.array(
     z.object({
       remark: z.string().min(1, "Remark is required"),
-      address: z.string().min(1, "Address is required"),
+      address: z.string(),
       port: z
         .string()
         .or(z.number())
@@ -156,6 +157,15 @@ const hostsSchema = z.record(
       fingerprint: z.string(),
       use_sni_as_host: z.boolean().default(false),
       bot_usernames: z.array(z.string()).default([]),
+      node_ids: z.array(z.number()).default([]),
+    }).superRefine((data, ctx) => {
+      if (!data.address && (!data.node_ids || data.node_ids.length === 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["address"],
+          message: "Address or linked nodes required",
+        });
+      }
     })
   )
 );
@@ -173,6 +183,7 @@ type AccordionInboundType = {
   hostKey: string;
   isOpen: boolean;
   bots: Bot[];
+  nodes: NodeType[];
   toggleAccordion: () => void;
 };
 
@@ -180,6 +191,7 @@ const AccordionInbound: FC<AccordionInboundType> = ({
   hostKey,
   isOpen,
   bots,
+  nodes,
   toggleAccordion,
 }) => {
   const { inbounds } = useDashboard();
@@ -220,6 +232,7 @@ const AccordionInbound: FC<AccordionInboundType> = ({
       fingerprint: "",
       use_sni_as_host: false,
       bot_usernames: [],
+      node_ids: [],
     });
   };
   const duplicateHost = (index: number) => {
@@ -1304,6 +1317,102 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                 )}
                             </FormControl>
                           )}
+                          {nodes.filter((n) => n.id != null).length > 0 && (
+                            <FormControl>
+                              <FormLabel>{t("hostsDialog.linkedNodes")}</FormLabel>
+                              <Text
+                                fontSize="xs"
+                                color="gray.600"
+                                _dark={{ color: "gray.400" }}
+                                mb={2}
+                              >
+                                {t("hostsDialog.linkedNodes.info")}
+                              </Text>
+                              <Controller
+                                control={form.control}
+                                name={`${hostKey}.${index}.node_ids`}
+                                render={({ field }) => {
+                                  const selectedIds: number[] = field.value || [];
+                                  return (
+                                    <Popover placement="bottom-start">
+                                      <PopoverTrigger>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          w="full"
+                                          justifyContent="space-between"
+                                        >
+                                          <Text as="span" noOfLines={1}>
+                                            {selectedIds.length
+                                              ? t("hostsDialog.linkedNodes.selected", {
+                                                  count: selectedIds.length,
+                                                })
+                                              : t("hostsDialog.linkedNodes.none")}
+                                          </Text>
+                                          <AccordionIcon />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <Portal>
+                                        <PopoverContent
+                                          w="280px"
+                                          maxH="320px"
+                                          overflowY="auto"
+                                          zIndex={1500}
+                                        >
+                                          <PopoverArrow />
+                                          <PopoverCloseButton />
+                                          <PopoverBody pt={8}>
+                                            <VStack align="start" spacing={2}>
+                                              {nodes
+                                                .filter((n) => n.id != null)
+                                                .map((node: NodeType) => {
+                                                  const nodeId = node.id as number;
+                                                  return (
+                                                    <Checkbox
+                                                      key={nodeId}
+                                                      isChecked={selectedIds.includes(nodeId)}
+                                                      onChange={(
+                                                        event: ChangeEvent<HTMLInputElement>
+                                                      ) => {
+                                                        if (event.target.checked) {
+                                                          field.onChange([
+                                                            ...selectedIds,
+                                                            nodeId,
+                                                          ]);
+                                                        } else {
+                                                          field.onChange(
+                                                            selectedIds.filter(
+                                                              (id: number) => id !== nodeId
+                                                            )
+                                                          );
+                                                        }
+                                                      }}
+                                                    >
+                                                      <Text as="span" fontSize="sm">
+                                                        {node.name}
+                                                      </Text>
+                                                    </Checkbox>
+                                                  );
+                                                })}
+                                              {selectedIds.length > 0 && (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="xs"
+                                                  onClick={() => field.onChange([])}
+                                                >
+                                                  {t("hostsDialog.linkedNodes.clear")}
+                                                </Button>
+                                              )}
+                                            </VStack>
+                                          </PopoverBody>
+                                        </PopoverContent>
+                                      </Portal>
+                                    </Popover>
+                                  );
+                                }}
+                              />
+                            </FormControl>
+                          )}
                         </VStack>
                       </AccordionPanel>
                     </AccordionItem>
@@ -1336,6 +1445,7 @@ export const HostsDialog: FC = () => {
   const { t } = useTranslation();
   const [openAccordions, setOpenAccordions] = useState<any>({});
   const [bots, setBots] = useState<Bot[]>([]);
+  const [nodes, setNodes] = useState<NodeType[]>([]);
 
   useEffect(() => {
     if (!isEditingHosts) return;
@@ -1344,6 +1454,9 @@ export const HostsDialog: FC = () => {
     fetch<Bot[]>("/bots")
       .then(setBots)
       .catch(() => setBots([]));
+    fetch<NodeType[]>("/nodes")
+      .then(setNodes)
+      .catch(() => setNodes([]));
   }, [isEditingHosts]);
   const form = useForm<z.infer<typeof hostsSchema>>({
     resolver: zodResolver(hostsSchema),
@@ -1438,6 +1551,7 @@ export const HostsDialog: FC = () => {
                             key={hostKey}
                             hostKey={hostKey}
                             bots={bots}
+                            nodes={nodes}
                           />
                         );
                       })}

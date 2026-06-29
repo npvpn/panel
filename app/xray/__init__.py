@@ -8,6 +8,7 @@ from app.utils.system import check_port
 from app.xray import operations
 from app.xray.config import XRayConfig
 from app.xray.core import XRayCore
+from app.xray.host_addresses import resolve_host_addresses
 from app.xray.node import XRayNode
 from config import XRAY_ASSETS_PATH, XRAY_EXECUTABLE_PATH, XRAY_JSON
 from xray_api import XRay as XRayAPI
@@ -46,7 +47,7 @@ def hosts(storage: dict):
             storage[inbound_tag] = [
                 {
                     "remark": host.remark,
-                    "address": [i.strip() for i in host.address.split(",")] if host.address else [],
+                    "address": resolve_host_addresses(host),
                     "port": host.port,
                     "path": host.path if host.path else None,
                     "sni": [i.strip() for i in host.sni.split(",")] if host.sni else [],

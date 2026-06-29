@@ -127,6 +127,24 @@ def _get_bots_by_usernames(db: Session, bot_usernames: list[str]) -> list[Bot]:
     return [bots_by_username[username] for username in normalized_usernames]
 
 
+def _get_nodes_by_ids(db: Session, node_ids: list[int]) -> list[Node]:
+    unique_ids = []
+    for node_id in node_ids or []:
+        if node_id not in unique_ids:
+            unique_ids.append(node_id)
+
+    if not unique_ids:
+        return []
+
+    nodes = db.query(Node).filter(Node.id.in_(unique_ids)).all()
+    nodes_by_id = {int(node.id): node for node in nodes}
+    missing = [node_id for node_id in unique_ids if node_id not in nodes_by_id]
+    if missing:
+        raise ValueError(f"Node {missing[0]} not found")
+
+    return [nodes_by_id[node_id] for node_id in unique_ids]
+
+
 def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> list[ProxyHost]:
     """
     Adds a new host to a proxy inbound.
@@ -141,6 +159,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> list[Proxy
     """
     inbound = get_or_create_inbound(db, inbound_tag)
     bots = _get_bots_by_usernames(db, host.bot_usernames)
+    nodes = _get_nodes_by_ids(db, host.node_ids)
     inbound.hosts.append(
         ProxyHost(
             remark=host.remark,
@@ -154,6 +173,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> list[Proxy
             alpn=host.alpn,
             fingerprint=host.fingerprint,
             bots=bots,
+            nodes=nodes,
         )
     )
     db.commit()
@@ -194,6 +214,7 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: list[ProxyHostMo
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
             bots=_get_bots_by_usernames(db, host.bot_usernames),
+            nodes=_get_nodes_by_ids(db, host.node_ids),
         )
         for host in modified_hosts
     ]
