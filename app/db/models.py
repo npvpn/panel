@@ -38,6 +38,13 @@ host_bot_association = Table(
     Column("bot_id", ForeignKey("bots.id", ondelete="CASCADE"), primary_key=True),
 )
 
+host_nodes_association = Table(
+    "host_nodes",
+    Base.metadata,
+    Column("host_id", ForeignKey("hosts.id", ondelete="CASCADE"), primary_key=True),
+    Column("node_id", ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -341,6 +348,12 @@ class ProxyHost(Base):
     @property
     def bot_usernames(self):
         return [bot.username for bot in self.bots]
+
+    nodes = relationship("Node", secondary=host_nodes_association, passive_deletes=True)
+
+    @property
+    def node_ids(self):
+        return [node.id for node in self.nodes]
 
 
 class System(Base):
