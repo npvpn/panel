@@ -61,12 +61,10 @@
           {
             id: 'iOS',
             name: 'iOS',
-            // appName: 'Happ Proxy',
-            // ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973',
-            // globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-            appName: 'Incy',
-            ruUrl: 'https://apps.apple.com/ru/app/incy/id6756943388',
-            globalUrl: 'https://apps.apple.com/us/app/incy/id6756943388',
+            appName: 'Happ Proxy',
+            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
+            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
+
           }, {
             id: 'Android',
             name: 'Android',
@@ -82,12 +80,10 @@
           {
             id: 'Mac',
             name: 'Mac',
-            // appName: 'Happ Proxy',
-            // ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973',
-            // globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-            appName: 'Incy',
-            ruUrl: 'https://apps.apple.com/ru/app/incy/id6756943388',
-            globalUrl: 'https://apps.apple.com/us/app/incy/id6756943388'
+            appName: 'Happ Proxy',
+            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
+            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
+
           },
           {
             id: 'Linux',
@@ -312,16 +308,16 @@
                   Выберите кнопку, соответствующую региону вашего Apple ID
                 </div>
                 <div class="flex gap-2 mb-4">
-                  <!-- <a
-                    href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"
-                    target="_blank"
-                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
-                  > -->
                   <a
-                    href="https://apps.apple.com/ru/app/incy/id6756943388"
+                    href="https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
                     target="_blank"
                     class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
                   >
+                  <!-- <a
+                    href="https://apps.apple.com/ru/app/incy/id6756943388"
+                    target="_blank"
+                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
+                  > -->
                     <img
                       src="/statics/sub/assets/russia.svg"
                       alt="Россия"
@@ -329,16 +325,16 @@
                     >
                     <span>Россия</span>
                   </a>
-                  <!-- <a
+                   <a
                     href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
                     target="_blank"
                     class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
-                  >  -->
-                  <a
+                  > 
+                  <!-- <a
                     href="https://apps.apple.com/us/app/incy/id6756943388"
                     target="_blank"
                     class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
-                  >
+                  > -->
                     <img
                       src="/statics/sub/assets/globe.svg"
                       alt="Global"
@@ -352,10 +348,15 @@
                   Можно использовать альтернативные приложения для подключения
                 </p>
 
-                <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
+                <!-- <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
                   target="_blank"
                   class="text-[14px] font-semibold text-[#007aff]">
                   Happ Proxy Global
+                </a> -->
+                <a href="https://apps.apple.com/ru/app/incy/id6756943388"
+                  target="_blank"
+                  class="text-[14px] font-semibold text-[#007aff]">
+                  Incy
                 </a>
 
               </div>
@@ -522,17 +523,17 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
                 <div class="flex flex-col gap-2">
                   <a
                     x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                    :href="`incy://add/${user.subscription_url}`"
+                    :href="`happ://add/${user.subscription_url}`"
                     class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
                   >
                     Добавить ключ в <span x-text="currentOs.appName"></span>
                   </a>
-                  <a
+                  <!-- <a
                     :href="`happ://add/${encodeURIComponent(user.subscription_url)}`"
                     class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
                   >
                     Добавить ключ в Happ Proxy
-                  </a>
+                  </a> -->
                 </div>
               </div>
             </template>
