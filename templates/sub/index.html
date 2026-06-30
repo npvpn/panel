@@ -10,6 +10,12 @@
     <link rel="icon" href="data:,">
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
     <script defer src="/statics/vendor/js/qrcode.min.js"></script>
+    <script id="devices-data" type="application/json">{{ devices_json | safe }}</script>
+    <script>
+      const initialDevices = JSON.parse(
+        document.getElementById('devices-data').textContent
+      );
+    </script>
 
     <script>
       fetch('/settings', {
@@ -47,6 +53,41 @@
           user: userData,
           selectedOs: 'QR',
           currentPage: 'settings',
+
+          devices: initialDevices,
+          deviceLimit: Number("{{ user.device_limit or 0 }}"),
+          revokingId: null,
+          showRevokeModal: false,
+          selectedDevice: null,
+
+          openRevokeModal(device) {
+            this.selectedDevice = device;
+            this.showRevokeModal = true;
+          },
+
+          closeRevokeModal() {
+            this.showRevokeModal = false;
+            this.selectedDevice = null;
+          },
+
+          isPcOs(os) {
+            const lower = (os || '').toLowerCase();
+            return lower.includes('windows') || lower.includes('linux') || lower.includes('pc');
+          },
+          async revokeDevice(deviceId) {
+            this.revokingId = deviceId;
+            try {
+              const response = await fetch(`/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`);
+              if (!response.ok) throw new Error(`revoke failed: ${response.status}`);
+              this.devices = this.devices.filter((device) => device.id !== deviceId);
+            } catch {
+              alert('Не удалось удалить устройство. Попробуйте ещё раз.');
+            } finally {
+              this.revokingId = null;
+              this.closeRevokeModal();
+            }
+          },
+
           osOptions: [
           {
             id: 'QR',
@@ -118,12 +159,12 @@
           },
           get statusClass() {
             const classes = {
-              active: 'bg-green-500',
-              limited: 'bg-yellow-500',
-              expired: 'bg-red-500',
-              disabled: 'bg-gray-500'
+              active: 'text-green-500',
+              limited: 'text-yellow-500',
+              expired: 'text-red-500',
+              disabled: 'text-gray-500'
             };
-            return classes[this.user.status.value] || 'bg-gray-500';
+            return classes[this.user.status.value] || 'text-gray-500';
           },
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
@@ -139,7 +180,7 @@
             });
           },
           get remainingDays() {
-            if (this.user.expire == 0) return '∞';
+            if (this.user.expire == 0) return 'Безлимит';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
             return remaining >= 0 ? remaining : 0;
           },
@@ -165,7 +206,7 @@
     </script>
   </head>
   <body>
-    <div x-data="subscriptionManager" x-init="init()" x-cloak class="max-w-[720px] mx-auto p-4 w-full">
+    <div x-data="subscriptionManager" x-init="init()" x-cloak class="max-w-[720px] mx-auto p-6 w-full">
       <div x-show="currentPage === 'settings'" class="page-header">
         <h2 class="page-title">Как настроить VPN</h2>
       </div>
@@ -174,8 +215,12 @@
       </div>
       <div x-show="currentPage === 'devices'" class="page-header">
         <h2 class="page-title">Подключенные устройства</h2>
+        <p class="text-[#7b7b7b]">
+          Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+        </p>
       </div>
-      <main x-show="currentPage === 'settings'" class="space-y-4" style="padding-bottom: 245px;">
+
+      <main x-show="currentPage === 'settings'" class="space-y-4" style="padding-bottom: 140px;">
         <div class="platforms-list">
           <template x-for="os in osOptions" :key="os.id">
               <button
@@ -257,6 +302,7 @@
                     href="https://incy.cc/"
                     target="_blank"
                     class="box-content flex items-center justify-center py-2 px-3 text-[14px] font-semibold bg-[#f6f6f6] font-semibold" style="border-radius: 8px;">
+                  >
                     Incy
                   </a>
                 </div>
@@ -431,7 +477,6 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
         </div>
 
         <div class="button-wrapper">
-          <p>Войдите в кабинет для полноценной настройки</p>
           <a href="https://ru.yougile.com/team/9a0e05abf438/npvpn#NPVPN-1545" target="_blank" rel="noopener noreferrer"
               class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
               Войти в личный кабинет
@@ -439,7 +484,6 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
         </div>
         <!-- {% if web_url %}
           <div class="button-wrapper">
-            <p>Войдите в кабинет для полноценной настройки</p>
             <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
                 class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
                 Войти в личный кабинет
@@ -447,52 +491,179 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
           </div>
         {% endif %} -->
       </main>
+
       <main x-show="currentPage === 'tariff'">
-        <div x-data="{ open: true }" class="p-5 rounded-[20px] bg-[#f6f6f6]">
-          <button @click="open = !open" class="w-full flex justify-between items-center text-left">
-            <h2 class="text-[24px] font-bold" style="font-family: var(--third-family)">Информация о подписке</h2>
-            <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-          <div x-show="open" x-transition class="mt-4">
-            <div class="flex items-center space-x-4">
-              <div class="text-sm space-y-2 flex-1">
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">ID:</span>
-                  <span class=" font-semibold text-[16px]" x-text="user.username"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">Статус:</span>
-                  <span class=" font-semibold text-[16px] px-2 py-0.5 rounded-full text-xs" :class="statusClass" x-text="statusText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">Трафик:</span>
-                  <span class=" font-semibold text-[16px]" x-text="trafficText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">Действует до:</span>
-                  <span class=" font-semibold text-[16px]" x-text="expirationText"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">Осталось дней:</span>
-                  <span class=" font-semibold text-[16px]" x-text="remainingDays"></span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7b7b7b] font-semibold text-[16px]">Устройства:</span>
-                  <span class=" font-semibold text-[16px]">
-                    {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
-                  </span>
-                </div>
-              </div>
+        <div class="flex items-center space-x-4">
+          <div class="text-sm space-y-2 flex-1">
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">ID</span>
+              <span class="text-[14px]" x-text="user.username"></span>
             </div>
-            <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">Статус</span>
+              <span class="text-[14px]" :class="statusClass" x-text="statusText"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">Трафик</span>
+              <span class="text-[14px]" x-text="trafficText"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">Действует до</span>
+              <span class="text-[14px]" x-text="expirationText"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">Осталось</span>
+              <span class="text-[14px]" x-text="remainingDays"></span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[#7b7b7b] text-[14px]">Кол-во устройств</span>
+              <span class="text-[14px]">
+                {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+              </span>
+            </div>
           </div>
         </div>
       </main>
-      <main x-show="currentPage === 'devices'">
 
+      <main x-show="currentPage === 'devices'">
+        <div class="devices-list" x-show="devices.length > 0">
+          <template x-for="device in devices" :key="device.id">
+            <div class="device-card" style="border-radius: 100px;">
+              <div class="device-card__left">
+                <div class="device-card__icon">
+                  <template x-if="isPcOs(device.device_os)">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
+                      <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
+                      <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </template>
+                  <template x-if="!isPcOs(device.device_os)">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
+                      <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </template>
+                </div>
+
+                <div class="device-card__info">
+                  <div class="device-card__name" x-text="device.device_model"></div>
+
+                  <div class="device-card__os">
+                    <span x-text="device.device_os"></span>
+                    <span x-show="device.ver_os" x-text="' ' + device.ver_os"></span>
+                  </div>
+
+                  <div class="device-card__user-agent" x-show="device.user_agent" x-text="device.user_agent"></div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                class="device-card__delete"
+                title="Удалить устройство"
+                :disabled="revokingId === device.id"
+                @click="openRevokeModal(device)"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M7 7L17 17M7 17L17 7"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </template>
+
+          <button class="btn-fourth w-full font-semibold" style="border-radius: 100px; font-family: var(--font-family); padding: 16px 20px;" onclick="window.open('https://rutest.npvpn.net/config', '_blank')" rel="noopener noreferrer">
+            <div class="device_button" style="border-radius: 100px;">
+                <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            Добавить устройства
+          </button>
+          <!-- {% if web_url %}
+            <button class="btn-fourth w-full font-semibold" style="border-radius: 100px; font-family: var(--font-family); padding: 16px 20px;" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+              <div class="device_button" style="border-radius: 16px;">
+                  <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+              </div>
+              Добавить устройства
+            </button>
+          {% endif %} -->
+        </div>
+
+        <p class="empty-devices" x-show="devices.length === 0">
+          Активных устройств сейчас нет
+        </p>
       </main>
+
+      <div
+          x-show="showRevokeModal"
+          x-transition
+          class="modal-overlay"
+          style="display:none;"
+      >
+          <div class="modal-card">
+              <div class="modal-header">
+                  <div class="modal-content">
+                      <h3 class="modal-title">
+                          Выйти с устройства?
+                      </h3>
+                  </div>
+                  <button
+                      class="modal-close"
+                      @click="closeRevokeModal()"
+                  >
+                      <svg
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#7B7B7B"
+                      >
+                          <path
+                              d="M7 7L17 17M7 17L17 7"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                          />
+                      </svg>
+                  </button>
+              </div>
+              <div
+                  class="modal-device"
+                  x-show="selectedDevice"
+              >
+                  <p
+                      class="modal-device-name"
+                      x-text="selectedDevice?.device_model"
+                  ></p>
+
+                  <p
+                      class="modal-device-info"
+                      x-text="`${selectedDevice?.device_os || ''}${selectedDevice?.ver_os ? ' ' + selectedDevice.ver_os : ''}`"
+                  ></p>
+              </div>
+              <div class="modal-actions">
+                  <button
+                      class="btn-secondary"
+                      @click="closeRevokeModal()"
+                  >
+                      Оставить
+                  </button>
+                  <button
+                      class="btn-tertiary"
+                      @click="revokeDevice(selectedDevice.id)"
+                  >
+                      Выйти с устройства
+                  </button>
+              </div>
+          </div>
+      </div>
+
       <footer>
         <nav class="floating-nav">
           <button
