@@ -4,16 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Информация о подписке</title>
-
-    <!-- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script> -->
-
     <link rel="stylesheet" href="/statics/main.css">
     <link rel="stylesheet" href="/statics/sub/styles/index.css">
     <style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');</style>
-
     <link rel="icon" href="data:,">
     <script defer src="/statics/vendor/js/alpinejs.js"></script>
     <script defer src="/statics/vendor/js/qrcode.min.js"></script>
@@ -53,6 +46,7 @@
         Alpine.data('subscriptionManager', () => ({
           user: userData,
           selectedOs: 'QR',
+          currentPage: 'settings',
           osOptions: [
           {
             id: 'QR',
@@ -159,22 +153,7 @@
             return intervals[this.user.reset_strategy] || '';
           },
           copyToClipboard(text, button) {
-            navigator.clipboard.writeText(text).then(() => {
-              const originalHTML = button.innerHTML;
-
-              button.innerHTML = `
-                <span
-                  class="text-[#007aff] text-[16px] font-extrabold"
-                  style="font-family: var(--third-family)"
-                >
-                  Ключ скопирован
-                </span>
-              `;
-
-              setTimeout(() => {
-                button.innerHTML = originalHTML;
-              }, 1000);
-            });
+            navigator.clipboard.writeText(text)
           },
 
           copyTerminalCommands() {
@@ -187,13 +166,16 @@
   </head>
   <body>
     <div x-data="subscriptionManager" x-init="init()" x-cloak class="max-w-[720px] mx-auto p-4 w-full">
-      <div class="page-header">
-        <h2 class="page-title">Инструкция</h2>
-        <p class="page-subtitle">
-          Как настроить VPN
-        </p>
+      <div x-show="currentPage === 'settings'" class="page-header">
+        <h2 class="page-title">Как настроить VPN</h2>
       </div>
-      <main class="space-y-4">
+      <div x-show="currentPage === 'tariff'" class="page-header">
+        <h2 class="page-title">Текущий тариф</h2>
+      </div>
+      <div x-show="currentPage === 'devices'" class="page-header">
+        <h2 class="page-title">Подключенные устройства</h2>
+      </div>
+      <main x-show="currentPage === 'settings'" class="space-y-4" style="padding-bottom: 245px;">
         <div class="platforms-list">
           <template x-for="os in osOptions" :key="os.id">
               <button
@@ -207,42 +189,24 @@
         </div>
 
         <div x-show="selectedOs === 'QR'">
-          <div class="p-4 rounded-lg">
+          <div class="rounded-lg">
             <div class="flex flex-col items-center">
-              <h2 class="font-bold text-center mb-4 text-[24px]"
-                  style="
-                    font-family: var(--third-family);
-                  ">
-                Отсканируйте для подключения<br>
-                другого устройства
-              </h2>
               <div
                 id="qrcode-main"
-                class="bg-white rounded-lg flex items-center justify-center w-[214px] h-[216px] p-2"
+                class="bg-white rounded-lg flex items-center justify-center w-[214px] h-[216px]"
               ></div>
             </div>
           </div>
         </div>
 
-        <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div class="p-5 rounded-[20px] bg-[#f6f6f6]">
+        <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
             <p class="text-[16px] font-[700] mb-3">
-              Скачайте приложение
+              Шаг 1
             </p>
 
             <template x-if="selectedOs === 'QR'">
               <div class="flex flex-col items-center">
-                
-                <h2 class="font-bold text-center text-white mb-4"
-                    style="
-                      font-size:24px;
-                      line-height:117%;
-                      letter-spacing:-0.04em;
-                    ">
-                  Отсканируйте для подключения<br>
-                  другого устройства
-                </h2>
-
                 <div
                   id="qrcode-main"
                   class="bg-white rounded-lg flex items-center justify-center"
@@ -252,7 +216,6 @@
                     padding:8px;
                   "
                 ></div>
-
               </div>
             </template>
 
@@ -273,29 +236,27 @@
             </template>
 
             <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-              <a :href="currentOs.downloadUrl" target="_blank" class="mb-4 box-content w-[154px] py-2 px-3 flex items-center justify-center bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"> 
+              <a :href="currentOs.downloadUrl" target="_blank" class="mb-4 box-content w-[154px] py-2 px-3 flex items-center justify-center bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"> 
                 Скачать&nbsp;<span x-text="currentOs.appName"></span>
               </a>
             </template>
 
             <template x-if="selectedOs === 'Windows'">
               <div class="flex flex-col gap-2">
-                <p class="text-sm text-[#7b7b7b] font-[400]">
-                  Можно использовать альтернативные приложения для подключения
+                <p class="text-sm font-[400]">
+                  Альтернативные приложения для подключения
                 </p>
                 <div class="flex gap-2">
                   <a
                     href="https://v2raytun.com/"
                     target="_blank"
-                    class="text-[14px] font-semibold text-[#007aff]"
-                  >
+                    class="box-content flex items-center justify-center py-2 px-3 text-[14px] font-semibold bg-[#f6f6f6] font-semibold" style="border-radius: 8px;">
                     v2RayTun
                   </a>
                   <a
                     href="https://incy.cc/"
                     target="_blank"
-                    class="text-[14px] font-semibold text-[#007aff]"
-                  >
+                    class="box-content flex items-center justify-center py-2 px-3 text-[14px] font-semibold bg-[#f6f6f6] font-semibold" style="border-radius: 8px;">
                     Incy
                   </a>
                 </div>
@@ -311,30 +272,20 @@
                   <a
                     href="https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
                     target="_blank"
-                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
+                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
                   >
-                  <!-- <a
-                    href="https://apps.apple.com/ru/app/incy/id6756943388"
-                    target="_blank"
-                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
-                  > -->
                     <img
                       src="/statics/sub/assets/russia.svg"
                       alt="Россия"
                       class="w-5 h-5"
                     >
-                    <span>Россия</span>
+                    <span>Для России</span>
                   </a>
                    <a
                     href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
                     target="_blank"
-                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
+                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
                   > 
-                  <!-- <a
-                    href="https://apps.apple.com/us/app/incy/id6756943388"
-                    target="_blank"
-                    class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px]"
-                  > -->
                     <img
                       src="/statics/sub/assets/globe.svg"
                       alt="Global"
@@ -344,18 +295,14 @@
                   </a>
                 </div>
 
-                <p class="text-sm text-[#7b7b7b] font-[400]">
-                  Можно использовать альтернативные приложения для подключения
+                <p class="text-sm font-[400]">
+                  Альтернативные приложения для подключения
                 </p>
 
-                <!-- <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
-                  target="_blank"
-                  class="text-[14px] font-semibold text-[#007aff]">
-                  Happ Proxy Global
-                </a> -->
                 <a href="https://apps.apple.com/ru/app/incy/id6756943388"
                   target="_blank"
-                  class="text-[14px] font-semibold text-[#007aff]">
+                  class="box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px; width: 85px;"
+                > 
                   Incy
                 </a>
 
@@ -364,19 +311,18 @@
 
             <template x-if="selectedOs === 'Android'">
               <div class="flex flex-col gap-2">
-                <p class="text-sm text-[#7b7b7b] font-[400]">
-                  Можно использовать альтернативные приложения для подключения
+                <p class="text-sm font-[400]">
+                  Альтернативные приложения для подключения
                 </p>
                 <div class="flex gap-2">
                   <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru"
                     target="_blank"
-                    class="text-[14px] font-semibold text-[#007aff]">
+                    class="box-content flex items-center justify-center py-2 px-3 text-[14px] font-semibold bg-[#f6f6f6] font-semibold" style="border-radius: 8px;">
                     v2RayTun
                   </a>
-
                   <a href="https://play.google.com/store/apps/details?id=llc.itdev.incy"
                     target="_blank"
-                    class="text-[14px] font-semibold text-[#007aff]">
+                    class="box-content flex items-center justify-center py-2 px-3 text-[14px] font-semibold bg-[#f6f6f6] font-semibold" style="border-radius: 8px;">
                     Incy
                   </a>
                 </div>
@@ -409,16 +355,15 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
               </div>
             </template>
           </div>
-          <div class="p-4 rounded-[20px] bg-[#f6f6f6]">
+          <div>
             <p class="text-[16px] font-[700] mb-3">
-              <span x-show="selectedOs !== 'TV'">Добавьте ключ</span>
-              <span x-show="selectedOs === 'TV'">Настройте ключ в приложении</span>
+              <span>Шаг 2</span>
             </p>
             <div x-show="selectedOs !== 'TV'">
               <p class="text-[14px] mb-4 font-[400]">
                 Скопируйте ключ и вставьте его
                 в приложение. Обычно ключ можно добавить через кнопку «+»
-                или пункт «Добавить конфигурацию».
+                или пункт «Добавить конфигурацию». После добавления выберите страну и нажмите «Подключить»
               </p>
             </div>
 
@@ -427,119 +372,82 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
                 Запустите приложение Happ Proxy на телевизоре.
                 На телевизоре появится QR-код.
                 Отсканируйте его на мобильном телефоне.
-                Выберите настройки подключения для телевизора.
-              </p>
-
-              <p class="text-[14px] font-[400]">
-                После добавления выберите страну и нажмите «Подключить».
+                Выберите настройки подключения для телевизора. После добавления выберите страну и нажмите «Подключить».
               </p>
             </div>
 
             <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-              <div class="flex flex-col gap-4">
+              <div class="flex flex-col gap-2">
                 <button
                   @click="copyToClipboard(user.subscription_url, $el)"
-                  class="inline-flex items-center gap-2 bg-transparent p-0 border-0"
+                  class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
                 >
                   <span
-                    class="text-[#007aff] text-[16px] font-extrabold"
+                    class="text-[16px] font-bold"
                     style="font-family: var(--third-family)"
                   >
-                    Скопировать ключ
+                    Копировать ключ
                   </span>
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M16 3H4V16"
-                      stroke="#007AFF"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M8 7H20V19C20 20.1046 19.1046 21 18 21H10C8.89543 21 8 20.1046 8 19V7Z"
-                      stroke="#007AFF"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13.3335 2.5H3.3335V13.3333" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
-                <p class="text-[14px] font-[400]">
-                  После добавления выберите страну и нажмите «Подключить»
-                </p>
                 <a
                   x-show="String(selectedOs).toLowerCase() !== 'linux'"
                   :href="`happ://add/${user.subscription_url}`"
-                  class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
+                  class="font-bold flex items-center justify-center bg-black py-4 border-0 text-white" style="border-radius: 40px; font-family: var(--third-family)"
                 >
-                  Добавить ключ в <span x-text="currentOs.appName"></span>
+                  Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                 </a>
-              </div>
             </template>
             <template x-if="['iOS','Mac'].includes(selectedOs)">
-              <div class="flex flex-col gap-4">
-                <button
-                  @click="copyToClipboard(user.subscription_url, $el)"
-                  class="inline-flex items-center gap-2 bg-transparent p-0 border-0"
-                >
-                  <span
-                    class="text-[#007aff] text-[16px] font-extrabold"
-                    style="font-family: var(--third-family)"
-                  >
-                    Скопировать ключ
-                  </span>
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M16 3H4V16"
-                      stroke="#007AFF"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M8 7H20V19C20 20.1046 19.1046 21 18 21H10C8.89543 21 8 20.1046 8 19V7Z"
-                      stroke="#007AFF"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <p class="text-[14px] font-[400]">
-                  После добавления выберите страну и нажмите «Подключить»
-                </p>
                 <div class="flex flex-col gap-2">
+                  <button
+                    @click="copyToClipboard(user.subscription_url, $el)"
+                    class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
+                  >
+                    <span
+                      class="text-[16px] font-bold"
+                      style="font-family: var(--third-family)"
+                    >
+                      Копировать ключ
+                    </span>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M13.3335 2.5H3.3335V13.3333" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
                   <a
                     x-show="String(selectedOs).toLowerCase() !== 'linux'"
                     :href="`happ://add/${user.subscription_url}`"
-                    class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
+                    class="font-bold flex items-center justify-center bg-black py-4 border-0 text-white" style="border-radius: 40px; font-family: var(--third-family)"
                   >
-                    Добавить ключ в <span x-text="currentOs.appName"></span>
+                    Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                   </a>
-                  <!-- <a
-                    :href="`happ://add/${encodeURIComponent(user.subscription_url)}`"
-                    class="box-content w-[214px] py-2 px-3 bg-[#FFFFFF] font-semibold rounded-[16px] transition-colors text-[14px] text-center"
-                  >
-                    Добавить ключ в Happ Proxy
-                  </a> -->
-                </div>
               </div>
             </template>
           </div>
         </div>
 
+        <div class="button-wrapper">
+          <p>Войдите в кабинет для полноценной настройки</p>
+          <a href="https://ru.yougile.com/team/9a0e05abf438/npvpn#NPVPN-1545" target="_blank" rel="noopener noreferrer"
+              class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
+              Войти в личный кабинет
+          </a>
+        </div>
+        <!-- {% if web_url %}
+          <div class="button-wrapper">
+            <p>Войдите в кабинет для полноценной настройки</p>
+            <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+                class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
+                Войти в личный кабинет
+            </a>
+          </div>
+        {% endif %} -->
+      </main>
+      <main x-show="currentPage === 'tariff'">
         <div x-data="{ open: true }" class="p-5 rounded-[20px] bg-[#f6f6f6]">
           <button @click="open = !open" class="w-full flex justify-between items-center text-left">
             <h2 class="text-[24px] font-bold" style="font-family: var(--third-family)">Информация о подписке</h2>
@@ -581,13 +489,47 @@ sudo apt install ./Happ.linux.x64.deb</code></pre>
             <p class="text-xs text-center text-gray-500 mt-3" x-text="resetText" x-show="resetText"></p>
           </div>
         </div>
-        {% if web_url %}
-          <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
-            class="w-full flex items-center justify-center bg-[#007aff] hover:bg-blue-700 text-white font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
-            Войти в личный кабинет
-          </a>
-        {% endif %}
       </main>
+      <main x-show="currentPage === 'devices'">
+
+      </main>
+      <footer>
+        <nav class="floating-nav">
+          <button
+              @click="currentPage = 'settings'"
+              class="floating-nav__item"
+              :class="{ 'floating-nav__item--active': currentPage === 'settings' }"
+          >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13.6006 21.0761L19.0608 17.9236C19.6437 17.5871 19.9346 17.4188 20.1465 17.1834C20.3341 16.9751 20.4759 16.7297 20.5625 16.4632C20.6602 16.1626 20.6602 15.8267 20.6602 15.1568V8.84268C20.6602 8.17277 20.6602 7.83694 20.5625 7.53638C20.4759 7.26982 20.3341 7.02428 20.1465 6.816C19.9355 6.58161 19.6453 6.41405 19.0674 6.08043L13.5996 2.92359C13.0167 2.58706 12.7259 2.41913 12.416 2.35328C12.1419 2.295 11.8584 2.295 11.5843 2.35328C11.2744 2.41914 10.9826 2.58706 10.3997 2.92359L4.93843 6.07666C4.35623 6.41279 4.06535 6.58073 3.85352 6.816C3.66597 7.02428 3.52434 7.26982 3.43773 7.53638C3.33984 7.83765 3.33984 8.17436 3.33984 8.84742V15.1524C3.33984 15.8254 3.33984 16.1619 3.43773 16.4632C3.52434 16.7297 3.66597 16.9751 3.85352 17.1834C4.06548 17.4188 4.35657 17.5871 4.93945 17.9236L10.3997 21.0761C10.9826 21.4126 11.2744 21.5806 11.5843 21.6465C11.8584 21.7047 12.1419 21.7047 12.416 21.6465C12.7259 21.5806 13.0177 21.4126 13.6006 21.0761Z" stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M9 11.9998C9 13.6566 10.3431 14.9998 12 14.9998C13.6569 14.9998 15 13.6566 15 11.9998C15 10.3429 13.6569 8.99976 12 8.99976C10.3431 8.99976 9 10.3429 9 11.9998Z" stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span class="floating-nav__name">Настройки</span>
+          </button>
+
+          <button
+              @click="currentPage = 'tariff'"
+              class="floating-nav__item"
+              :class="{ 'floating-nav__item--active': currentPage === 'tariff' }"
+          >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 13.0001L8 1.00006V9.00006H13L6 21.0001V13.0001H1Z" stroke="#141413" stroke-width="2" stroke-linejoin="round" />
+              </svg>
+              <span class="floating-nav__name">Тариф</span>
+          </button>
+
+          <button
+              @click="currentPage = 'devices'"
+              class="floating-nav__item"
+              :class="{ 'floating-nav__item--active': currentPage === 'devices' }"
+          >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 7.5002V7.2002C6 6.08009 6 5.51962 6.21799 5.0918C6.40973 4.71547 6.71547 4.40973 7.0918 4.21799C7.51962 4 8.08009 4 9.2002 4H17.8002C18.9203 4 19.4796 4 19.9074 4.21799C20.2837 4.40973 20.5905 4.71547 20.7822 5.0918C21 5.5192 21 6.07899 21 7.19691V13.8031C21 14.921 21 15.48 20.7822 15.9074C20.5905 16.2837 20.2839 16.5905 19.9076 16.7822C19.4802 17 18.921 17 17.8031 17H10.5M3 16.8002V11.2002C3 10.0801 3 9.51962 3.21799 9.0918C3.40973 8.71547 3.71547 8.40973 4.0918 8.21799C4.51962 8 5.08009 8 6.2002 8H6.80019C7.9203 8 8.47957 8 8.9074 8.21799C9.28372 8.40973 9.59048 8.71547 9.78223 9.0918C10 9.5192 10 10.079 10 11.1969V16.8031C10 17.921 10 18.48 9.78223 18.9074C9.59048 19.2837 9.28372 19.5905 8.9074 19.7822C8.47999 20 7.921 20 6.80309 20H6.19691C5.07899 20 4.5192 20 4.0918 19.7822C3.71547 19.5905 3.40973 19.2837 3.21799 18.9074C3 18.4796 3 17.9203 3 16.8002Z" stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span class="floating-nav__name">Устройства</span>
+          </button>
+        </nav>
+      </footer>
     </div>
   </body>
 </html>
