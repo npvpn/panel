@@ -134,12 +134,6 @@
           }, ],
           init() {
             document.title = `${this.user.username} - Настройка VPN`;
-              this.$watch('currentPage', (page) => {
-                if (page === 'devices') {
-                  this.loadDevices();
-                }
-              });
-
               this.$nextTick(() => {
                 const qrMainContainer = document.getElementById('qrcode-main');
                 if (qrMainContainer) {
@@ -151,6 +145,9 @@
                   });
                 }
               });
+          },
+          get deviceCount() {
+            return this.devices.length;
           },
           get currentOs() {
             return this.osOptions.find(os => os.id === this.selectedOs) || this.osOptions[0];
@@ -263,7 +260,11 @@
           <div x-show="currentPage === 'devices'" class="page-header">
             <h2 class="page-title">Подключенные устройства</h2>
             <p class="device-count">
-              Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+              <!-- Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %} -->
+               Подключено <span x-text="deviceCount"></span>
+              <span x-show="deviceLimit > 0">
+                из <span x-text="deviceLimit"></span>
+              </span>
             </p>
           </div>
     
@@ -514,21 +515,14 @@ sudo apt install ./Happ.linux.x64.deb
                 </template>
               </div>
             </div>
-    
-            <div class="button-wrapper">
-              <a href="https://ru.yougile.com/team/9a0e05abf438/npvpn#NPVPN-1545" target="_blank" rel="noopener noreferrer"
-                  class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
-                  Войти в личный кабинет
-              </a>
-            </div>
-            <!-- {% if web_url %}
+            {% if web_url %}
               <div class="button-wrapper">
                 <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
                     class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
                     Войти в личный кабинет
                 </a>
               </div>
-            {% endif %} -->
+            {% endif %}
           </main>
     
           <main x-show="currentPage === 'tariff'">

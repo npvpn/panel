@@ -629,7 +629,7 @@
     gap: 16px;
     position: fixed;
     top: 50%;
-    left: calc(50% + 110px);
+    left: 50%;
     transform: translate(-50%, -50%);
 
     p {
@@ -669,6 +669,10 @@
 }
 
 @media (min-width: 1024px) {
+    .empty-devices {
+        left: calc(50% + 110px);
+    }
+
     .custom-gap {
         gap: 16px;
     }
