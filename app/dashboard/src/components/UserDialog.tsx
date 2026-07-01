@@ -34,7 +34,6 @@ import {
 import {
   ChartPieIcon,
   PencilIcon,
-  TrashIcon,
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import { zodResolver } from "@hookform/resolvers/zod";
