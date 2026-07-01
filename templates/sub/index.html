@@ -561,7 +561,7 @@ sudo apt install ./Happ.linux.x64.deb
           <main x-show="currentPage === 'devices'">
             <div class="devices-list" x-show="devices.length > 0">
               <template x-for="device in devices" :key="device.id">
-                <div class="device-card" style="border-radius: 100px;">
+                <div class="device-card">
                   <div class="device-card__left">
                     <div class="device-card__icon">
                       <template x-if="isPcOs(device.device_os)">

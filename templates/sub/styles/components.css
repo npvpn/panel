@@ -83,10 +83,8 @@
 
 /* Информационная карточка */
 .info-card {
-    background-color: var(--surface-2);
-    border-radius: var(--small-border);
+    max-width: 632px;
     width: 100%;
-    padding: 16px 24px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -177,12 +175,13 @@
 .card-content {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* align-items: center; */
     gap: 16px;
 }
 
 /* Футер */
 .footer {
+    width: 100%;
     text-align: center;
     font-family: var(--font-family);
     font-weight: 600;
@@ -190,6 +189,52 @@
     line-height: 114%;
     color: var(--gray-4);
     padding: 16px;
+    padding-bottom: 40px;
+    background-color: var(--white);
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translate(-50%);
+}
+
+.footer_limited {
+    width: 100%;
+    text-align: center;
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 114%;
+    color: var(--gray-4);
+    padding: 16px;
+    padding-bottom: 40px;
+    background-color: var(--white);
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translate(-50%);
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+
+    p {
+        font-size: 14px;
+    }
+}
+
+.limited-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f6f6f6;
+    padding: 16px;
+    border: none;
+    border-radius: 100px;
+    font-family: var(--third-family);
+    font-weight: 700;
+    max-width: 342px;
+    width: 100%;
 }
 
 .footer-link {
@@ -208,8 +253,8 @@
 .device-card {
     width: 100%;
     background: var(--surface-2);
-    border-radius: var(--small-border);
-    padding: 12px 24px;
+    border-radius: 100px;
+    padding: 16px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -232,7 +277,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--small-border);
+    border-radius: 100px;
     color: currentColor;
 }
 
@@ -451,7 +496,7 @@
     max-width: 1280px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 0;
+    padding: 24px;
 }
 
 /* плавающее меню */
@@ -617,6 +662,14 @@
     box-sizing: content-box;
 }
 
+.page-content_limited {
+    width: 100%;
+    max-width: 342px;
+    padding-bottom: 125px;
+    margin: 0 auto;
+    box-sizing: content-box;
+}
+
 .custom-gap {
     gap: 8px;
 }
@@ -712,6 +765,13 @@
         padding: 0 24px;
     }
 
+    .page-content_limited {
+        flex: 1;
+        max-width: 728px;
+        width: 100%;
+        padding: 0 24px;
+    }
+
     .steps-text {
         font-size: 20px;
     }
@@ -765,5 +825,9 @@
         width: 420px;
         z-index: 200;
         margin: 0;
+    }
+
+    .limited-btn {
+        font-size: 16px;
     }
 }
