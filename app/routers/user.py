@@ -753,7 +753,7 @@ def get_users_usage(
 @router.post("/user/{username}/bs-extra", response_model=UserResponse)
 def modify_user_bs_extra(
     payload: UserBsExtraModify,
-    dbuser: UserResponse = Depends(get_validated_user),
+    dbuser: DBUser = Depends(get_validated_user),
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
@@ -764,7 +764,7 @@ def modify_user_bs_extra(
     if payload.reset and payload.delta_bytes is not None:
         raise HTTPException(status_code=400, detail="Нельзя указывать delta_bytes вместе с reset=true")
     try:
-        dbuser = crud.modify_user_bs_extra(
+        updated_user = crud.modify_user_bs_extra(
             db,
             dbuser,
             delta_bytes=payload.delta_bytes,
@@ -772,7 +772,7 @@ def modify_user_bs_extra(
         )
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err)) from err
-    user = UserResponse.model_validate(dbuser)
+    user = UserResponse.model_validate(updated_user)
     logger.info(
         'User "%s" bs_extra updated: reset=%s delta=%s new_value=%s',
         user.username,
@@ -795,8 +795,8 @@ def set_owner(
     if not new_admin:
         raise HTTPException(status_code=404, detail="Admin not found")
 
-    dbuser = crud.set_owner(db, dbuser, new_admin)
-    user = UserResponse.model_validate(dbuser)
+    updated_user = crud.set_owner(db, dbuser, new_admin)
+    user = UserResponse.model_validate(updated_user)
 
     logger.info(f'{user.username}"owner successfully set to{admin.username}')
 

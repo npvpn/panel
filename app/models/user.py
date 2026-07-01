@@ -69,7 +69,7 @@ class User(BaseModel):
     on_hold_timeout: datetime | None | None = Field(None, nullable=True)
 
     auto_delete_in_days: int | None = Field(None, nullable=True)
-    bs_extra: int | None = Field(None, nullable=True, ge=0, description="Остаток купленного БС-трафика (пул, байты)")
+    bs_extra: int | None = Field(default=None, ge=0, description="Остаток купленного БС-трафика (пул, байты)")
 
     next_plan: NextPlanModel | None = Field(None, nullable=True)
 
@@ -143,6 +143,7 @@ class User(BaseModel):
 class UserCreate(User):
     username: str
     status: UserStatusCreate = None
+    bs_extra: int | None = None
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -219,6 +220,7 @@ class UserCreate(User):
 class UserModify(User):
     status: UserStatusModify = None
     data_limit_reset_strategy: UserDataLimitResetStrategy = None
+    bs_extra: int | None = None
     model_config = ConfigDict(
         json_schema_extra={
             "example": {

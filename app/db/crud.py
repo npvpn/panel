@@ -1878,9 +1878,9 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
 def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None = None, reset: bool = False) -> User:
     """Инкремент или сброс остатка купленного БС-пула (bs_extra)."""
     if reset:
-        dbuser.bs_extra = 0
+        setattr(dbuser, "bs_extra", 0)
     elif delta_bytes is not None:
-        dbuser.bs_extra = (dbuser.bs_extra or 0) + delta_bytes
+        setattr(dbuser, "bs_extra", int(dbuser.bs_extra or 0) + int(delta_bytes))
     else:
         raise ValueError("either delta_bytes or reset must be provided")
     db.add(dbuser)
@@ -1907,7 +1907,8 @@ def apply_bs_extra_pool_consumption(
     dbuser = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not dbuser:
         return
-    dbuser.bs_extra = max(0, (dbuser.bs_extra or 0) - consume)
+    remaining = int(dbuser.bs_extra or 0)
+    setattr(dbuser, "bs_extra", 0 if remaining <= consume else remaining - consume)
     db.add(dbuser)
 
 
@@ -1956,7 +1957,7 @@ def create_notification_reminder(
     """
     reminder = NotificationReminder(type=reminder_type, expires_at=expires_at, user_id=user_id)
     if threshold is not None:
-        reminder.threshold = threshold
+        setattr(reminder, "threshold", threshold)
     db.add(reminder)
     db.commit()
     db.refresh(reminder)

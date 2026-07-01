@@ -191,17 +191,17 @@ def record_node_stats(params: dict, node_id: int | None):
         )
         notfound = db.execute(select_stmt).first() is None
         if notfound:
-            stmt = insert(NodeUsage).values(created_at=created_at, node_id=node_id, uplink=0, downlink=0)
-            safe_execute(db, stmt)
+            insert_stmt = insert(NodeUsage).values(created_at=created_at, node_id=node_id, uplink=0, downlink=0)
+            safe_execute(db, insert_stmt)
 
         # record
-        stmt = (
+        update_stmt = (
             update(NodeUsage)
             .values(uplink=NodeUsage.uplink + bindparam("up"), downlink=NodeUsage.downlink + bindparam("down"))
             .where(and_(NodeUsage.node_id == node_id, NodeUsage.created_at == created_at))
         )
 
-        safe_execute(db, stmt, params)
+        safe_execute(db, update_stmt, params)
 
 
 def get_users_stats(api: XRayAPI):
