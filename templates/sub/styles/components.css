@@ -579,6 +579,22 @@
     }
 }
 
+.button-wrapper_revoke{
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    max-width: 310px;
+    margin: 40px auto 0;
+    display: flex;
+    flex-direction: column;
+
+    a {
+        text-decoration: none;
+    }
+}
+
 .sidebar {
     display: none;
 }
@@ -811,6 +827,10 @@
     
     .add-device {
         width: 310px;
+    }
+    
+    .footer{
+        font-size: 16px;
     }
 
      footer.floating-nav {

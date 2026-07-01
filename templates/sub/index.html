@@ -186,7 +186,15 @@
           get remainingDays() {
             if (this.user.expire == 0) return 'Безлимит';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
-            return remaining >= 0 ? remaining : 0;
+            if (remaining < 0) return '0 дней';
+            const days = remaining;
+            let word = 'дней';
+            if (days % 10 === 1 && days % 100 !== 11) {
+              word = 'день';
+            } else if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) {
+              word = 'дня';
+            }
+            return `${days} ${word}`;
           },
           get resetText() {
             const intervals = {
@@ -518,7 +526,7 @@ sudo apt install ./Happ.linux.x64.deb
             {% if web_url %}
               <div class="button-wrapper">
                 <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
-                    class="w-full flex items-center justify-center bg-(--white) font-bold py-4 rounded-[16px] transition-colors text-lg" style="font-family: var(--third-family)">
+                    class="w-full flex items-center justify-center font-bold py-4 transition-colors text-lg" style="font-family: var(--third-family)">
                     Войти в личный кабинет
                 </a>
               </div>

@@ -65,9 +65,17 @@
             });
           },
           get remainingDays() {
-            if (this.user.expire == 0) return '∞';
+            if (this.user.expire == 0) return 'Безлимит';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
-            return remaining >= 0 ? remaining : 0;
+            if (remaining < 0) return '0 дней';
+            const days = remaining;
+            let word = 'дней';
+            if (days % 10 === 1 && days % 100 !== 11) {
+              word = 'день';
+            } else if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) {
+              word = 'дня';
+            }
+            return `${days} ${word}`;
           }
         }));
       });
@@ -75,67 +83,72 @@
   </head>
 
   <body>
-    <div x-data="subscriptionManager" x-cloak class="page-wrapper">
-      <main class="main-container">
-        <div class="card">
-          <div class="card-content">
-
-            <!-- HEADER -->
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
-              <h2 class="page-title">Подписка была отозвана</h2>
-              <p class="page-subtitle">Войдите в личный кабинет для управления подпиской</p>
-            </div>
-
-            <!-- INFO CARD -->
-            <div class="info-card">
-              <div class="info-row">
-                <span class="info-label">ID</span>
-                <span class="info-value text-black" x-text="user.username"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Статус</span>
-                <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Трафик</span>
-                <span class="info-value text-black" x-text="trafficText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Действует до</span>
-                <span class="info-value text-black" x-text="expirationText"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Осталось</span>
-                <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Кол-во устройств</span>
-                <span class="info-value text-black">
-                  {% if user.device_limit %}{{ devices|length }}/{{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
-                </span>
-              </div>
-            </div>
-
-            {% if web_url %}
-              <a
-                href="{{ web_url }}"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn-primary"
-                style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;"
-              >
-                Войти в личный кабинет
-              </a>
-            {% endif %}
-
+    <div x-data="subscriptionManager" x-cloak class="wrapper">
+      <div class="page-content_limited">
+        <!-- HEADER -->
+        <div class="page-header">
+          <h2 class="page-title">Подписка была отозвана</h2>
+          <p class="device-count">Войдите в личный кабинет для управления подпиской</p>
+        </div>
+  
+        <!-- INFO CARD -->
+        <div class="info-card">
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">ID</span>
+            <span class="tariff-info" x-text="user.username"></span>
+          </div>
+  
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">Статус</span>
+            <span class="tariff-info" :style="{ color: statusColor }" x-text="statusText"></span>
+          </div>
+  
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">Трафик</span>
+            <span class="tariff-info" x-text="trafficText"></span>
+          </div>
+  
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">Действует до</span>
+            <span class="tariff-info" x-text="expirationText"></span>
+          </div>
+  
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">Осталось</span>
+            <span class="tariff-info" x-text="remainingDays"></span>
+          </div>
+  
+          <div class="info-row">
+            <span class="text-[#7b7b7b] tariff-info">Кол-во устройств</span>
+            <span class="tariff-info">
+              {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
+            </span>
           </div>
         </div>
-      </main>
+  
+        {% if web_url %}
+        <div class="button-wrapper_revoke">
+          <a
+            href="{{ web_url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="dark-btn"
+          >
+            Войти в личный кабинет
+          </a>
+        </div>
+        {% endif %}
+        <div class="button-wrapper_revoke">
+          <a
+              href="https://ru.yougile.com/team/9a0e05abf438/npvpn#NPVPN-1570"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="dark-btn"
+            >
+            Войти в личный кабинет
+          </a>
+        </div>
+      </div>  
 
       <footer class="footer">
         Сайт работает на платформе
