@@ -74,6 +74,7 @@
             const lower = (os || '').toLowerCase();
             return lower.includes('windows') || lower.includes('linux') || lower.includes('pc');
           },
+
           async revokeDevice(deviceId) {
             this.revokingId = deviceId;
             try {
@@ -133,6 +134,12 @@
           }, ],
           init() {
             document.title = `${this.user.username} - Настройка VPN`;
+              this.$watch('currentPage', (page) => {
+                if (page === 'devices') {
+                  this.loadDevices();
+                }
+              });
+
               this.$nextTick(() => {
                 const qrMainContainer = document.getElementById('qrcode-main');
                 if (qrMainContainer) {
@@ -206,7 +213,7 @@
     </script>
   </head>
   <body>
-    <div x-data="subscriptionManager" x-init="init()" x-cloak class="max-w-[1280px] mx-auto p-6 w-full">
+    <div x-data="subscriptionManager" x-init="init()" x-cloak class="wrapper">
       <div class="app-container">
         <aside  side class="sidebar">
           <nav class="sidebar-nav">
@@ -255,12 +262,12 @@
           </div>
           <div x-show="currentPage === 'devices'" class="page-header">
             <h2 class="page-title">Подключенные устройства</h2>
-            <p class="text-[#7b7b7b]">
+            <p class="device-count">
               Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %}
             </p>
           </div>
     
-          <main x-show="currentPage === 'settings'" class="space-y-4" style="padding-bottom: 140px;">
+          <main x-show="currentPage === 'settings'" class="space-y-4">
             <div class="platforms-list">
               <template x-for="os in osOptions" :key="os.id">
                   <button
@@ -273,19 +280,15 @@
               </template>
             </div>
     
-            <div x-show="selectedOs === 'QR'">
-              <div class="rounded-lg">
-                <div class="flex flex-col items-center">
-                  <div
-                    id="qrcode-main"
-                    class="bg-white rounded-lg flex items-center justify-center w-[214px] h-[216px]"
-                  ></div>
-                </div>
-              </div>
+            <div x-show="selectedOs === 'QR'" class="qr-wrapper">
+                <p class="qr-title">Отсканируйте для подключения другого устройства</p>
+                <div
+                  id="qrcode-main"
+                  class="w-[214px] h-[216px]"
+                ></div>
             </div>
     
-            <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 gap-4">
-              <div>
+            <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 custom-gap">
                 <p class="steps-title">
                   Шаг 1
                 </p>
@@ -305,14 +308,13 @@
                 </template>
     
                 <template x-if="selectedOs === 'Windows'">
-                  <div class="flex flex-col justify-between items-center mb-2">
-                    <p class="text-[14px] mb-2 font-[400]">Можно открыть эту страницу из Telegram-бота на вашем ПК или ноутбуке.</p>
-                    <p class="text-[14px] mb-2 font-[400]">После загрузки откройте и запустите скачанное приложение.</p>
+                  <div class="flex flex-col">
+                    <p class="steps-text">Можно открыть эту страницу из Telegram-бота на вашем ПК или ноутбуке. После загрузки откройте и запустите скачанное приложение.</p>
                   </div>
                 </template>
     
                 <template x-if="selectedOs === 'TV'">
-                  <p class="text-sm font-[400]">
+                  <p class="steps-text ">
                     Сначала установите приложение «Happ Proxy» на телефон iPhone или Android.
                     Настройте и убедитесь что VPN корректно работает на телефоне.
                     После этого скачайте то же приложение на телевизор AndroidTV через Google Play,
@@ -321,27 +323,27 @@
                 </template>
     
                 <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-                  <a :href="currentOs.downloadUrl" target="_blank" class="mb-4 box-content w-[154px] py-2 px-3 flex items-center justify-center bg-[#f6f6f6] transition-colors clients-btn" style="border-radius: 8px;"> 
+                  <a :href="currentOs.downloadUrl" target="_blank" class="config-btn clients-btn"> 
                     Скачать&nbsp;<span x-text="currentOs.appName"></span>
                   </a>
                 </template>
     
                 <template x-if="selectedOs === 'Windows'">
-                  <div class="flex flex-col gap-2">
-                    <p class="text-sm font-[400]">
+                  <div class="flex flex-col custom-gap">
+                    <p class="steps-text">
                       Альтернативные приложения для подключения
                     </p>
                     <div class="flex gap-2">
                       <a
                         href="https://v2raytun.com/"
                         target="_blank"
-                        class="box-content flex items-center justify-center py-2 px-3 clients-btn bg-[#f6f6f6]" style="border-radius: 8px;">
+                        class="config-btn clients-btn">
                         v2RayTun
                       </a>
                       <a
                         href="https://incy.cc/"
                         target="_blank"
-                        class="box-content flex items-center justify-center py-2 px-3 clients-btn bg-[#f6f6f6]" style="border-radius: 8px;">
+                        class="config-btn clients-btn"
                       >
                         Incy
                       </a>
@@ -350,11 +352,11 @@
                 </template>
     
                 <template x-if="['iOS','Mac'].includes(selectedOs)">
-                  <div class="flex flex-col gap-2">
-                    <p class="steps-text mb-2">
+                  <div class="flex flex-col custom-gap">
+                    <p class="steps-text">
                       Выберите регион, соответствующий Apple ID
                     </p>
-                    <div class="flex gap-2 mb-4">
+                    <div class="flex gap-2">
                       <a
                         href="https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
                         target="_blank"
@@ -396,19 +398,19 @@
                 </template>
     
                 <template x-if="selectedOs === 'Android'">
-                  <div class="flex flex-col gap-2">
+                  <div class="flex flex-col custom-gap">
                     <p class="steps-text">
                       Альтернативные приложения для подключения
                     </p>
                     <div class="flex gap-2">
                       <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru"
                         target="_blank"
-                        class="box-content flex items-center justify-center py-2 px-3 clients-btn bg-[#f6f6f6]" style="border-radius: 8px;">
+                        class="config-btn clients-btn">
                         v2RayTun
                       </a>
                       <a href="https://play.google.com/store/apps/details?id=llc.itdev.incy"
                         target="_blank"
-                        class="box-content flex items-center justify-center py-2 px-3 clients-btn bg-[#f6f6f6]" style="border-radius: 8px;">
+                        class="config-btn clients-btn">
                         Incy
                       </a>
                     </div>
@@ -416,31 +418,28 @@
                 </template>
     
                 <template x-if="selectedOs === 'Linux'">
-                  <div class="flex flex-col gap-2">
+                  <div class="flex flex-col custom-gap">
                     <p class="steps-text">
                       Или установка через терминал:
                     </p>
-                    <div class="w-full rounded-[16px] p-3 bg-white">
-                      <button @click="copyTerminalCommands()" class="mb-2 block">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                            xmlns="http://www.w3.org/2000/svg">
-                          <path d="M16 3H4V16" stroke="#141413" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M8 7H20V19C20 20.1046 19.1046 21 18 21H10C8.89543 21 8 20.1046 8 19V7Z"
-                                stroke="#141413" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
+                    <div class="linux-code w-full p-3 ">
                       <pre
                         id="linux-commands"
                         class="m-0 text-[14px] leading-[20px] whitespace-pre-wrap break-all overflow-hidden"
                         style="font-family: var(--font-family);"
                       ><code>wget https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb
-    sudo apt install ./Happ.linux.x64.deb</code></pre>
+sudo apt install ./Happ.linux.x64.deb
+                    </code>
+                      </pre>
+                      <button @click="copyTerminalCommands()" class="mb-2 block">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M16 3H4V16" stroke="#7B7B7B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                          <path d="M8 7H20V19C20 20.1046 19.1046 21 18 21H10C8.89543 21 8 20.1046 8 19V7Z" stroke="#7B7B7B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </template>
-              </div>
               <div>
                 <p class="steps-title">
                   Шаг 2
@@ -482,7 +481,7 @@
                     <a
                       x-show="String(selectedOs).toLowerCase() !== 'linux'"
                       :href="`happ://add/${user.subscription_url}`"
-                      class="font-bold flex items-center justify-center bg-black py-4 border-0 text-white" style="border-radius: 40px; font-family: var(--third-family)"
+                      class="dark-btn"
                     >
                       Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                     </a>
@@ -507,7 +506,7 @@
                       <a
                         x-show="String(selectedOs).toLowerCase() !== 'linux'"
                         :href="`happ://add/${user.subscription_url}`"
-                        class="font-bold flex items-center justify-center bg-black py-4 border-0 text-white" style="border-radius: 40px; font-family: var(--third-family)"
+                        class="dark-btn"
                       >
                         Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                       </a>
@@ -534,7 +533,7 @@
     
           <main x-show="currentPage === 'tariff'">
             <div class="flex items-center space-x-4">
-              <div class="text-sm space-y-2 flex-1">
+              <div class="space-y-2 flex-1">
                 <div class="flex justify-between items-center">
                   <span class="text-[#7b7b7b] tariff-info">ID</span>
                   <span class="tariff-info" x-text="user.username"></span>
@@ -614,17 +613,8 @@
                   </button>
                 </div>
               </template>
-    
-              <button class="btn-fourth w-full font-semibold" style="border-radius: 100px; font-family: var(--font-family); padding: 16px 20px;" onclick="window.open('https://rutest.npvpn.net/config', '_blank')" rel="noopener noreferrer">
-                <div class="device_button" style="border-radius: 100px;">
-                    <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </div>
-                Добавить устройства
-              </button>
-              <!-- {% if web_url %}
-                <button class="btn-fourth w-full font-semibold" style="border-radius: 100px; font-family: var(--font-family); padding: 16px 20px;" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+
+                <button class="add-device btn-fourth" style="border-radius: 100px;" @click="currentPage = 'settings'" rel="noopener noreferrer">
                   <div class="device_button" style="border-radius: 16px;">
                       <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
                           <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -632,12 +622,19 @@
                   </div>
                   Добавить устройства
                 </button>
-              {% endif %} -->
             </div>
     
-            <p class="empty-devices" x-show="devices.length === 0">
-              Активных устройств сейчас нет
-            </p>
+            <div class="empty-devices" x-show="devices.length === 0">
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.33337" y="28.3333" width="33.3333" height="5" rx="1.66667" stroke="black" stroke-width="3.33333" />
+                <rect x="5" y="8.33325" width="30" height="20" rx="1.66667" stroke="black" stroke-width="3.33333" />
+                <path d="M23.3334 10H16.6667" stroke="black" stroke-width="3.33333" stroke-linecap="round" />
+              </svg>
+              <p x-show="devices.length === 0">
+                Подключенных устройств нет
+              </p>
+              <button class="dark-btn" @click="currentPage = 'settings'">Добавить устройство</button>
+            </div>
           </main>
     
           <div
