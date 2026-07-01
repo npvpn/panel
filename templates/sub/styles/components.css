@@ -10,27 +10,6 @@
     color: var(--black);
 }
 
-.bg-main {
-    background-color: var(--bg);
-}
-
-.bg-surface {
-    background-color: var(--surface);
-}
-
-.bg-surface-2 {
-    background-color: var(--surface-2);
-}
-
-/* RADIUS */
-.rounded-small {
-    border-radius: var(--small-border);
-}
-
-.rounded-large {
-    border-radius: var(--large-border);
-}
-
 .btn-primary {
     height: 56px;
     display: inline-flex;
@@ -86,38 +65,6 @@
     white-space: nowrap;
     transition: all 0.2s ease;
     color: #ef3124;
-}
-
-.font-primary {
-    font-family: var(--font-family);
-}
-
-.font-secondary {
-    font-family: var(--second-family);
-}
-
-.font-condensed {
-    font-family: var(--third-family);
-}
-
-.tracking-normal {
-    letter-spacing: -0.04em;
-}
-
-.tracking-wide {
-    letter-spacing: -0.02em;
-}
-
-.leading-snug {
-    line-height: 113%;
-}
-
-.leading-relaxed {
-    line-height: 125%;
-}
-
-.leading-loose {
-    line-height: 150%;
 }
 
 /* SPACING */
@@ -256,9 +203,9 @@
     flex-direction: column;
     gap: 8px;
     width: 100%;
-  }
+}
 
-  .device-card {
+.device-card {
     width: 100%;
     background: var(--surface-2);
     border-radius: var(--small-border);
@@ -269,17 +216,17 @@
     box-sizing: border-box;
     height: 76px;
     overflow: hidden;
-  }
+}
 
-  .device-card__left {
+.device-card__left {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
     flex: 1;
-  }
+}
 
-  .device-card__icon {
+.device-card__icon {
     background: var(--surface);
     padding: 10px;
     display: flex;
@@ -287,22 +234,22 @@
     justify-content: center;
     border-radius: var(--small-border);
     color: currentColor;
-  }
+}
 
-  .device-card__icon svg {
+.device-card__icon svg {
     width: 24px;
     height: 24px;
     stroke: currentColor;
-  }
+}
 
-  .device-card__info {
+.device-card__info {
     display: flex;
     flex-direction: column;
     min-width: 0;
     flex: 1;
-  }
+}
 
-  .device-card__name {
+.device-card__name {
     color: var(--text-primary);
     font-weight: 600;
     font-family: var(--font-family);
@@ -311,10 +258,10 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
+}
 
-  .device-card__os,
-  .device-card__user-agent {
+.device-card__os,
+.device-card__user-agent {
     color: var(--gray-4);
     font-size: 13px;
     font-family: var(--font-family);
@@ -323,12 +270,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
+}
 
-  .device-card__user-agent {
-    /* word-break: break-word; */
+.device-card__user-agent {
     max-width: 100%;
-    }
+}
 
 .device-card__delete {
     cursor: pointer;
@@ -388,19 +334,14 @@
 .platform-btn {
     border: none;
     cursor: pointer;
-
     border-radius: 100px;
     padding: 8px 12px;
-
     background: var(--light-gray);
-
     font-family: var(--font-family);
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-
     color: var(--text-primary);
-
     transition: all 0.2s ease;
 }
 
@@ -408,8 +349,6 @@
     background: var(--black);
     color: var(--white);
 }
-
-
 
 .btn-fourth {
     background-color: transparent;
@@ -439,7 +378,6 @@
     justify-content: center;
     background-color: #f6f6f6;
 }
-
 
 .modal-overlay {
     position: fixed;
