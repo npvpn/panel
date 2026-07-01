@@ -14,7 +14,7 @@ from app.db.crud import get_user_by_id
 from app.db.models import BotSettings, Node, NodeUserBlock, NodeUserBsUsage, User
 from app.models.bot import apply_bot_settings_fallback
 from app.models.user import UserStatus
-from app.xray.bs_limit import aggregate_bs_usage, diff_blocks, over_limit, period_keys
+from app.xray.bs_limit import aggregate_bs_usage, diff_blocks, over_limit_daily_pool, period_keys
 from config import JOB_REVIEW_BS_NODES_INTERVAL
 
 
@@ -66,12 +66,22 @@ def review_bs_nodes():
 
         bot_limits = _bot_limits(db)
         user_ids = list(totals.keys())
-        user_bot = dict(db.query(User.id, User.bot_id).filter(User.id.in_(user_ids)).all()) if user_ids else {}
+        user_info = (
+            {
+                uid: (bot_id, bs_extra or 0)
+                for uid, bot_id, bs_extra in db.query(User.id, User.bot_id, User.bs_extra)
+                .filter(User.id.in_(user_ids))
+                .all()
+            }
+            if user_ids
+            else {}
+        )
 
         over_users = set()
         for uid, t in totals.items():
-            dl, ml = bot_limits.get(user_bot.get(uid), (0, 0))
-            if over_limit(t["daily_used"], t["monthly_used"], dl, ml):
+            bot_id, bs_extra = user_info.get(uid, (None, 0))
+            dl, ml = bot_limits.get(bot_id, (0, 0))
+            if over_limit_daily_pool(t["daily_used"], dl, bs_extra, t["monthly_used"], ml):
                 over_users.add(uid)
 
         desired = {(nid, uid) for uid in over_users for nid in bs_node_ids}

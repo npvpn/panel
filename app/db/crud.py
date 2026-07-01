@@ -1875,6 +1875,42 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     return t["daily_used"], t["monthly_used"]
 
 
+def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None = None, reset: bool = False) -> User:
+    """Инкремент или сброс остатка купленного БС-пула (bs_extra)."""
+    if reset:
+        dbuser.bs_extra = 0
+    elif delta_bytes is not None:
+        dbuser.bs_extra = (dbuser.bs_extra or 0) + delta_bytes
+    else:
+        raise ValueError("either delta_bytes or reset must be provided")
+    db.add(dbuser)
+    db.commit()
+    db.refresh(dbuser)
+    return dbuser
+
+
+def apply_bs_extra_pool_consumption(
+    db: Session,
+    user_id: int,
+    old_daily_agg: int,
+    new_daily_agg: int,
+    daily_limit: int,
+) -> None:
+    """Списать из bs_extra прирост расхода сверх daily_limit (в той же транзакции, что usage)."""
+    from app.xray.bs_limit import daily_extra_consume_delta
+
+    if not daily_limit:
+        return
+    consume = daily_extra_consume_delta(old_daily_agg, new_daily_agg, daily_limit)
+    if consume <= 0:
+        return
+    dbuser = db.query(User).filter(User.id == user_id).with_for_update().first()
+    if not dbuser:
+        return
+    dbuser.bs_extra = max(0, (dbuser.bs_extra or 0) - consume)
+    db.add(dbuser)
+
+
 def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
     """Адреса БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
 

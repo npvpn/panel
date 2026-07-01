@@ -117,16 +117,20 @@ def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None
     if db is None or bot_settings is None or user_id is None:
         return info
 
-    daily_limit = bot_settings.get("bs_daily_limit") or 0
     monthly_limit = bot_settings.get("bs_monthly_limit") or 0
+    daily_limit = bot_settings.get("bs_daily_limit") or 0
     if not (daily_limit or monthly_limit):
         return info
 
-    from app.xray.bs_limit import period_keys, pick_bs_bar
+    from app.xray.bs_limit import daily_effective_limit, period_keys, pick_bs_bar
+
+    dbuser = crud.get_user_by_id(db, user_id)
+    bs_extra = (dbuser.bs_extra or 0) if dbuser else 0
+    daily_limit_eff = daily_effective_limit(daily_limit, bs_extra) if daily_limit else 0
 
     today, yyyymm = period_keys(datetime.utcnow())
     daily_used, monthly_used = crud.get_bs_usage_totals(db, user_id, today, yyyymm)
-    bar = pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit)
+    bar = pick_bs_bar(daily_used, daily_limit_eff, monthly_used, monthly_limit)
     if bar is not None:
         info["download"], info["total"] = bar
     return info

@@ -69,6 +69,7 @@ class User(BaseModel):
     on_hold_timeout: datetime | None | None = Field(None, nullable=True)
 
     auto_delete_in_days: int | None = Field(None, nullable=True)
+    bs_extra: int | None = Field(None, nullable=True, ge=0, description="Остаток купленного БС-трафика (пул, байты)")
 
     next_plan: NextPlanModel | None = Field(None, nullable=True)
 
@@ -91,6 +92,16 @@ class User(BaseModel):
         if isinstance(v, int):  # Allow integers directly
             return v
         raise ValueError("device_limit must be an integer or a float, not a string")  # Reject strings
+
+    @field_validator("bs_extra", mode="before")
+    def cast_bs_extra_to_int(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        raise ValueError("bs_extra must be an integer or a float, not a string")
 
     @field_validator("proxies", mode="before")
     def validate_proxies(cls, v, values, **kwargs):
@@ -394,3 +405,18 @@ class UserUsagesResponse(BaseModel):
 
 class UsersUsagesResponse(BaseModel):
     usages: list[UserUsageResponse]
+
+
+class UserBsExtraModify(BaseModel):
+    delta_bytes: int | None = Field(None, ge=0, description="Инкремент бонуса в байтах")
+    reset: bool = False
+
+    @field_validator("delta_bytes", mode="before")
+    def cast_delta_bytes(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        raise ValueError("delta_bytes must be an integer or a float, not a string")

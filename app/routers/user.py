@@ -23,6 +23,7 @@ from app.models.proxy import (
     XTLSFlows,
 )
 from app.models.user import (
+    UserBsExtraModify,
     UserCreate,
     UserDeviceCreate,
     UserDeviceResponse,
@@ -747,6 +748,39 @@ def get_users_usage(
     usages = crud.get_all_users_usages(db=db, start=start, end=end, admin=owner if admin.is_sudo else [admin.username])
 
     return {"usages": usages}
+
+
+@router.post("/user/{username}/bs-extra", response_model=UserResponse)
+def modify_user_bs_extra(
+    payload: UserBsExtraModify,
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Инкремент или сброс остатка купленного БС-пула (bs_extra) пользователя."""
+    del admin
+    if not payload.reset and payload.delta_bytes is None:
+        raise HTTPException(status_code=400, detail="Укажите delta_bytes или reset=true")
+    if payload.reset and payload.delta_bytes is not None:
+        raise HTTPException(status_code=400, detail="Нельзя указывать delta_bytes вместе с reset=true")
+    try:
+        dbuser = crud.modify_user_bs_extra(
+            db,
+            dbuser,
+            delta_bytes=payload.delta_bytes,
+            reset=payload.reset,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    user = UserResponse.model_validate(dbuser)
+    logger.info(
+        'User "%s" bs_extra updated: reset=%s delta=%s new_value=%s',
+        user.username,
+        payload.reset,
+        payload.delta_bytes,
+        user.bs_extra,
+    )
+    return user
 
 
 @router.put("/user/{username}/set-owner", response_model=UserResponse)

@@ -54,6 +54,34 @@ def over_limit(daily_used, monthly_used, daily_limit, monthly_limit):
     return False
 
 
+def daily_extra_overflow(daily_used, daily_limit):
+    """Сколько дневного расхода сверх базового daily_limit (идёт из купленного пула)."""
+    if not daily_limit:
+        return 0
+    return max(0, int(daily_used) - int(daily_limit))
+
+
+def daily_extra_consume_delta(old_daily_used, new_daily_used, daily_limit):
+    """Прирост списания из пула bs_extra при обновлении агрегата daily_used."""
+    return daily_extra_overflow(new_daily_used, daily_limit) - daily_extra_overflow(old_daily_used, daily_limit)
+
+
+def daily_effective_limit(daily_limit, bs_extra_remaining):
+    """Дневной потолок: база + остаток купленного пула."""
+    if not daily_limit:
+        return 0
+    return int(daily_limit) + int(bs_extra_remaining or 0)
+
+
+def over_limit_daily_pool(daily_used, daily_limit, bs_extra_remaining, monthly_used=0, monthly_limit=0):
+    """Блок: дневной лимит+пул исчерпаны и/или превышен месячный лимит."""
+    if daily_limit and int(daily_used) >= daily_effective_limit(daily_limit, bs_extra_remaining):
+        return True
+    if monthly_limit and int(monthly_used) >= int(monthly_limit):
+        return True
+    return False
+
+
 def pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit):
     """(used, total) для лимита с меньшим остатком; None, если ни один не задан."""
     candidates = []

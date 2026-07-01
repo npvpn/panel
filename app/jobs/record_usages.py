@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
 from app import logger, scheduler, xray
-from app.db import GetDB
-from app.db.models import Admin, Node, NodeUsage, NodeUserBsUsage, NodeUserUsage, System, User
+from app.db import GetDB, crud
+from app.db.models import Admin, BotSettings, Node, NodeUsage, NodeUserBsUsage, NodeUserUsage, System, User
+from app.models.bot import apply_bot_settings_fallback
 from app.utils.concurrency import get_xray_executor
 from app.xray.bs_limit import bs_counter_step, period_keys
 from config import (
@@ -95,7 +96,8 @@ def record_user_stats(params: list, node_id: int | None, consumption_factor: int
 def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1):
     """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс периодов).
 
-    params — [{'uid': str, 'value': int}, ...] как в record_user_stats.
+    Списание из User.bs_extra (купленный пул) — в той же транзакции, что и usage,
+    по приросту агрегата daily_used сверх bs_daily_limit бота.
     """
     if not params:
         return
@@ -133,6 +135,14 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
             for r in existing_rows
         }
 
+        old_daily_aggs = {uid: crud.get_bs_usage_totals(db, uid, today, yyyymm)[0] for uid in uids}
+
+        user_bot = dict(db.query(User.id, User.bot_id).filter(User.id.in_(uids)).all())
+        bot_daily_limits = {}
+        for bot_id, data in db.query(BotSettings.bot_id, BotSettings.data).all():
+            settings = apply_bot_settings_fallback(data)
+            bot_daily_limits[bot_id] = settings.get("bs_daily_limit") or 0
+
         to_insert, to_update = [], []
         for uid, delta in deltas.items():
             vals = bs_counter_step(existing.get(uid), delta, today, yyyymm)
@@ -141,12 +151,11 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
             else:
                 to_insert.append({"user_id": uid, "node_id": node_id, **vals})
 
-        # INSERT IGNORE здесь безопасен: record_user_usages зарегистрирован с
-        # max_instances=1, конкурентных тиков нет, поэтому SELECT выше уже видит
-        # все существующие строки и IGNORE срабатывает только на реальной гонке
-        # (которой при текущем планировщике быть не может).
         if to_insert:
-            safe_execute(db, insert(NodeUserBsUsage), to_insert)
+            stmt = insert(NodeUserBsUsage)
+            if db.bind.name == "mysql":
+                stmt = stmt.prefix_with("IGNORE")
+            db.execute(stmt, to_insert)
 
         if to_update:
             stmt = (
@@ -159,7 +168,14 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
                     monthly_period=bindparam("monthly_period"),
                 )
             )
-            safe_execute(db, stmt, to_update)
+            db.execute(stmt, to_update)
+
+        for uid in uids:
+            new_daily_agg, _ = crud.get_bs_usage_totals(db, uid, today, yyyymm)
+            daily_limit = bot_daily_limits.get(user_bot.get(uid), 0)
+            crud.apply_bs_extra_pool_consumption(db, uid, old_daily_aggs[uid], new_daily_agg, daily_limit)
+
+        db.commit()
 
 
 def record_node_stats(params: dict, node_id: int | None):

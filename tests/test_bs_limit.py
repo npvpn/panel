@@ -4,9 +4,13 @@ from app.xray.bs_limit import (
     aggregate_bs_usage,
     bs_counter_step,
     bs_stub_remark,
+    daily_effective_limit,
+    daily_extra_consume_delta,
+    daily_extra_overflow,
     diff_blocks,
     host_matches_blocked,
     over_limit,
+    over_limit_daily_pool,
     period_keys,
     pick_bs_bar,
     strip_blocked_clients,
@@ -138,6 +142,44 @@ def test_pick_bs_bar_chooses_smaller_remaining():
     assert pick_bs_bar(8, 10, 900, 1000) == (8, 10)
     assert pick_bs_bar(8, 0, 900, 1000) == (900, 1000)
     assert pick_bs_bar(8, 0, 900, 0) is None
+
+
+def test_daily_extra_consume_delta_only_overflow():
+    gb = 1024**3
+    daily_limit = 3 * gb
+    assert daily_extra_overflow(2 * gb, daily_limit) == 0
+    assert daily_extra_overflow(4 * gb, daily_limit) == 1 * gb
+    assert daily_extra_consume_delta(0, 2 * gb, daily_limit) == 0
+    assert daily_extra_consume_delta(0, 4 * gb, daily_limit) == 1 * gb
+    assert daily_extra_consume_delta(2 * gb, 4 * gb, daily_limit) == 1 * gb
+
+
+def test_daily_pool_enforcement_three_day_scenario():
+    """3 ГБ/день + купленные 2 ГБ: день2 тратит 4 ГБ → из пула −1 ГБ; день3 доступно 3+1."""
+    gb = 1024**3
+    daily_limit = 3 * gb
+    pool = 2 * gb
+
+    # День 1: потратили 2 ГБ — только из базы
+    assert daily_extra_consume_delta(0, 2 * gb, daily_limit) == 0
+    assert not over_limit_daily_pool(2 * gb, daily_limit, pool)
+
+    # День 2 (после сброса daily): 4 ГБ — 1 ГБ из пула
+    pool -= daily_extra_consume_delta(0, 4 * gb, daily_limit)
+    assert pool == 1 * gb
+    # 4 ГБ из 3+1 доступных сегодня — дневной потолок исчерпан
+    assert over_limit_daily_pool(4 * gb, daily_limit, pool)
+
+    # День 3 (после сброса daily): доступно 3+1
+    assert daily_effective_limit(daily_limit, pool) == 4 * gb
+    assert not over_limit_daily_pool(3 * gb, daily_limit, pool)
+    assert over_limit_daily_pool(4 * gb, daily_limit, pool)
+
+
+def test_over_limit_daily_pool_and_monthly():
+    assert over_limit_daily_pool(10, 10, 0, 0, 0) is True
+    assert over_limit_daily_pool(5, 10, 0, 0, 0) is False
+    assert over_limit_daily_pool(0, 0, 0, 100, 50) is True
 
 
 def test_bs_stub_remark_joins_nonempty_lines():
