@@ -173,7 +173,7 @@
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
             const limit = this.user.data_limit > 0 ? bytesFormat(this.user.data_limit) : 'Безлимит';
-            return `${used} / ${limit}`;
+            return `${used}/${limit}`;
           },
           get expirationText() {
             if (this.user.expire == 0) return 'Никогда';

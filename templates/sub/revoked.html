@@ -54,7 +54,7 @@
           get trafficText() {
             const used = bytesFormat(this.user.used_traffic);
             const limit = this.user.data_limit > 0 ? bytesFormat(this.user.data_limit) : 'Безлимит';
-            return `${used} / ${limit}`;
+            return `${used}/${limit}`;
           },
           get expirationText() {
             if (this.user.expire == 0) return 'Никогда';
@@ -138,16 +138,6 @@
           </a>
         </div>
         {% endif %}
-        <div class="button-wrapper_revoke">
-          <a
-              href="https://ru.yougile.com/team/9a0e05abf438/npvpn#NPVPN-1570"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="dark-btn"
-            >
-            Войти в личный кабинет
-          </a>
-        </div>
       </div>  
 
       <footer class="footer">

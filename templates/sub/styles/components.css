@@ -98,25 +98,6 @@
     gap: 12px;
 }
 
-/* Текст метки */
-.info-label {
-    font-family: var(--font-family);
-    font-weight: 600;
-    font-size: 14px;
-    line-height: 143%;
-    letter-spacing: -0.04em;
-    color: var(--gray-4);
-}
-
-/* Текст значения */
-.info-value {
-    font-family: var(--font-family);
-    font-weight: 600;
-    font-size: 14px;
-    line-height: 143%;
-    letter-spacing: -0.04em;
-}
-
 /* Заголовок страницы */
 .page-header {
     display: flex;
