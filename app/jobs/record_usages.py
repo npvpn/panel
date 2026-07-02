@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
 from app import logger, scheduler, xray
-from app.db import GetDB
-from app.db.models import Admin, Node, NodeUsage, NodeUserBsUsage, NodeUserUsage, System, User
+from app.db import GetDB, crud
+from app.db.models import Admin, BotSettings, Node, NodeUsage, NodeUserBsUsage, NodeUserUsage, System, User
+from app.models.bot import apply_bot_settings_fallback
 from app.utils.concurrency import get_xray_executor
 from app.xray.bs_limit import bs_counter_step, period_keys
 from config import (
@@ -93,14 +94,15 @@ def record_user_stats(params: list, node_id: int | None, consumption_factor: int
 
 
 def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1):
-    """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс периодов).
+    """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс месяца).
 
-    params — [{'uid': str, 'value': int}, ...] как в record_user_stats.
+    Списание из User.bs_extra (купленный пул) — в той же транзакции, что и usage,
+    по приросту агрегата monthly_used сверх bs_monthly_limit бота.
     """
     if not params:
         return
 
-    today, yyyymm = period_keys(datetime.utcnow())
+    yyyymm = period_keys(datetime.utcnow())
 
     with GetDB() as db:
         deltas = {}
@@ -112,8 +114,6 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
         existing_rows = (
             db.query(
                 NodeUserBsUsage.user_id,
-                NodeUserBsUsage.daily_used,
-                NodeUserBsUsage.daily_period,
                 NodeUserBsUsage.monthly_used,
                 NodeUserBsUsage.monthly_period,
             )
@@ -125,41 +125,51 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
         )
         existing = {
             r.user_id: {
-                "daily_used": r.daily_used,
-                "daily_period": r.daily_period,
                 "monthly_used": r.monthly_used,
                 "monthly_period": r.monthly_period,
             }
             for r in existing_rows
         }
 
+        old_monthly_aggs = {uid: crud.get_bs_usage_totals(db, uid, yyyymm) for uid in uids}
+
+        user_bot = dict(db.query(User.id, User.bot_id).filter(User.id.in_(uids)).all())
+        bot_monthly_limits = {}
+        for bot_id, data in db.query(BotSettings.bot_id, BotSettings.data).all():
+            settings = apply_bot_settings_fallback(data)
+            bot_monthly_limits[bot_id] = settings.get("bs_monthly_limit") or 0
+
         to_insert, to_update = [], []
         for uid, delta in deltas.items():
-            vals = bs_counter_step(existing.get(uid), delta, today, yyyymm)
+            vals = bs_counter_step(existing.get(uid), delta, yyyymm)
             if uid in existing:
                 to_update.append({"uid": uid, **vals})
             else:
                 to_insert.append({"user_id": uid, "node_id": node_id, **vals})
 
-        # INSERT IGNORE здесь безопасен: record_user_usages зарегистрирован с
-        # max_instances=1, конкурентных тиков нет, поэтому SELECT выше уже видит
-        # все существующие строки и IGNORE срабатывает только на реальной гонке
-        # (которой при текущем планировщике быть не может).
         if to_insert:
-            safe_execute(db, insert(NodeUserBsUsage), to_insert)
+            stmt = insert(NodeUserBsUsage)
+            if db.bind.name == "mysql":
+                stmt = stmt.prefix_with("IGNORE")
+            db.execute(stmt, to_insert)
 
         if to_update:
             stmt = (
                 update(NodeUserBsUsage)
                 .where(and_(NodeUserBsUsage.node_id == node_id, NodeUserBsUsage.user_id == bindparam("uid")))
                 .values(
-                    daily_used=bindparam("daily_used"),
-                    daily_period=bindparam("daily_period"),
                     monthly_used=bindparam("monthly_used"),
                     monthly_period=bindparam("monthly_period"),
                 )
             )
-            safe_execute(db, stmt, to_update)
+            db.execute(stmt, to_update)
+
+        for uid in uids:
+            new_monthly_agg = crud.get_bs_usage_totals(db, uid, yyyymm)
+            monthly_limit = bot_monthly_limits.get(user_bot.get(uid), 0)
+            crud.apply_bs_extra_pool_consumption(db, uid, old_monthly_aggs[uid], new_monthly_agg, monthly_limit)
+
+        db.commit()
 
 
 def record_node_stats(params: dict, node_id: int | None):
@@ -175,17 +185,17 @@ def record_node_stats(params: dict, node_id: int | None):
         )
         notfound = db.execute(select_stmt).first() is None
         if notfound:
-            stmt = insert(NodeUsage).values(created_at=created_at, node_id=node_id, uplink=0, downlink=0)
-            safe_execute(db, stmt)
+            insert_stmt = insert(NodeUsage).values(created_at=created_at, node_id=node_id, uplink=0, downlink=0)
+            safe_execute(db, insert_stmt)
 
         # record
-        stmt = (
+        update_stmt = (
             update(NodeUsage)
             .values(uplink=NodeUsage.uplink + bindparam("up"), downlink=NodeUsage.downlink + bindparam("down"))
             .where(and_(NodeUsage.node_id == node_id, NodeUsage.created_at == created_at))
         )
 
-        safe_execute(db, stmt, params)
+        safe_execute(db, update_stmt, params)
 
 
 def get_users_stats(api: XRayAPI):

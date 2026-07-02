@@ -1,8 +1,8 @@
 """Reconcile агрегатного per-bot лимита БС-нод (NPVPN-1456).
 
-Суммирует node_user_bs_usage по всем is_bs-нодам юзера за текущий период,
-сравнивает с per-bot лимитом из BotSettings.data и при превышении блокирует
-юзера на ВСЕХ БС-нодах (node_user_blocks). Тяжёлую node_user_usages не трогает.
+Суммирует node_user_bs_usage по всем is_bs-нодам юзера за текущий месяц,
+сравнивает с per-bot месячным лимитом из BotSettings.data и при превышении
+блокирует юзера на ВСЕХ БС-нодах (node_user_blocks). Тяжёлую node_user_usages не трогает.
 """
 
 import time
@@ -14,22 +14,22 @@ from app.db.crud import get_user_by_id
 from app.db.models import BotSettings, Node, NodeUserBlock, NodeUserBsUsage, User
 from app.models.bot import apply_bot_settings_fallback
 from app.models.user import UserStatus
-from app.xray.bs_limit import aggregate_bs_usage, diff_blocks, over_limit, period_keys
+from app.xray.bs_limit import aggregate_bs_usage, diff_blocks, over_limit_monthly_pool, period_keys
 from config import JOB_REVIEW_BS_NODES_INTERVAL
 
 
-def _bot_limits(db):
-    """{bot_id: (daily_limit, monthly_limit)} в байтах из BotSettings.data."""
+def _bot_monthly_limits(db):
+    """{bot_id: monthly_limit} в байтах из BotSettings.data."""
     limits = {}
     for bot_id, data in db.query(BotSettings.bot_id, BotSettings.data).all():
         settings = apply_bot_settings_fallback(data)
-        limits[bot_id] = (settings.get("bs_daily_limit") or 0, settings.get("bs_monthly_limit") or 0)
+        limits[bot_id] = settings.get("bs_monthly_limit") or 0
     return limits
 
 
 def review_bs_nodes():
     t0 = time.monotonic()
-    today, yyyymm = period_keys(datetime.utcnow())
+    yyyymm = period_keys(datetime.utcnow())
     to_block, to_unblock = set(), set()
 
     with GetDB() as db:
@@ -40,8 +40,6 @@ def review_bs_nodes():
         usage_rows = (
             db.query(
                 NodeUserBsUsage.user_id,
-                NodeUserBsUsage.daily_used,
-                NodeUserBsUsage.daily_period,
                 NodeUserBsUsage.monthly_used,
                 NodeUserBsUsage.monthly_period,
             )
@@ -53,25 +51,32 @@ def review_bs_nodes():
             [
                 {
                     "user_id": r.user_id,
-                    "daily_used": r.daily_used,
-                    "daily_period": r.daily_period,
                     "monthly_used": r.monthly_used,
                     "monthly_period": r.monthly_period,
                 }
                 for r in usage_rows
             ],
-            today,
             yyyymm,
         )
 
-        bot_limits = _bot_limits(db)
+        bot_limits = _bot_monthly_limits(db)
         user_ids = list(totals.keys())
-        user_bot = dict(db.query(User.id, User.bot_id).filter(User.id.in_(user_ids)).all()) if user_ids else {}
+        user_info = (
+            {
+                uid: (bot_id, bs_extra or 0)
+                for uid, bot_id, bs_extra in db.query(User.id, User.bot_id, User.bs_extra)
+                .filter(User.id.in_(user_ids))
+                .all()
+            }
+            if user_ids
+            else {}
+        )
 
         over_users = set()
-        for uid, t in totals.items():
-            dl, ml = bot_limits.get(user_bot.get(uid), (0, 0))
-            if over_limit(t["daily_used"], t["monthly_used"], dl, ml):
+        for uid, monthly_used in totals.items():
+            bot_id, bs_extra = user_info.get(uid, (None, 0))
+            monthly_limit = bot_limits.get(bot_id, 0)
+            if over_limit_monthly_pool(monthly_used, monthly_limit, bs_extra):
                 over_users.add(uid)
 
         desired = {(nid, uid) for uid in over_users for nid in bs_node_ids}

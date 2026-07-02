@@ -130,6 +130,7 @@ class User(Base):
     on_hold_expire_duration = Column(BigInteger, nullable=True, default=None)
     on_hold_timeout = Column(DateTime, nullable=True, default=None)
     device_limit = Column(Integer, nullable=True, default=None)
+    bs_extra = Column(BigInteger, nullable=True, default=None)
 
     # * Positive values: User will be deleted after the value of this field in days automatically.
     # * Negative values: User won't be deleted automatically at all.
@@ -456,9 +457,7 @@ class NodeUserBsUsage(Base):
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    daily_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     monthly_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
-    daily_period = Column(String(10), nullable=True)  # "YYYY-MM-DD"
     monthly_period = Column(String(7), nullable=True)  # "YYYY-MM"
 
 

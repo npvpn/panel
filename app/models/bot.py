@@ -52,7 +52,6 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_expired_server_text": _normalize_server_text(SUB_EXPIRED_SERVER_TEXT),
     "sub_device_limit_server_text": _normalize_server_text(SUB_DEVICE_LIMIT_SERVER_TEXT),
     "sub_unsupported_client_server_text": _normalize_server_text(SUB_UNSUPPORTED_CLIENT_SERVER_TEXT),
-    "bs_daily_limit": 0,
     "bs_monthly_limit": 0,
     "sub_bs_limit_server_text": [],
     "sub_bs_limit_announce_text": "",
@@ -107,7 +106,6 @@ class BotSettingsPayload(BaseModel):
     sub_expired_announce_text: str = ""
     sub_device_limit_announce_text: str = ""
     sub_device_limit_hard_mode: bool = False
-    bs_daily_limit: int = 0
     bs_monthly_limit: int = 0
     sub_unsupported_client_announce_text: str = ""
     sub_revoked_server_text: list[str] = []
