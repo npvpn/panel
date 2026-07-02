@@ -43,9 +43,6 @@ export const HostsDialog: FC = () => {
     return hosts ? Object.keys(hosts) : [];
   }, [hosts]);
 
-  const memoizedBots = useMemo(() => bots, [bots]);
-  const memoizedNodes = useMemo(() => nodes, [nodes]);
-
   useEffect(() => {
     if (!isEditingHosts) return;
 
@@ -130,13 +127,6 @@ export const HostsDialog: FC = () => {
     });
   }, []);
 
-  const handleAccordionToggle = useCallback(
-    (index: number) => {
-      return () => toggleAccordion(index);
-    },
-    [toggleAccordion]
-  );
-
   const isAccordionOpen = useCallback(
     (index: number) => {
       return openAccordions.includes(index);
@@ -172,8 +162,8 @@ export const HostsDialog: FC = () => {
               hostKey={hostKey}
               isOpen={isAccordionOpen(index)}
               toggleAccordion={() => toggleAccordion(index)}
-              bots={memoizedBots}
-              nodes={memoizedNodes}
+              bots={bots}
+              nodes={nodes}
             />
           ))}
         </VStack>
@@ -185,7 +175,6 @@ export const HostsDialog: FC = () => {
     hostKeys,
     accordionProps,
     isAccordionOpen,
-    handleAccordionToggle,
     bots,
     nodes,
     t,
