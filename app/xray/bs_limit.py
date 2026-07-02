@@ -5,22 +5,18 @@
 
 
 def period_keys(now):
-    """(день 'YYYY-MM-DD', месяц 'YYYY-MM') — маркеры периода счётчика."""
-    return now.strftime("%Y-%m-%d"), now.strftime("%Y-%m")
+    """Маркер месяца счётчика 'YYYY-MM' — ленивый сброс при смене месяца."""
+    return now.strftime("%Y-%m")
 
 
-def bs_counter_step(existing, delta, today, yyyymm):
-    """Новые значения счётчика с ленивым сбросом периодов.
+def bs_counter_step(existing, delta, yyyymm):
+    """Новые значения счётчика с ленивым сбросом месяца.
 
-    existing — dict с ключами daily_used/daily_period/monthly_used/monthly_period
-    либо None (строки ещё нет). Возвращает dict с теми же ключами.
+    existing — dict с ключами monthly_used/monthly_period либо None (строки ещё нет).
     """
     existing = existing or {}
-    daily_base = existing.get("daily_used", 0) if existing.get("daily_period") == today else 0
     monthly_base = existing.get("monthly_used", 0) if existing.get("monthly_period") == yyyymm else 0
     return {
-        "daily_used": daily_base + delta,
-        "daily_period": today,
         "monthly_used": monthly_base + delta,
         "monthly_period": yyyymm,
     }
@@ -31,68 +27,58 @@ def diff_blocks(desired, current):
     return desired - current, current - desired
 
 
-def aggregate_bs_usage(rows, today, yyyymm):
-    """rows: iterable of dict(user_id, daily_used, daily_period, monthly_used, monthly_period).
-    → {user_id: {"daily_used", "monthly_used"}}, считая только актуальные периоды."""
+def aggregate_bs_usage(rows, yyyymm):
+    """rows: iterable of dict(user_id, monthly_used, monthly_period).
+    → {user_id: monthly_used}, считая только актуальный месяц."""
     totals = {}
     for r in rows:
+        if r.get("monthly_period") != yyyymm:
+            continue
         uid = r["user_id"]
-        t = totals.setdefault(uid, {"daily_used": 0, "monthly_used": 0})
-        if r.get("daily_period") == today:
-            t["daily_used"] += r.get("daily_used") or 0
-        if r.get("monthly_period") == yyyymm:
-            t["monthly_used"] += r.get("monthly_used") or 0
+        totals[uid] = totals.get(uid, 0) + (r.get("monthly_used") or 0)
     return totals
 
 
-def over_limit(daily_used, monthly_used, daily_limit, monthly_limit):
-    """True, если превышен любой ЗАДАННЫЙ (>0) лимит. 0/None = лимит не задан."""
-    if daily_limit and daily_used >= daily_limit:
-        return True
+def over_limit(monthly_used, monthly_limit):
+    """True, если превышен заданный (>0) месячный лимит. 0/None = лимит не задан."""
     if monthly_limit and monthly_used >= monthly_limit:
         return True
     return False
 
 
-def daily_extra_overflow(daily_used, daily_limit):
-    """Сколько дневного расхода сверх базового daily_limit (идёт из купленного пула)."""
-    if not daily_limit:
+def monthly_extra_overflow(monthly_used, monthly_limit):
+    """Сколько месячного расхода сверх базового monthly_limit (идёт из купленного пула)."""
+    if not monthly_limit:
         return 0
-    return max(0, int(daily_used) - int(daily_limit))
+    return max(0, int(monthly_used) - int(monthly_limit))
 
 
-def daily_extra_consume_delta(old_daily_used, new_daily_used, daily_limit):
-    """Прирост списания из пула bs_extra при обновлении агрегата daily_used."""
-    return daily_extra_overflow(new_daily_used, daily_limit) - daily_extra_overflow(old_daily_used, daily_limit)
+def monthly_extra_consume_delta(old_monthly_used, new_monthly_used, monthly_limit):
+    """Прирост списания из пула bs_extra при обновлении агрегата monthly_used."""
+    return monthly_extra_overflow(new_monthly_used, monthly_limit) - monthly_extra_overflow(
+        old_monthly_used, monthly_limit
+    )
 
 
-def daily_effective_limit(daily_limit, bs_extra_remaining):
-    """Дневной потолок: база + остаток купленного пула."""
-    if not daily_limit:
+def monthly_effective_limit(monthly_limit, bs_extra_remaining):
+    """Месячный потолок: база + остаток купленного пула."""
+    if not monthly_limit:
         return 0
-    return int(daily_limit) + int(bs_extra_remaining or 0)
+    return int(monthly_limit) + int(bs_extra_remaining or 0)
 
 
-def over_limit_daily_pool(daily_used, daily_limit, bs_extra_remaining, monthly_used=0, monthly_limit=0):
-    """Блок: дневной лимит+пул исчерпаны и/или превышен месячный лимит."""
-    if daily_limit and int(daily_used) >= daily_effective_limit(daily_limit, bs_extra_remaining):
-        return True
-    if monthly_limit and int(monthly_used) >= int(monthly_limit):
-        return True
-    return False
+def over_limit_monthly_pool(monthly_used, monthly_limit, bs_extra_remaining):
+    """Блок: месячный лимит+пул исчерпаны."""
+    if not monthly_limit:
+        return False
+    return int(monthly_used) >= monthly_effective_limit(monthly_limit, bs_extra_remaining)
 
 
-def pick_bs_bar(daily_used, daily_limit, monthly_used, monthly_limit):
-    """(used, total) для лимита с меньшим остатком; None, если ни один не задан."""
-    candidates = []
-    if daily_limit:
-        candidates.append((daily_limit - daily_used, daily_used, daily_limit))
-    if monthly_limit:
-        candidates.append((monthly_limit - monthly_used, monthly_used, monthly_limit))
-    if not candidates:
+def pick_bs_bar(monthly_used, monthly_limit_eff):
+    """(used, total) для месячного лимита; None, если лимит не задан."""
+    if not monthly_limit_eff:
         return None
-    _, used, total = min(candidates, key=lambda c: c[0])
-    return used, total
+    return monthly_used, monthly_limit_eff
 
 
 def bs_stub_remark(text_list):

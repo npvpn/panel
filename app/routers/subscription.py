@@ -107,7 +107,7 @@ def build_content_disposition(username: str) -> str:
 
 def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None, user_id: int | None = None) -> dict:
     """upload/download/total/expire для Happ. Если у бота юзера задан БС-лимит и есть
-    БС-расход — download/total отражают агрегат БС (binding day/month), иначе глобальный."""
+    БС-расход — download/total отражают месячный агрегат БС, иначе глобальный."""
     info = {
         "upload": 0,
         "download": user.used_traffic,
@@ -118,19 +118,18 @@ def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None
         return info
 
     monthly_limit = bot_settings.get("bs_monthly_limit") or 0
-    daily_limit = bot_settings.get("bs_daily_limit") or 0
-    if not (daily_limit or monthly_limit):
+    if not monthly_limit:
         return info
 
-    from app.xray.bs_limit import daily_effective_limit, period_keys, pick_bs_bar
+    from app.xray.bs_limit import monthly_effective_limit, period_keys, pick_bs_bar
 
     dbuser = crud.get_user_by_id(db, user_id)
     bs_extra = (dbuser.bs_extra or 0) if dbuser else 0
-    daily_limit_eff = daily_effective_limit(daily_limit, bs_extra) if daily_limit else 0
+    monthly_limit_eff = monthly_effective_limit(monthly_limit, bs_extra)
 
-    today, yyyymm = period_keys(datetime.utcnow())
-    daily_used, monthly_used = crud.get_bs_usage_totals(db, user_id, today, yyyymm)
-    bar = pick_bs_bar(daily_used, daily_limit_eff, monthly_used, monthly_limit)
+    yyyymm = period_keys(datetime.utcnow())
+    monthly_used = crud.get_bs_usage_totals(db, user_id, yyyymm)
+    bar = pick_bs_bar(monthly_used, monthly_limit_eff)
     if bar is not None:
         info["download"], info["total"] = bar
     return info

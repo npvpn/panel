@@ -1836,16 +1836,13 @@ def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: s
     return dbnode
 
 
-def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> tuple[int, int]:
-    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий период.
-    → (daily_used, monthly_used) в байтах. Один индексированный запрос по user_id."""
+def get_bs_usage_totals(db: Session, user_id: int, yyyymm: str) -> int:
+    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий месяц в байтах."""
     from app.xray.bs_limit import aggregate_bs_usage
 
     rows = (
         db.query(
             NodeUserBsUsage.user_id,
-            NodeUserBsUsage.daily_used,
-            NodeUserBsUsage.daily_period,
             NodeUserBsUsage.monthly_used,
             NodeUserBsUsage.monthly_period,
         )
@@ -1858,21 +1855,10 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     )
 
     totals = aggregate_bs_usage(
-        [
-            {
-                "user_id": r.user_id,
-                "daily_used": r.daily_used,
-                "daily_period": r.daily_period,
-                "monthly_used": r.monthly_used,
-                "monthly_period": r.monthly_period,
-            }
-            for r in rows
-        ],
-        today,
+        [{"user_id": r.user_id, "monthly_used": r.monthly_used, "monthly_period": r.monthly_period} for r in rows],
         yyyymm,
     )
-    t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
-    return t["daily_used"], t["monthly_used"]
+    return totals.get(user_id, 0)
 
 
 def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None = None, reset: bool = False) -> User:
@@ -1892,16 +1878,16 @@ def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None =
 def apply_bs_extra_pool_consumption(
     db: Session,
     user_id: int,
-    old_daily_agg: int,
-    new_daily_agg: int,
-    daily_limit: int,
+    old_monthly_agg: int,
+    new_monthly_agg: int,
+    monthly_limit: int,
 ) -> None:
-    """Списать из bs_extra прирост расхода сверх daily_limit (в той же транзакции, что usage)."""
-    from app.xray.bs_limit import daily_extra_consume_delta
+    """Списать из bs_extra прирост расхода сверх monthly_limit (в той же транзакции, что usage)."""
+    from app.xray.bs_limit import monthly_extra_consume_delta
 
-    if not daily_limit:
+    if not monthly_limit:
         return
-    consume = daily_extra_consume_delta(old_daily_agg, new_daily_agg, daily_limit)
+    consume = monthly_extra_consume_delta(old_monthly_agg, new_monthly_agg, monthly_limit)
     if consume <= 0:
         return
     dbuser = db.query(User).filter(User.id == user_id).with_for_update().first()

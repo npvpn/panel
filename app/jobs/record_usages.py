@@ -94,15 +94,15 @@ def record_user_stats(params: list, node_id: int | None, consumption_factor: int
 
 
 def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1):
-    """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс периодов).
+    """Инкремент node_user_bs_usage для одной БС-ноды (ленивый сброс месяца).
 
     Списание из User.bs_extra (купленный пул) — в той же транзакции, что и usage,
-    по приросту агрегата daily_used сверх bs_daily_limit бота.
+    по приросту агрегата monthly_used сверх bs_monthly_limit бота.
     """
     if not params:
         return
 
-    today, yyyymm = period_keys(datetime.utcnow())
+    yyyymm = period_keys(datetime.utcnow())
 
     with GetDB() as db:
         deltas = {}
@@ -114,8 +114,6 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
         existing_rows = (
             db.query(
                 NodeUserBsUsage.user_id,
-                NodeUserBsUsage.daily_used,
-                NodeUserBsUsage.daily_period,
                 NodeUserBsUsage.monthly_used,
                 NodeUserBsUsage.monthly_period,
             )
@@ -127,25 +125,23 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
         )
         existing = {
             r.user_id: {
-                "daily_used": r.daily_used,
-                "daily_period": r.daily_period,
                 "monthly_used": r.monthly_used,
                 "monthly_period": r.monthly_period,
             }
             for r in existing_rows
         }
 
-        old_daily_aggs = {uid: crud.get_bs_usage_totals(db, uid, today, yyyymm)[0] for uid in uids}
+        old_monthly_aggs = {uid: crud.get_bs_usage_totals(db, uid, yyyymm) for uid in uids}
 
         user_bot = dict(db.query(User.id, User.bot_id).filter(User.id.in_(uids)).all())
-        bot_daily_limits = {}
+        bot_monthly_limits = {}
         for bot_id, data in db.query(BotSettings.bot_id, BotSettings.data).all():
             settings = apply_bot_settings_fallback(data)
-            bot_daily_limits[bot_id] = settings.get("bs_daily_limit") or 0
+            bot_monthly_limits[bot_id] = settings.get("bs_monthly_limit") or 0
 
         to_insert, to_update = [], []
         for uid, delta in deltas.items():
-            vals = bs_counter_step(existing.get(uid), delta, today, yyyymm)
+            vals = bs_counter_step(existing.get(uid), delta, yyyymm)
             if uid in existing:
                 to_update.append({"uid": uid, **vals})
             else:
@@ -162,8 +158,6 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
                 update(NodeUserBsUsage)
                 .where(and_(NodeUserBsUsage.node_id == node_id, NodeUserBsUsage.user_id == bindparam("uid")))
                 .values(
-                    daily_used=bindparam("daily_used"),
-                    daily_period=bindparam("daily_period"),
                     monthly_used=bindparam("monthly_used"),
                     monthly_period=bindparam("monthly_period"),
                 )
@@ -171,9 +165,9 @@ def record_bs_user_stats(params: list, node_id: int, consumption_factor: int = 1
             db.execute(stmt, to_update)
 
         for uid in uids:
-            new_daily_agg, _ = crud.get_bs_usage_totals(db, uid, today, yyyymm)
-            daily_limit = bot_daily_limits.get(user_bot.get(uid), 0)
-            crud.apply_bs_extra_pool_consumption(db, uid, old_daily_aggs[uid], new_daily_agg, daily_limit)
+            new_monthly_agg = crud.get_bs_usage_totals(db, uid, yyyymm)
+            monthly_limit = bot_monthly_limits.get(user_bot.get(uid), 0)
+            crud.apply_bs_extra_pool_consumption(db, uid, old_monthly_aggs[uid], new_monthly_agg, monthly_limit)
 
         db.commit()
 
