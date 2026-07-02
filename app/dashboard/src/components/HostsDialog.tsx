@@ -1334,7 +1334,7 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                 render={({ field }) => {
                                   const selectedIds: number[] = field.value || [];
                                   return (
-                                    <Popover placement="bottom-start">
+                                    <Popover isLazy placement="bottom-start">
                                       <PopoverTrigger>
                                         <Button
                                           variant="outline"
