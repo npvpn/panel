@@ -10,20 +10,19 @@ import {
   Text,
   Tooltip,
   VStack,
-  HStack,
   Accordion,
   AccordionItem,
   AccordionButton,
   AccordionPanel,
   AccordionIcon,
   Divider,
-  Box,
 } from "@chakra-ui/react";
 
 import { TrashIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import { useTranslation } from "react-i18next";
 import { User, UserDevice } from "types/User";
+import { fetch } from "service/http";
 
 const DeleteDeviceIcon = chakra(TrashIcon, {
   baseStyle: {
