@@ -1,0 +1,83 @@
+"""xhttp/splithttp: extra сериализуется компактно, без пробелов.
+
+Регрессия NPVPN-1583: пробелы в JSON extra кодировались urlencode как "+",
+клиенты (Happ на iOS) не декодировали "+" обратно в пробел и ломали extra.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import types
+from urllib.parse import parse_qs
+
+# v2ray.py на импорте тянет тяжёлые модули (шаблоны, config, xray),
+# которые не нужны для проверки сериализации xhttp-ссылок. Заглушаем их.
+# Значения — заглушки-константы: в тестируемом пути (xhttp) они не вызываются.
+for _name, _attrs in {
+    "app.subscription.funcs": {"get_grpc_gun": None, "get_grpc_multi": None},
+    "app.templates": {"render_template": None},
+    "app.utils.helpers": {"UUIDEncoder": json.JSONEncoder},
+    "app.xray.bs_routing": {"select_routing": None},
+}.items():
+    if _name not in sys.modules:
+        _mod = types.ModuleType(_name)
+        for _k, _v in _attrs.items():
+            setattr(_mod, _k, _v)
+        sys.modules[_name] = _mod
+
+if "config" not in sys.modules:
+    _config = types.ModuleType("config")
+    for _const in (
+        "EXTERNAL_CONFIG",
+        "GRPC_USER_AGENT_TEMPLATE",
+        "MUX_TEMPLATE",
+        "USER_AGENT_TEMPLATE",
+        "V2RAY_SETTINGS_TEMPLATE",
+        "V2RAY_SUBSCRIPTION_TEMPLATE",
+    ):
+        setattr(_config, _const, "")
+    sys.modules["config"] = _config
+
+from app.subscription.v2ray import V2rayShareLink  # noqa: E402
+
+
+def _extra_from_link(link: str) -> str:
+    raw_query = link.split("?", 1)[1].split("#", 1)[0]
+    return parse_qs(raw_query)["extra"][0]
+
+
+def test_vless_xhttp_extra_is_compact():
+    link = V2rayShareLink.vless(
+        remark="test",
+        address="example.com",
+        port=443,
+        id="00000000-0000-0000-0000-000000000000",
+        net="xhttp",
+        tls="tls",
+    )
+    raw_query = link.split("?", 1)[1].split("#", 1)[0]
+    # После urlencode компактного JSON не должно быть "+" (закодированного пробела)
+    assert "+" not in raw_query
+
+    extra = _extra_from_link(link)
+    assert " " not in extra
+    # extra остаётся валидным JSON
+    json.loads(extra)
+
+
+def test_trojan_xhttp_extra_is_compact():
+    link = V2rayShareLink.trojan(
+        remark="test",
+        address="example.com",
+        port=443,
+        password="secret",
+        net="xhttp",
+        tls="tls",
+    )
+    raw_query = link.split("?", 1)[1].split("#", 1)[0]
+    assert "+" not in raw_query
+
+    extra = _extra_from_link(link)
+    assert " " not in extra
+    json.loads(extra)
