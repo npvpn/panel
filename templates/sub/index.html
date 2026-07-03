@@ -59,6 +59,7 @@
           revokingId: null,
           showRevokeModal: false,
           selectedDevice: null,
+          copiedKey: false,
 
           openRevokeModal(device) {
             this.selectedDevice = device;
@@ -205,8 +206,16 @@
             };
             return intervals[this.user.reset_strategy] || '';
           },
-          copyToClipboard(text, button) {
-            navigator.clipboard.writeText(text)
+          async copyToClipboard(text) {
+            try {
+              await navigator.clipboard.writeText(text);
+              this.copiedKey = true;
+              setTimeout(() => {
+                this.copiedKey = false;
+              }, 2000);
+            } catch (e) {
+              console.error('Copy failed', e);
+            }
           },
 
           copyTerminalCommands() {
@@ -473,19 +482,25 @@ sudo apt install ./Happ.linux.x64.deb
                 <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <button
-                      @click="copyToClipboard(user.subscription_url, $el)"
+                      @click="copyToClipboard(user.subscription_url)"
                       class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
                     >
                       <span
                         class="text-[16px] font-bold"
                         style="font-family: var(--third-family)"
-                      >
-                        Копировать ключ
-                      </span>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M13.3335 2.5H3.3335V13.3333" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
+                        x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
+                      ></span>
+                      <template x-if="!copiedKey">
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
+                              xmlns="http://www.w3.org/2000/svg">
+                            <path d="M13.3335 2.5H3.3335V13.3333"
+                              stroke="#141413" stroke-width="1.66667"
+                              stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
+                              stroke="#141413" stroke-width="1.66667"
+                              stroke-linecap="round" stroke-linejoin="round" />
+                          </svg>
+                        </template>
                     </button>
                     <a
                       x-show="String(selectedOs).toLowerCase() !== 'linux'"
@@ -498,19 +513,25 @@ sudo apt install ./Happ.linux.x64.deb
                 <template x-if="['iOS','Mac'].includes(selectedOs)">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <button
-                        @click="copyToClipboard(user.subscription_url, $el)"
+                        @click="copyToClipboard(user.subscription_url)"
                         class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
                       >
                         <span
                           class="text-[16px] font-bold"
                           style="font-family: var(--third-family)"
-                        >
-                          Копировать ключ
-                        </span>
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M13.3335 2.5H3.3335V13.3333" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
-                          <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
+                          x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
+                        ></span>
+                        <template x-if="!copiedKey">
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
+                              xmlns="http://www.w3.org/2000/svg">
+                            <path d="M13.3335 2.5H3.3335V13.3333"
+                              stroke="#141413" stroke-width="1.66667"
+                              stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
+                              stroke="#141413" stroke-width="1.66667"
+                              stroke-linecap="round" stroke-linejoin="round" />
+                          </svg>
+                        </template>
                       </button>
                       <a
                         x-show="String(selectedOs).toLowerCase() !== 'linux'"

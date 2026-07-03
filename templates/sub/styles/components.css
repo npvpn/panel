@@ -83,7 +83,8 @@
 
 /* Информационная карточка */
 .info-card {
-    max-width: 632px;
+    /* max-width: 632px; */
+    max-width: 670px;
     width: 100%;
     display: flex;
     flex-direction: column;
