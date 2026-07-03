@@ -1,5 +1,5 @@
 import { Button, AccordionPanel, VStack } from "@chakra-ui/react";
-import { FC, useCallback, useEffect } from "react";
+import { FC, useCallback } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -50,17 +50,9 @@ export const AccordionInboundContent: FC<Props> = ({
   inbound,
   accordionErrors,
 }) => {
-  useEffect(() => {
-    console.log("Mounted:", hostKey);
-    return () => {
-      console.log("Unmounted:", hostKey);
-    };
-  }, []);
-
   const { t } = useTranslation();
   const form = useFormContext<z.infer<typeof hostsSchema>>();
 
-  console.log("Creating useFieldArray for", hostKey);
   const {
     fields: hosts,
     append,
@@ -122,8 +114,6 @@ export const AccordionInboundContent: FC<Props> = ({
             inbound={inbound}
             inboundPort={inbound?.port}
             accordionErrors={accordionErrors}
-            register={form.register}
-            control={form.control}
             proxyHostSecurity={proxyHostSecurity}
             proxyALPN={proxyALPN}
             proxyFingerprint={proxyFingerprint}

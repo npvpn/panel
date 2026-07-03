@@ -9,7 +9,6 @@ import {
   ModalHeader,
   ModalOverlay,
   Text,
-  VStack,
   useToast,
 } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,9 +34,18 @@ export const HostsDialog: FC = () => {
   const { isLoading, hosts, fetchHosts, isPostLoading, setHosts } = useHosts();
   const toast = useToast();
   const { t } = useTranslation();
-  const [openAccordions, setOpenAccordions] = useState<number[]>([]);
+  const [openAccordions, setOpenAccordions] = useState<string[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
   const [nodes, setNodes] = useState<NodeType[]>([]);
+  const inboundMap = useMemo(() => {
+    const map = new Map();
+    const list =
+      inbounds instanceof Map ? Array.from(inbounds.values()).flat() : [];
+    for (const i of list) {
+      map.set(i.tag, i);
+    }
+    return map;
+  }, [inbounds]);
 
   const hostKeys = useMemo(() => {
     return hosts ? Object.keys(hosts) : [];
@@ -65,6 +73,7 @@ export const HostsDialog: FC = () => {
 
   const form = useForm<z.infer<typeof hostsSchema>>({
     resolver: zodResolver(hostsSchema),
+    shouldUnregister: false,
   });
 
   useEffect(() => {
@@ -118,29 +127,17 @@ export const HostsDialog: FC = () => {
     [setHosts, toast, t, refetchUsers, onClose]
   );
 
-  const toggleAccordion = useCallback((index: number) => {
+  const toggleAccordion = useCallback((hostKey: string) => {
     setOpenAccordions((prev) => {
-      if (prev.includes(index)) {
-        return prev.filter((i) => i !== index);
+      if (prev.includes(hostKey)) {
+        return prev.filter((k) => k !== hostKey);
       }
-      return [...prev, index];
+      return [...prev, hostKey];
     });
   }, []);
 
   const isAccordionOpen = useCallback(
-    (index: number) => {
-      return openAccordions.includes(index);
-    },
-    [openAccordions]
-  );
-
-  const accordionProps = useMemo(
-    () => ({
-      w: "full",
-      allowToggle: true,
-      allowMultiple: true,
-      index: openAccordions,
-    }),
+    (hostKey: string) => openAccordions.includes(hostKey),
     [openAccordions]
   );
 
@@ -154,31 +151,23 @@ export const HostsDialog: FC = () => {
     }
 
     return (
-      <Accordion {...accordionProps}>
-        <VStack w="full">
-          {hostKeys.map((hostKey, index) => (
+      <Accordion w="full" allowMultiple>
+        {hostKeys.map((hostKey) => {
+          return (
             <AccordionInbound
               key={hostKey}
               hostKey={hostKey}
-              isOpen={isAccordionOpen(index)}
-              toggleAccordion={() => toggleAccordion(index)}
+              isOpen={isAccordionOpen(hostKey)}
+              toggleAccordion={() => toggleAccordion(hostKey)}
               bots={bots}
               nodes={nodes}
+              inbound={inboundMap.get(hostKey)}
             />
-          ))}
-        </VStack>
+          );
+        })}
       </Accordion>
     );
-  }, [
-    isLoading,
-    hosts,
-    hostKeys,
-    accordionProps,
-    isAccordionOpen,
-    bots,
-    nodes,
-    t,
-  ]);
+  }, [isLoading, hosts, hostKeys, isAccordionOpen, bots, nodes, t]);
 
   return (
     <Modal isOpen={isEditingHosts} onClose={onClose}>

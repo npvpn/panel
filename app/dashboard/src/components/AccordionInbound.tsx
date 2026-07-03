@@ -9,7 +9,7 @@ import { useFormContext } from "react-hook-form";
 import "slick-carousel/slick/slick.css";
 import { Bot } from "types/Bot";
 import { z } from "zod";
-import { useDashboard } from "../contexts/DashboardContext";
+import { InboundType, useDashboard } from "../contexts/DashboardContext";
 import { NodeType } from "../contexts/NodesContext";
 import { hostsSchema } from "./hostsDialog/schema";
 import { AccordionInboundContent } from "./hostsDialog/AccordionInboundContent";
@@ -17,23 +17,14 @@ import { AccordionInboundContent } from "./hostsDialog/AccordionInboundContent";
 type AccordionInboundType = {
   hostKey: string;
   isOpen: boolean;
+  inbound?: InboundType;
   bots: Bot[];
   nodes: NodeType[];
   toggleAccordion: () => void;
 };
 
 export const AccordionInbound: FC<AccordionInboundType> = React.memo(
-  ({ hostKey, isOpen, bots, nodes, toggleAccordion }) => {
-    const { inbounds } = useDashboard();
-
-    const inbound = useMemo(
-      () =>
-        Array.from(inbounds.values())
-          .flat()
-          .find((i) => i.tag === hostKey),
-      [inbounds, hostKey]
-    );
-
+  ({ hostKey, isOpen, inbound, bots, nodes, toggleAccordion }) => {
     const form = useFormContext<z.infer<typeof hostsSchema>>();
     const { errors } = form.formState;
     const accordionErrors = errors[hostKey];
@@ -42,10 +33,11 @@ export const AccordionInbound: FC<AccordionInboundType> = React.memo(
       if (accordionErrors && !isOpen) {
         toggleAccordion();
       }
-    }, [accordionErrors, isOpen, toggleAccordion]);
+    }, [accordionErrors]);
 
     return (
       <AccordionItem
+        mb={1}
         border="1px solid"
         _dark={{ borderColor: "gray.600" }}
         _light={{ borderColor: "gray.200" }}
@@ -67,7 +59,7 @@ export const AccordionInbound: FC<AccordionInboundType> = React.memo(
           </Text>
           <AccordionIcon />
         </AccordionButton>
-        {isOpen && (
+        {isOpen ? (
           <AccordionInboundContent
             hostKey={hostKey}
             bots={bots}
@@ -75,7 +67,7 @@ export const AccordionInbound: FC<AccordionInboundType> = React.memo(
             inbound={inbound}
             accordionErrors={accordionErrors}
           />
-        )}
+        ) : null}
       </AccordionItem>
     );
   }

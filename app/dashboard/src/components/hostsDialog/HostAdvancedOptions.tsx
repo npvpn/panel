@@ -30,16 +30,12 @@ type HostAdvancedOptionsProps = {
   hostKey: string;
   index: number;
   inbound: any;
-
   register: UseFormRegister<any>;
   control: Control<any>;
-
   accordionErrors: any;
   t: any;
-
   bots: Bot[];
   nodes: NodeType[];
-
   proxyHostSecurity: any[];
   proxyALPN: any[];
   proxyFingerprint: any[];
@@ -60,13 +56,7 @@ export const HostAdvancedOptions = memo(
     proxyALPN,
     proxyFingerprint,
   }: HostAdvancedOptionsProps) => {
-    console.log("HostAdvancedOptions render", index);
-    useEffect(() => {
-      console.log("HostAdvancedOptions mounted", index);
-      return () => {
-        console.log("HostAdvancedOptions unmounted", index);
-      };
-    }, [index]);
+    const portPlaceholder = inbound?.port ?? "8080";
 
     return (
       <AccordionPanel w="full" p={1}>
@@ -75,7 +65,7 @@ export const HostAdvancedOptions = memo(
             label={t("hostsDialog.port")}
             registerProps={register(`${hostKey}.${index}.port`)}
             error={accordionErrors?.[index]?.port}
-            placeholder={String(inbound.port || "8080")}
+            placeholder={String(portPlaceholder)}
             type="number"
             rightElement={
               <Popover isLazy placement="right">
