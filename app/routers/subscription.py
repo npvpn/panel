@@ -242,7 +242,7 @@ def user_subscription(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    is_limited = not is_revoked and not is_expired and crud.is_device_limit_exceeded(db, dbuser)
+    is_limited = not is_revoked and not is_expired and crud.is_device_limit_reached(db, dbuser)
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
