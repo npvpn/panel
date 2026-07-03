@@ -248,7 +248,7 @@
               class="sidebar-nav__item"
               :class="{ 'sidebar-nav__item--active': currentPage === 'tariff' }"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="transform: translateX(3px);">
                 <path d="M1 13.0001L8 1.00006V9.00006H13L6 21.0001V13.0001H1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
               </svg>
               <span>Тариф</span>
@@ -267,7 +267,6 @@
           </nav>
         </aside>
         <div class="page-content">
-
           <div x-show="currentPage === 'settings'" class="page-header">
             <h2 class="page-title">Как настроить VPN</h2>
           </div>
@@ -277,7 +276,6 @@
           <div x-show="currentPage === 'devices'" class="page-header">
             <h2 class="page-title">Подключенные устройства</h2>
             <p class="device-count">
-              <!-- Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %} -->
                Подключено <span x-text="deviceCount"></span>
               <span x-show="deviceLimit > 0">
                 из <span x-text="deviceLimit"></span>
@@ -554,7 +552,7 @@ sudo apt install ./Happ.linux.x64.deb
             {% endif %}
           </main>
     
-          <main x-show="currentPage === 'tariff'">
+          <main x-show="currentPage === 'tariff'" style="max-width: 680px;">
             <div class="flex items-center space-x-4">
               <div class="space-y-2 flex-1">
                 <div class="flex justify-between items-center">
@@ -745,7 +743,7 @@ sudo apt install ./Happ.linux.x64.deb
               class="floating-nav__item"
               :class="{ 'floating-nav__item--active': currentPage === 'tariff' }"
           >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform: translateX(3px);">
                 <path d="M1 13.0001L8 1.00006V9.00006H13L6 21.0001V13.0001H1Z" stroke="#141413" stroke-width="2" stroke-linejoin="round" />
               </svg>
               <span class="floating-nav__name">Тариф</span>
