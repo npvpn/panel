@@ -4,8 +4,8 @@ import {
   FormControl,
   FormHelperText,
   FormLabel,
-  HStack,
   Input,
+  Text,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -22,14 +22,27 @@ import {
   Textarea,
   useToast,
   VStack,
+  HStack,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverBody,
   Text as ChakraText,
   useOutsideClick,
+  InputGroup,
+  InputLeftElement,
+  SimpleGrid,
+  Stack,
 } from "@chakra-ui/react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDashboard } from "contexts/DashboardContext";
 import { fetch } from "service/http";
 import { Bot, BotSettings } from "types/Bot";
+import {
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
 
 const GB_IN_BYTES = 1073741824;
 
@@ -110,13 +123,7 @@ export const BotSettingsDialog: FC = () => {
   const [listFieldTexts, setListFieldTexts] = useState<ListFieldTexts>(
     toListFieldTexts(emptySettings)
   );
-  const botSelectorRef = useRef<HTMLDivElement>(null);
-
-  useOutsideClick({
-    ref: botSelectorRef,
-    handler: () => setIsBotListOpen(false),
-  });
-
+  // const [didAutoSelect, setDidAutoSelect] = useState(false);
   const NEW_BOT_DRAFT_KEY = "botSettings_draft_new";
 
   const getDraftKey = (username: string) =>
@@ -164,9 +171,11 @@ export const BotSettingsDialog: FC = () => {
     return fetch<Bot[]>("/bots")
       .then((items) => {
         setBots(items);
+        return items;
       })
       .catch(() => {
         setBots([]);
+        return [];
       });
   };
 
@@ -187,7 +196,13 @@ export const BotSettingsDialog: FC = () => {
     Promise.all([
       fetchBots(),
       fetch<BotSettings>("/bots/default-settings").then(setDefaultSettings),
-    ]).finally(() => setLoading(false));
+    ])
+      .then(([bots]) => {
+        if (bots.length === 1) {
+          setSelectedBot(bots[0].username);
+        }
+      })
+      .finally(() => setLoading(false));
   }, [isEditingBotSettings]);
 
   useEffect(() => {
@@ -232,15 +247,6 @@ export const BotSettingsDialog: FC = () => {
       cancelled = true;
     };
   }, [isEditingBotSettings, selectedBot, bots]);
-
-  useEffect(() => {
-    if (!selectedBot) {
-      setBotSearch("");
-      return;
-    }
-
-    setBotSearch(`@${selectedBot}`);
-  }, [selectedBot]);
 
   const restoreDraft = () => {
     const key = getDraftKey(selectedBot);
@@ -457,7 +463,16 @@ export const BotSettingsDialog: FC = () => {
         setHasDraft(false);
         return fetchBots();
       })
-      .then(() => {
+      .then((bots) => {
+        if (bots.length === 1) {
+          setSelectedBot(bots[0].username);
+        } else {
+          setSelectedBot("");
+          setBotUsername("");
+          setBotTitle("");
+          setBotSearch("");
+        }
+
         toast({
           title: t("botSettings.deleted"),
           status: "success",
@@ -473,12 +488,146 @@ export const BotSettingsDialog: FC = () => {
     <Modal
       isOpen={isEditingBotSettings}
       onClose={close}
-      size="4xl"
+      size={{ base: "full", md: "4xl" }}
       scrollBehavior="inside"
     >
       <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
       <ModalContent maxH="90vh" display="flex" flexDirection="column">
-        <ModalHeader flexShrink={0}>{t("botSettings.title")}</ModalHeader>
+        <ModalHeader pt={6} pb={4} pr={16}>
+          <HStack justify="space-between" align="center" w="full">
+            <Box>
+              <Text fontSize="lg" fontWeight="semibold">
+                {t("botSettings.title")}
+              </Text>
+            </Box>
+            <Popover
+              placement="bottom-start"
+              isOpen={isBotListOpen}
+              onClose={() => setIsBotListOpen(false)}
+            >
+              <PopoverTrigger>
+                <Button
+                  size="sm"
+                  w={{ base: "full", md: "270px" }}
+                  justifyContent="space-between"
+                  onClick={() => {
+                    setBotSearch("");
+                    setIsBotListOpen(true);
+                  }}
+                >
+                  <Text>
+                    {selectedBot
+                      ? `@${selectedBot}`
+                      : t("botSettings.selectBot")}
+                  </Text>
+
+                  <ChevronDownIcon
+                    width={14}
+                    height={14}
+                    color="currentColor"
+                    style={{
+                      opacity: 0.6,
+                      transform: isBotListOpen
+                        ? "rotate(180deg)"
+                        : "rotate(0deg)",
+                      transition: "transform 0.2s",
+                    }}
+                  />
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent
+                w="280px"
+                maxH="320px"
+                overflow="hidden"
+                fontSize="sm"
+              >
+                <PopoverBody p={2}>
+                  <InputGroup size="sm" mb={2}>
+                    <InputLeftElement pointerEvents="none">
+                      <MagnifyingGlassIcon color="gray.400" width="16px" />
+                    </InputLeftElement>
+                    <Input
+                      size="sm"
+                      fontSize="sm"
+                      height="32px"
+                      px={2}
+                      placeholder={t("botSettings.botSearchPlaceholder")}
+                      value={botSearch}
+                      autoFocus
+                      onChange={(e) => setBotSearch(e.target.value)}
+                      mb={2}
+                    />
+                  </InputGroup>
+
+                  <VStack
+                    align="stretch"
+                    maxH="240px"
+                    overflowY="auto"
+                    spacing={1}
+                  >
+                    <Box
+                      px={2}
+                      py={1}
+                      cursor="pointer"
+                      _hover={{ bg: "gray.100", _dark: { bg: "gray.700" } }}
+                      onClick={() => {
+                        setSelectedBot("");
+                        setBotSearch("");
+                        setIsBotListOpen(false);
+                      }}
+                    >
+                      {t("botSettings.emptySelection")}
+                    </Box>
+
+                    {bots
+                      .filter((bot) => {
+                        const q = botSearch.toLowerCase().replace(/^@/, "");
+                        if (!q) return true;
+
+                        return (
+                          bot.username.toLowerCase().includes(q) ||
+                          (bot.title || "").toLowerCase().includes(q)
+                        );
+                      })
+                      .map((bot) => (
+                        <Box
+                          key={bot.id}
+                          px={2}
+                          py={1}
+                          cursor="pointer"
+                          bg={
+                            selectedBot === bot.username
+                              ? "primary.50"
+                              : undefined
+                          }
+                          _dark={{
+                            bg:
+                              selectedBot === bot.username
+                                ? "primary.900"
+                                : undefined,
+                          }}
+                          _hover={{ bg: "gray.100", _dark: { bg: "gray.700" } }}
+                          onClick={() => {
+                            setSelectedBot(bot.username);
+                            setBotSearch("");
+                            setIsBotListOpen(false);
+                          }}
+                        >
+                          <Text>@{bot.username}</Text>
+                          {bot.title && (
+                            <Text as="span" ml={2} opacity={0.6}>
+                              — {bot.title}
+                            </Text>
+                          )}
+                        </Box>
+                      ))}
+                  </VStack>
+                </PopoverBody>
+              </PopoverContent>
+            </Popover>
+          </HStack>
+        </ModalHeader>
         <ModalCloseButton />
         <ModalBody
           flex="1"
@@ -488,7 +637,7 @@ export const BotSettingsDialog: FC = () => {
           }}
         >
           <Tabs variant="enclosed" colorScheme="primary">
-            <TabList>
+            <TabList overflowX="auto" overflowY="hidden" whiteSpace="nowrap">
               <Tab>{t("botSettings.tabBotInfo")}</Tab>
               <Tab>{t("botSettings.tabSubscription")}</Tab>
               <Tab>{t("botSettings.tabMessages")}</Tab>
@@ -527,105 +676,7 @@ export const BotSettingsDialog: FC = () => {
               {/* Вкладка 1: Bot Info */}
               <TabPanel px={0}>
                 <VStack spacing={4} align="stretch">
-                  <FormControl position="relative" ref={botSelectorRef}>
-                    <FormLabel>{t("botSettings.bot")}</FormLabel>
-                    <Input
-                      placeholder={t("botSettings.botSearchPlaceholder")}
-                      value={botSearch}
-                      onChange={(e) => {
-                        setBotSearch(e.target.value);
-                        setIsBotListOpen(true);
-                      }}
-                      onFocus={() => setIsBotListOpen(true)}
-                    />
-
-                    {isBotListOpen && (
-                      <Box
-                        position="absolute"
-                        top="70px"
-                        left={0}
-                        right={0}
-                        zIndex={1000}
-                        bg="chakra-body-bg"
-                        border="1px solid"
-                        borderColor="inherit"
-                        borderRadius="md"
-                        boxShadow="lg"
-                        maxH="240px"
-                        overflowY="auto"
-                      >
-                        <Box
-                          px={3}
-                          py={2}
-                          cursor="pointer"
-                          color="gray.500"
-                          _hover={{
-                            bg: "gray.50",
-                            _dark: { bg: "gray.700" },
-                          }}
-                          onClick={() => {
-                            setSelectedBot("");
-                            setBotSearch("");
-                            setIsBotListOpen(false);
-                          }}
-                        >
-                          {t("botSettings.emptySelection")}
-                        </Box>
-
-                        {bots
-                          .filter((bot) => {
-                            const q = botSearch.toLowerCase().replace(/^@/, "");
-
-                            if (!q) return true;
-
-                            return (
-                              bot.username.toLowerCase().includes(q) ||
-                              (bot.title || "").toLowerCase().includes(q)
-                            );
-                          })
-                          .map((bot) => (
-                            <Box
-                              key={bot.id}
-                              px={3}
-                              py={2}
-                              cursor="pointer"
-                              bg={
-                                selectedBot === bot.username
-                                  ? "primary.50"
-                                  : undefined
-                              }
-                              _dark={{
-                                bg:
-                                  selectedBot === bot.username
-                                    ? "primary.900"
-                                    : undefined,
-                              }}
-                              _hover={{
-                                bg: "gray.50",
-                                _dark: { bg: "gray.700" },
-                              }}
-                              onClick={() => {
-                                setSelectedBot(bot.username);
-                                setBotSearch(`@${bot.username}`);
-                                setIsBotListOpen(false);
-                              }}
-                            >
-                              <strong>@{bot.username}</strong>
-
-                              {bot.title && (
-                                <ChakraText as="span" color="gray.500" ml={1}>
-                                  — {bot.title}
-                                </ChakraText>
-                              )}
-                            </Box>
-                          ))}
-                      </Box>
-                    )}
-
-                    <FormHelperText>{t("botSettings.botHint")}</FormHelperText>
-                  </FormControl>
-
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.newBotUsername")}</FormLabel>
                       <Input
@@ -654,9 +705,9 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.newBotTitleHint")}
                       </FormHelperText>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
 
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.botUrl")}</FormLabel>
                       <Input
@@ -683,14 +734,14 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.webUrlHint")}
                       </FormHelperText>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
                 </VStack>
               </TabPanel>
 
               {/* Вкладка 2: Subscription Settings */}
               <TabPanel px={0}>
                 <VStack spacing={4} align="stretch">
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.subSupportUrl")}</FormLabel>
                       <Input
@@ -717,9 +768,9 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.subProfileTitleHint")}
                       </FormHelperText>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
 
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.subProfileUrl")}</FormLabel>
                       <Input
@@ -749,9 +800,9 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.subUpdateIntervalHint")}
                       </FormHelperText>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
 
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.subRoutingHapp")}</FormLabel>
                       <Input
@@ -776,7 +827,7 @@ export const BotSettingsDialog: FC = () => {
                         }
                       />
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
 
                   <FormControl>
                     <FormLabel>{t("botSettings.subClientNote")}</FormLabel>
@@ -801,40 +852,56 @@ export const BotSettingsDialog: FC = () => {
                       {t("botSettings.subCustomHeadersHint")}
                     </FormHelperText>
                   </FormControl>
-                  <HStack align="start">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>{t("botSettings.bsDailyLimitGb")}</FormLabel>
                       <Input
                         type="number"
-                        value={settings.bs_daily_limit ? String(settings.bs_daily_limit / GB_IN_BYTES) : ""}
+                        value={
+                          settings.bs_daily_limit
+                            ? String(settings.bs_daily_limit / GB_IN_BYTES)
+                            : ""
+                        }
                         placeholder="0"
                         onChange={(e) => {
                           const gb = parseFloat(e.target.value);
                           updateSettings({
-                            bs_daily_limit: e.target.value === "" || isNaN(gb)
-                              ? 0 : Math.round(gb * GB_IN_BYTES),
+                            bs_daily_limit:
+                              e.target.value === "" || isNaN(gb)
+                                ? 0
+                                : Math.round(gb * GB_IN_BYTES),
                           });
                         }}
                       />
-                      <FormHelperText>{t("botSettings.bsDailyLimitGbHint")}</FormHelperText>
+                      <FormHelperText>
+                        {t("botSettings.bsDailyLimitGbHint")}
+                      </FormHelperText>
                     </FormControl>
                     <FormControl>
                       <FormLabel>{t("botSettings.bsMonthlyLimitGb")}</FormLabel>
                       <Input
                         type="number"
-                        value={settings.bs_monthly_limit ? String(settings.bs_monthly_limit / GB_IN_BYTES) : ""}
+                        value={
+                          settings.bs_monthly_limit
+                            ? String(settings.bs_monthly_limit / GB_IN_BYTES)
+                            : ""
+                        }
                         placeholder="0"
                         onChange={(e) => {
                           const gb = parseFloat(e.target.value);
                           updateSettings({
-                            bs_monthly_limit: e.target.value === "" || isNaN(gb)
-                              ? 0 : Math.round(gb * GB_IN_BYTES),
+                            bs_monthly_limit:
+                              e.target.value === "" || isNaN(gb)
+                                ? 0
+                                : Math.round(gb * GB_IN_BYTES),
                           });
                         }}
                       />
-                      <FormHelperText>{t("botSettings.bsMonthlyLimitGbHint")}</FormHelperText>
+                      <FormHelperText>
+                        {t("botSettings.bsMonthlyLimitGbHint")}
+                      </FormHelperText>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
                 </VStack>
               </TabPanel>
 
@@ -858,7 +925,7 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.announceMessages")}
                       </ChakraText>
 
-                      <HStack align="start">
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
                             {t("botSettings.subRevokedAnnounceText")}
@@ -887,9 +954,9 @@ export const BotSettingsDialog: FC = () => {
                             }
                           />
                         </FormControl>
-                      </HStack>
+                      </SimpleGrid>
 
-                      <HStack align="start">
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
                             {t("botSettings.subUnsupportedClientAnnounceText")}
@@ -921,7 +988,7 @@ export const BotSettingsDialog: FC = () => {
                             }
                           />
                         </FormControl>
-                      </HStack>
+                      </SimpleGrid>
                     </VStack>
                   </Box>
 
@@ -968,7 +1035,7 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.serverResponses")}
                       </ChakraText>
 
-                      <HStack align="start">
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
                             {t("botSettings.subRevokedServerText")}
@@ -1020,8 +1087,8 @@ export const BotSettingsDialog: FC = () => {
                             {t("botSettings.serverTextHint")}
                           </FormHelperText>
                         </FormControl>
-                      </HStack>
-                      <HStack align="start">
+                      </SimpleGrid>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
                             {t("botSettings.subBsLimitAnnounceText")}
@@ -1035,8 +1102,8 @@ export const BotSettingsDialog: FC = () => {
                             }
                           />
                         </FormControl>
-                      </HStack>
-                      <HStack align="start">
+                      </SimpleGrid>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
                             {t("botSettings.subDeviceLimitServerText")}
@@ -1073,7 +1140,7 @@ export const BotSettingsDialog: FC = () => {
                             {t("botSettings.serverTextHint")}
                           </FormHelperText>
                         </FormControl>
-                      </HStack>
+                      </SimpleGrid>
                     </VStack>
                   </Box>
                 </VStack>
@@ -1136,10 +1203,18 @@ export const BotSettingsDialog: FC = () => {
             </TabPanels>
           </Tabs>
         </ModalBody>
+
         <ModalFooter>
-          <HStack justifyContent="space-between" width="full">
-            <HStack>
+          <Stack
+            direction={{ base: "column", md: "row" }}
+            justify="space-between"
+            align={{ base: "stretch", md: "center" }}
+            w="full"
+            spacing={4}
+          >
+            <HStack spacing={2} w={{ base: "full", md: "auto" }}>
               <Button
+                flex={1}
                 variant="outline"
                 colorScheme="green"
                 onClick={createBot}
@@ -1148,7 +1223,9 @@ export const BotSettingsDialog: FC = () => {
               >
                 {t("botSettings.createBot")}
               </Button>
+
               <Button
+                flex={1}
                 variant="outline"
                 colorScheme="red"
                 onClick={deleteBot}
@@ -1158,11 +1235,14 @@ export const BotSettingsDialog: FC = () => {
                 {t("botSettings.deleteBot")}
               </Button>
             </HStack>
-            <HStack>
-              <Button variant="ghost" mr={3} onClick={close}>
+
+            <HStack spacing={2} w={{ base: "full", md: "auto" }}>
+              <Button flex={1} variant="ghost" onClick={close}>
                 {t("cancel")}
               </Button>
+
               <Button
+                flex={1}
                 colorScheme="primary"
                 onClick={save}
                 isLoading={saving}
@@ -1171,7 +1251,7 @@ export const BotSettingsDialog: FC = () => {
                 {t("core.save")}
               </Button>
             </HStack>
-          </HStack>
+          </Stack>
         </ModalFooter>
       </ModalContent>
     </Modal>
