@@ -80,6 +80,7 @@ type UsageSliderProps = {
   total: number | null;
   dataLimitResetStrategy: string | null;
   totalUsedTraffic: number;
+  label?: string;
 } & SliderProps;
 
 const getResetStrategy = (strategy: string): string => {
@@ -91,8 +92,39 @@ const getResetStrategy = (strategy: string): string => {
   }
   return "No";
 };
+
+const hasBsTraffic = (user: User) =>
+  user.bs_monthly_limit_total != null && user.bs_monthly_limit_total > 0;
+
+const BsTrafficUsage: FC<{
+  user: User;
+  compact?: boolean;
+  colorScheme?: string;
+}> = ({ user, compact, colorScheme = "primary" }) => {
+  if (!hasBsTraffic(user)) {
+    return null;
+  }
+  const used = user.bs_monthly_used ?? 0;
+  const total = user.bs_monthly_limit_total ?? 0;
+  const props = {
+    used,
+    total,
+    dataLimitResetStrategy: "month" as const,
+    totalUsedTraffic: used,
+    colorScheme,
+    label: t("usersTable.bsDataUsage"),
+  };
+  return compact ? (
+    <UsageSliderCompact {...props} />
+  ) : (
+    <Box width="full" minW="230px">
+      <UsageSlider {...props} />
+    </Box>
+  );
+};
+
 const UsageSliderCompact: FC<UsageSliderProps> = (props) => {
-  const { used, total, dataLimitResetStrategy, totalUsedTraffic } = props;
+  const { used, total, dataLimitResetStrategy, totalUsedTraffic, label } = props;
   const isUnlimited = total === 0 || total === null;
   return (
     <HStack
@@ -105,6 +137,11 @@ const UsageSliderCompact: FC<UsageSliderProps> = (props) => {
       }}
     >
       <Text>
+        {label ? (
+          <Text as="span" fontWeight="semibold" mr={1}>
+            {label}:
+          </Text>
+        ) : null}
         {formatBytes(used)} /{" "}
         {isUnlimited ? (
           <Text as="span" fontFamily="system-ui">
@@ -123,6 +160,7 @@ const UsageSlider: FC<UsageSliderProps> = (props) => {
     total,
     dataLimitResetStrategy,
     totalUsedTraffic,
+    label,
     ...restOfProps
   } = props;
   const isUnlimited = total === 0 || total === null;
@@ -149,6 +187,11 @@ const UsageSlider: FC<UsageSliderProps> = (props) => {
         }}
       >
         <Text>
+          {label ? (
+            <Text as="span" fontWeight="semibold" mr={1}>
+              {label}:
+            </Text>
+          ) : null}
           {formatBytes(used)} /{" "}
           {isUnlimited ? (
             <Text as="span" fontFamily="system-ui">
@@ -367,15 +410,22 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                         />
                       </Td>
                       <Td borderBottom={0} minW="100px" pr={0}>
-                        <UsageSliderCompact
-                          totalUsedTraffic={user.lifetime_used_traffic}
-                          dataLimitResetStrategy={
-                            user.data_limit_reset_strategy
-                          }
-                          used={user.used_traffic}
-                          total={user.data_limit}
-                          colorScheme={statusColors[user.status].bandWidthColor}
-                        />
+                        <VStack align="stretch" spacing={0}>
+                          <UsageSliderCompact
+                            totalUsedTraffic={user.lifetime_used_traffic}
+                            dataLimitResetStrategy={
+                              user.data_limit_reset_strategy
+                            }
+                            used={user.used_traffic}
+                            total={user.data_limit}
+                            colorScheme={statusColors[user.status].bandWidthColor}
+                          />
+                          <BsTrafficUsage
+                            user={user}
+                            compact
+                            colorScheme={statusColors[user.status].bandWidthColor}
+                          />
+                        </VStack>
                       </Td>
                       <Td p={0} borderBottom={0} w="32px" minW="32px">
                         <AccordionArrowIcon
@@ -436,6 +486,31 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                                   />
                                 </Box>
                               </VStack>
+                              {hasBsTraffic(user) && (
+                                <VStack
+                                  alignItems="flex-start"
+                                  w="full"
+                                  spacing={-1}
+                                >
+                                  <Text
+                                    textTransform="capitalize"
+                                    fontSize="xs"
+                                    fontWeight="bold"
+                                    color="gray.600"
+                                    _dark={{
+                                      color: "gray.400",
+                                    }}
+                                  >
+                                    {t("usersTable.bsDataUsage")}
+                                  </Text>
+                                  <BsTrafficUsage
+                                    user={user}
+                                    colorScheme={
+                                      statusColors[user.status].bandWidthColor
+                                    }
+                                  />
+                                </VStack>
+                              )}
                               <HStack w="full" justifyContent="space-between">
                                 <Box width="full">
                                   <StatusBadge
@@ -604,13 +679,19 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                     />
                   </Td>
                   <Td width="350px" minW="230px">
-                    <UsageSlider
-                      totalUsedTraffic={user.lifetime_used_traffic}
-                      dataLimitResetStrategy={user.data_limit_reset_strategy}
-                      used={user.used_traffic}
-                      total={user.data_limit}
-                      colorScheme={statusColors[user.status].bandWidthColor}
-                    />
+                    <VStack align="stretch" spacing={2}>
+                      <UsageSlider
+                        totalUsedTraffic={user.lifetime_used_traffic}
+                        dataLimitResetStrategy={user.data_limit_reset_strategy}
+                        used={user.used_traffic}
+                        total={user.data_limit}
+                        colorScheme={statusColors[user.status].bandWidthColor}
+                      />
+                      <BsTrafficUsage
+                        user={user}
+                        colorScheme={statusColors[user.status].bandWidthColor}
+                      />
+                    </VStack>
                   </Td>
                   <Td width="200px" minW="180px">
                     <ActionButtons user={user} />

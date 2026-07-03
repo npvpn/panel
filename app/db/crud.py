@@ -234,7 +234,11 @@ def get_user_queryset(db: Session) -> Query:
         Query: Base user query.
     """
     return (
-        db.query(User).options(joinedload(User.admin)).options(joinedload(User.next_plan)).options(joinedload(User.bot))
+        db.query(User)
+        .options(joinedload(User.admin))
+        .options(joinedload(User.next_plan))
+        .options(joinedload(User.bot).joinedload(Bot.settings))
+        .options(joinedload(User.node_bs_usages))
     )
 
 

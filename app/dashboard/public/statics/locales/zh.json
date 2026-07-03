@@ -217,6 +217,7 @@
   "usersTable.copyConfigs": "复制配置",
   "usersTable.copyLink": "复制订阅链接",
   "usersTable.dataUsage": "流量统计",
+  "usersTable.bsDataUsage": "白名单流量",
   "usersTable.noUser": "还没有添加任何用户",
   "usersTable.noUserMatched": "没有找到您搜索的用户",
   "usersTable.status": "状态",

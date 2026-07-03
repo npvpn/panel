@@ -247,6 +247,7 @@
   "usersTable.copyConfigs": "Скопировать конфигурации",
   "usersTable.copyLink": "Скопировать ссылку на подписку",
   "usersTable.dataUsage": "Расход трафика",
+  "usersTable.bsDataUsage": "Белые списки",
   "usersTable.noUser": "В системе нет созданных пользователей",
   "usersTable.noUserMatched": "Похоже, нет пользователя, соответствующего вашему запросу",
   "usersTable.status": "Статус",

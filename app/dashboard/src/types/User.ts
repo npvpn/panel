@@ -52,6 +52,8 @@ export type User = {
   note: string;
   bot_username?: string | null;
   online_at: string;
+  bs_monthly_used?: number | null;
+  bs_monthly_limit_total?: number | null;
 };
 
 export type UserCreate = Pick<

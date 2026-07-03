@@ -222,6 +222,7 @@
   "usersTable.copyConfigs": "تنظیمات کپی",
   "usersTable.copyLink": "کپی لینک اشتراک",
   "usersTable.dataUsage": "مصرف داده",
+  "usersTable.bsDataUsage": "ترافیک لیست سفید",
   "usersTable.noUser": "کاربری افزوده نشده است",
   "usersTable.noUserMatched": "به‌نظر میرسه کاربری که جستجو کردید، وجود ندارد",
   "usersTable.status": "وضعیت",
