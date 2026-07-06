@@ -94,6 +94,7 @@ p {
 .py-0\.5 { padding-top: 2px; padding-bottom: 2px; }
 .py-2 { padding-top: 8px; padding-bottom: 8px; }
 .py-4 { padding-top: 16px; padding-bottom: 16px; }
+.py-10 {padding-top: 40px; padding-bottom: 40px;}
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
 .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 8px; }
