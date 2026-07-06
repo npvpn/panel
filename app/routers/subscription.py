@@ -68,8 +68,7 @@ def get_user_note(user: UserResponse, note_template: str) -> str:
     """Return note from SUB_CLIENT_NOTE with <days_left> and <tg_id> placeholders."""
     if not note_template:
         return ""
-    if "_" in user.username:
-        note_template = note_template.replace("<tg_id>", user.username.split("_", 1)[0])
+    note_template = note_template.replace("<tg_id>", user.username.split("_", 1)[0])
     expire_ts = int(user.expire or 0)
     if expire_ts <= 0:
         return note_template.replace("<days_left>", "0")
