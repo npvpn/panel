@@ -56,6 +56,9 @@
           },
 
           subUrl: '/{{ sub_path }}/{{ token }}',
+          get deviceCount() {
+            return this.devices.length;
+          },
           get devicesCountText() {
             if (this.deviceLimit > 0) {
               return `${this.devices.length} из ${this.deviceLimit}`;
@@ -64,7 +67,7 @@
           },
           get devicesInfoText() {
             if (this.deviceLimit > 0) {
-              return `${this.devices.length}/${this.deviceLimit}`;
+              return `${this.devices.length} из ${this.deviceLimit}`;
             }
             return String(this.devices.length);
           },
@@ -77,7 +80,8 @@
 
             try {
               const response = await fetch(
-                `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`
+                `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`,
+                { method: 'POST' }
               );
 
               if (!response.ok) {
@@ -92,7 +96,7 @@
                 this.deviceLimit > 0 &&
                 this.devices.length <= this.deviceLimit
               ) {
-                window.location.href = this.subUrl;
+                window.location.reload();
               }
             } catch {
               alert('Не удалось удалить устройство. Попробуйте ещё раз.');
@@ -133,9 +137,17 @@
             });
           },
           get remainingDays() {
-            if (this.user.expire == 0) return '∞';
+            if (this.user.expire == 0) return 'Безлимит';
             const remaining = Math.floor((this.user.expire * 1000 - Date.now()) / (1000 * 60 * 60 * 24));
-            return remaining >= 0 ? remaining : 0;
+            if (remaining < 0) return '0 дней';
+            const days = remaining;
+            let word = 'дней';
+            if (days % 10 === 1 && days % 100 !== 11) {
+              word = 'день';
+            } else if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) {
+              word = 'дня';
+            }
+            return `${days} ${word}`;
           }
         }));
       });
@@ -143,121 +155,124 @@
   </head>
 
   <body>
-    <div x-data="subscriptionManager" x-cloak class="page-wrapper">
-      <main class="main-container">
-        <div class="card">
-          <div class="card-content">
+    <div x-data="subscriptionManager" x-cloak class="wrapper">
+      <div class="page-content_limited">
 
-            <!-- HEADER -->
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
-              <h2 class="page-title">Лимит устройств достигнут</h2>
-              <p class="page-subtitle">
-                Подключено <span x-text="devicesCountText"></span>
-              </p>
-            </div>
+        <!-- HEADER -->
+        <header class="page-header">
+          <h2 class="page-title">Лимит устройств достигнут</h2>
+          <p class="device-count">
+          <!-- Подключено {% if user.device_limit %}{{ devices|length }} из {{ user.device_limit }}{% else %}{{ devices|length }}{% endif %} -->
+            Подключено <span x-text="deviceCount"></span>
+          <span x-show="deviceLimit > 0">
+            из <span x-text="deviceLimit"></span>
+          </span>
+        </p>
+        </header>
 
-            <!-- DEVICES LIST -->
-            <div class="devices-list" x-show="devices.length > 0">
-              <template x-for="device in devices" :key="device.id">
-                <div class="device-card">
-                  <div class="device-card__left">
-                    <div class="device-card__icon">
-                      <template x-if="isPcOs(device.device_os)">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
-                          <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
-                          <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                      </template>
-                      <template x-if="!isPcOs(device.device_os)">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
-                          <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                      </template>
-                    </div>
-
-                    <div class="device-card__info">
-                      <div class="device-card__name" x-text="device.device_model"></div>
-
-                      <div class="device-card__os">
-                        <span x-text="device.device_os"></span>
-                        <span x-show="device.ver_os" x-text="' ' + device.ver_os"></span>
-                      </div>
-
-                      <div class="device-card__user-agent" x-show="device.user_agent" x-text="device.user_agent"></div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    class="device-card__delete"
-                    title="Удалить устройство"
-                    :disabled="revokingId === device.id"
-                    @click="openRevokeModal(device)"
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M7 7L17 17M7 17L17 7"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </template>
-
-              {% if web_url %}
-                <button class="btn-fourth w-full font-semibold" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
-                  <div class="device_button" style="border-radius: 16px;">
-                      <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <div class="card-content">
+          <!-- DEVICES LIST -->
+          <div class="devices-list" x-show="devices.length > 0">
+            <template x-for="device in devices" :key="device.id">
+              <div class="device-card">
+                <div class="device-card__left">
+                  <div class="device-card__icon">
+                    <template x-if="isPcOs(device.device_os)">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="2" y="17" width="20" height="3" rx="1" stroke-width="2"/>
+                        <rect x="3" y="5" width="18" height="12" rx="1" stroke-width="2"/>
+                        <path d="M14 6L10 6" stroke-width="2" stroke-linecap="round"/>
                       </svg>
+                    </template>
+                    <template x-if="!isPcOs(device.device_os)">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="6" y="2" width="12" height="20" rx="3" stroke-width="2"/>
+                        <path d="M14 3L10 3" stroke-width="2" stroke-linecap="round"/>
+                      </svg>
+                    </template>
                   </div>
-                  Добавить устройства
-                </button>
-              {% endif %}
 
+                  <div class="device-card__info">
+                    <div class="device-card__name" x-text="device.device_model"></div>
+
+                    <div class="device-card__os">
+                      <span x-text="device.device_os"></span>
+                      <span x-show="device.ver_os" x-text="' ' + device.ver_os"></span>
+                    </div>
+
+                    <div class="device-card__user-agent" x-show="device.user_agent" x-text="device.user_agent"></div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="device-card__delete"
+                  title="Удалить устройство"
+                  :disabled="revokingId === device.id"
+                  @click="openRevokeModal(device)"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M7 7L17 17M7 17L17 7"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </template>
+
+            <!-- {% if web_url %}
+              <button class="btn-fourth w-full font-semibold" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+                <div class="device_button" style="border-radius: 16px;">
+                    <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                Добавить устройства
+              </button>
+            {% endif %} -->
+
+          </div>
+
+          <p class="empty-devices" x-show="devices.length === 0">
+            Активных устройств сейчас нет
+          </p>
+        
+          <!-- INFO CARD -->
+          <div class="info-card">
+            <h2 class="page-title mb-3">Текущий тариф</h2>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">ID</span>
+              <span class="tariff-info" x-text="user.username"></span>
             </div>
 
-            <p class="empty-devices" x-show="devices.length === 0">
-              Активных устройств сейчас нет
-            </p>
-          
-            <!-- INFO CARD -->
-            <div class="info-card">
-              <div class="info-row">
-                <span class="info-label">ID</span>
-                <span class="info-value text-black" x-text="user.username"></span>
-              </div>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">Статус</span>
+              <span class="tariff-info" :style="{ color: statusColor }" x-text="statusText"></span>
+            </div>
 
-              <div class="info-row">
-                <span class="info-label">Статус</span>
-                <span class="info-value" :style="{ color: statusColor }" x-text="statusText"></span>
-              </div>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">Трафик</span>
+              <span class="tariff-info" x-text="trafficText"></span>
+            </div>
 
-              <div class="info-row">
-                <span class="info-label">Трафик</span>
-                <span class="info-value text-black" x-text="trafficText"></span>
-              </div>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">Действует до</span>
+              <span class="tariff-info" x-text="expirationText"></span>
+            </div>
 
-              <div class="info-row">
-                <span class="info-label">Действует до</span>
-                <span class="info-value text-black" x-text="expirationText"></span>
-              </div>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">Осталось</span>
+              <span class="tariff-info" x-text="remainingDays"></span>
+            </div>
 
-              <div class="info-row">
-                <span class="info-label">Осталось</span>
-                <span class="info-value text-black" x-text="remainingDays + ' дней'"></span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Кол-во устройств</span>
-                <span class="info-value text-black" x-text="devicesInfoText"></span>
-              </div>
+            <div class="info-row">
+              <span class="text-[#7b7b7b] tariff-info">Кол-во устройств</span>
+              <span class="tariff-info" x-text="devicesInfoText"></span>
             </div>
           </div>
         </div>
-      </main>
+      </div>
       
 
       <div
@@ -324,13 +339,18 @@
           </div>
       </div>
 
-
-
-      <footer class="footer">
-        Сайт работает на платформе
-        <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
-          npvpn
-        </a>
+      <footer class="footer_limited">
+        {% if web_url %}
+          <button class="limited-btn" onclick="window.open('{{ web_url }}', '_blank')" rel="noopener noreferrer">
+            Перейти в личный кабинет
+          </button>
+        {% endif %}
+          <p>
+            Сайт работает на платформе
+            <a href="https://www.npvpn.net/" class="footer-link" target="_blank" rel="noopener noreferrer">
+              npvpn
+            </a>
+          </p>
       </footer>
     </div>
   </body>

@@ -318,7 +318,7 @@ class V2rayShareLink(str):
                 extra["keepAlivePeriod"] = keepAlivePeriod
             if xmux:
                 extra["xmux"] = xmux
-            payload["extra"] = json.dumps(extra)
+            payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
         elif net == "kcp":
             payload["seed"] = path
@@ -414,7 +414,7 @@ class V2rayShareLink(str):
                 extra["keepAlivePeriod"] = keepAlivePeriod
             if xmux:
                 extra["xmux"] = xmux
-            payload["extra"] = json.dumps(extra)
+            payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
         elif net == "quic":
             payload["key"] = path

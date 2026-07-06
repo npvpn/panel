@@ -68,8 +68,7 @@ def get_user_note(user: UserResponse, note_template: str) -> str:
     """Return note from SUB_CLIENT_NOTE with <days_left> and <tg_id> placeholders."""
     if not note_template:
         return ""
-    if "_" in user.username:
-        note_template = note_template.replace("<tg_id>", user.username.split("_", 1)[0])
+    note_template = note_template.replace("<tg_id>", user.username.split("_", 1)[0])
     expire_ts = int(user.expire or 0)
     if expire_ts <= 0:
         return note_template.replace("<days_left>", "0")
@@ -245,7 +244,7 @@ def user_subscription(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    is_limited = not is_revoked and not is_expired and crud.is_device_limit_exceeded(db, dbuser)
+    is_limited = not is_revoked and not is_expired and crud.is_device_limit_reached(db, dbuser)
 
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
@@ -408,6 +407,7 @@ def user_subscription(
 @router.get("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 @router.post("/{token}/devices/{device_id}/revoke", include_in_schema=False)
 def revoke_subscription_device(
+    request: Request,
     token: str,
     device_id: int,
     db: Session = Depends(get_db),
@@ -425,6 +425,8 @@ def revoke_subscription_device(
         raise HTTPException(status_code=404, detail="Active device not found")
 
     crud.revoke_user_device(db, dbdevice)
+    if request.method == "POST":
+        return Response(status_code=204)
     return RedirectResponse(url=f"/{XRAY_SUBSCRIPTION_PATH}/{token}", status_code=303)
 
 

@@ -19,6 +19,38 @@
 
 ## Установка
 
+### Партнёрский сервер (рекомендуется)
+
+Полная автоматическая установка: UFW, certbot, MySQL, SSL, порт 8001, админ панели.
+
+**Перед запуском:** создайте администратора в админке бота и скопируйте логин, MySQL-пароль и хэш пароля.  
+Подробнее: [Установка панели для партнера.md](https://github.com/npvpn/Marzban-scripts/blob/master/Установка%20панели%20для%20партнера.md)
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/npvpn/Marzban-scripts/raw/master/marzban.sh)" @ install-partner
+```
+
+С параметрами (без интерактивных вопросов):
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/npvpn/Marzban-scripts/raw/master/marzban.sh)" @ install-partner \
+  --domain your-domain.tld \
+  --cert-email admin@example.com \
+  --mysql-password 'YOUR_MYSQL_PASSWORD' \
+  --admin-username partner_admin \
+  --admin-password-hash '$argon2id$...' \
+  --subscription-title 'My VPN' \
+  --support-telegram support_bot \
+  --bot-telegram my_vpn_bot \
+  --non-interactive
+```
+
+Панель будет доступна по адресу: `https://<домен>:8001/dashboard/`
+
+---
+
+### Обычная установка (без автоматизации SSL/certbot)
+
 1. Используйте команду для установки панели с нужной базой данных:
 
 - **Install Marzban with SQLite**:
