@@ -77,6 +77,28 @@ def test_apply_host_balancer_handles_missing_routing():
     assert result["observatory"] == build_observatory()
 
 
+def test_apply_host_balancer_does_not_mutate_shared_routing():
+    # select_routing отдаёт один и тот же routing_default во все конфиги (без копии)
+    shared_routing = {"rules": [{"type": "field", "ip": ["geoip:ru"], "outboundTag": "direct"}]}
+    single_cfg = {"outbounds": [{"tag": "proxy"}], "routing": shared_routing}
+    bal_cfg_1 = {"outbounds": [{"tag": "proxy"}, {"tag": "proxy-1"}], "routing": shared_routing}
+    bal_cfg_2 = {"outbounds": [{"tag": "proxy"}, {"tag": "proxy-1"}], "routing": shared_routing}
+
+    apply_host_balancer(bal_cfg_1)
+    apply_host_balancer(bal_cfg_2)
+
+    # общий объект не тронут → одноадресный сервер чист
+    assert "balancers" not in shared_routing
+    assert shared_routing["rules"] == [{"type": "field", "ip": ["geoip:ru"], "outboundTag": "direct"}]
+    assert "balancers" not in single_cfg["routing"]
+    assert all(r.get("balancerTag") is None for r in single_cfg["routing"]["rules"])
+
+    # каждый balanced конфиг получил РОВНО ОДИН свой балансировщик
+    assert bal_cfg_1["routing"]["balancers"] == [build_balancer()]
+    assert bal_cfg_2["routing"]["balancers"] == [build_balancer()]
+    assert bal_cfg_1["routing"]["rules"][-1] == build_balancer_rule()
+
+
 import pytest
 
 

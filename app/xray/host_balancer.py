@@ -59,10 +59,19 @@ def apply_host_balancer(config: dict) -> dict:
     """Дописать в собранный v2ray-json конфиг балансировщик, catch-all rule и observatory.
 
     Вызывается только когда proxy-outbound'ов >1 (см. V2rayJsonConfig.add_balanced).
-    Мутирует и возвращает config.
+
+    ВАЖНО: не мутирует config["routing"] на месте — select_routing()
+    (app/xray/bs_routing.py) может отдавать ОДИН И ТОТ ЖЕ routing-объект (без копии)
+    во все серверные конфиги подписки (_assemble_config в app/subscription/v2ray.py).
+    Мутация на месте протекла бы между конфигами: одноадресные хосты получали бы
+    чужой balancer, а при 2+ multi-address хостах — по несколько одинаковых
+    балансировщиков с одним и тем же тегом. Поэтому здесь строится новый dict
+    routing (с новыми списками balancers/rules) и присваивается обратно в
+    config["routing"], не трогая переданный в config исходный shared-объект.
     """
-    routing = config.setdefault("routing", {})
-    routing["balancers"] = routing.get("balancers", []) + [build_balancer()]
-    routing["rules"] = routing.get("rules", []) + [build_balancer_rule()]
+    routing = dict(config.get("routing") or {})
+    routing["balancers"] = list(routing.get("balancers", [])) + [build_balancer()]
+    routing["rules"] = list(routing.get("rules", [])) + [build_balancer_rule()]
+    config["routing"] = routing
     config["observatory"] = build_observatory()
     return config
