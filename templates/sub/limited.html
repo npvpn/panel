@@ -77,7 +77,8 @@
 
             try {
               const response = await fetch(
-                `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`
+                `/{{ sub_path }}/{{ token }}/devices/${deviceId}/revoke`,
+                { method: 'POST' }
               );
 
               if (!response.ok) {
@@ -92,7 +93,7 @@
                 this.deviceLimit > 0 &&
                 this.devices.length <= this.deviceLimit
               ) {
-                window.location.href = this.subUrl;
+                window.location.reload();
               }
             } catch {
               alert('Не удалось удалить устройство. Попробуйте ещё раз.');
