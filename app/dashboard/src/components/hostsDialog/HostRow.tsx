@@ -78,7 +78,7 @@ export const HostRow = memo(function HostRow(props: HostRowProps) {
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       style={{ width: "100%" }}
     >
-      <VStack border="1px solid" p={2} w="full" borderRadius="4px">
+      <VStack p={2} w="full" borderRadius="4px">
         <HStack w="100%" alignItems="flex-start">
           <RHFInput
             label="Remark"
@@ -140,8 +140,10 @@ export const HostRow = memo(function HostRow(props: HostRowProps) {
                             <Switch
                               mx="1.5"
                               colorScheme="primary"
-                              isChecked={!!field.value}
-                              onChange={(e) => field.onChange(e.target.checked)}
+                              isChecked={!field.value}
+                              onChange={(e) =>
+                                field.onChange(!e.target.checked)
+                              }
                             />
                           );
                         }}
