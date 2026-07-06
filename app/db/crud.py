@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, func, or_
+from sqlalchemy import and_, delete, func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql.functions import coalesce
@@ -1865,15 +1865,39 @@ def get_bs_usage_totals(db: Session, user_id: int, yyyymm: str) -> int:
     return totals.get(user_id, 0)
 
 
+def _bot_settings_for_user(db: Session, dbuser: User) -> dict[str, Any]:
+    from app.db.models import BotSettings
+
+    if not dbuser.bot_id:
+        return apply_bot_settings_fallback(None)
+    data = db.query(BotSettings.data).filter(BotSettings.bot_id == dbuser.bot_id).scalar()
+    return apply_bot_settings_fallback(data)
+
+
+def reset_user_bs_extra_pool(db: Session, dbuser: User, *, commit: bool = True) -> User:
+    """Обнуляет купленный пул bs_extra без проверки настроек (внутренний сброс)."""
+    db.execute(update(User).where(User.id == dbuser.id).values(bs_extra=0))
+    if commit:
+        db.commit()
+        db.refresh(dbuser)
+    return dbuser
+
+
 def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None = None, reset: bool = False) -> User:
     """Инкремент или сброс остатка купленного БС-пула (bs_extra)."""
     if reset:
-        setattr(dbuser, "bs_extra", 0)
+        settings = _bot_settings_for_user(db, dbuser)
+        if not settings.get("bs_extra_reset_pool_on_prolong", True):
+            return dbuser
+        return reset_user_bs_extra_pool(db, dbuser)
     elif delta_bytes is not None:
-        setattr(dbuser, "bs_extra", int(dbuser.bs_extra or 0) + int(delta_bytes))
+        db.execute(
+            update(User)
+            .where(User.id == dbuser.id)
+            .values(bs_extra=int(dbuser.bs_extra or 0) + int(delta_bytes))
+        )
     else:
         raise ValueError("either delta_bytes or reset must be provided")
-    db.add(dbuser)
     db.commit()
     db.refresh(dbuser)
     return dbuser
@@ -1898,8 +1922,8 @@ def apply_bs_extra_pool_consumption(
     if not dbuser:
         return
     remaining = int(dbuser.bs_extra or 0)
-    setattr(dbuser, "bs_extra", 0 if remaining <= consume else remaining - consume)
-    db.add(dbuser)
+    new_extra = 0 if remaining <= consume else remaining - consume
+    db.execute(update(User).where(User.id == user_id).values(bs_extra=new_extra))
 
 
 def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:

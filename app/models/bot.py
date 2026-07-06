@@ -53,6 +53,7 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_device_limit_server_text": _normalize_server_text(SUB_DEVICE_LIMIT_SERVER_TEXT),
     "sub_unsupported_client_server_text": _normalize_server_text(SUB_UNSUPPORTED_CLIENT_SERVER_TEXT),
     "bs_monthly_limit": 0,
+    "bs_extra_reset_pool_on_prolong": True,
     "sub_bs_limit_server_text": [],
     "sub_bs_limit_announce_text": "",
     "sub_v2ray_json_template": "",
@@ -107,6 +108,7 @@ class BotSettingsPayload(BaseModel):
     sub_device_limit_announce_text: str = ""
     sub_device_limit_hard_mode: bool = False
     bs_monthly_limit: int = 0
+    bs_extra_reset_pool_on_prolong: bool = True
     sub_unsupported_client_announce_text: str = ""
     sub_revoked_server_text: list[str] = []
     sub_expired_server_text: list[str] = []
@@ -163,5 +165,6 @@ def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str
         base[key] = _normalize_server_text(base.get(key))
 
     base["sub_device_limit_hard_mode"] = bool(base.get("sub_device_limit_hard_mode"))
+    base["bs_extra_reset_pool_on_prolong"] = bool(base.get("bs_extra_reset_pool_on_prolong", True))
 
     return base

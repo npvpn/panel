@@ -67,6 +67,7 @@ const emptySettings: BotSettings = {
   sub_routing_json_bs: "",
   sub_custom_headers: "",
   bs_monthly_limit: 0,
+  bs_extra_reset_pool_on_prolong: true,
 };
 
 type ServerTextField =
@@ -326,6 +327,7 @@ export const BotSettingsDialog: FC = () => {
       sub_routing_json_bs: current.sub_routing_json_bs,
       sub_custom_headers: current.sub_custom_headers,
       bs_monthly_limit: current.bs_monthly_limit,
+      bs_extra_reset_pool_on_prolong: current.bs_extra_reset_pool_on_prolong,
     };
   };
 
@@ -815,6 +817,30 @@ export const BotSettingsDialog: FC = () => {
                     />
                     <FormHelperText>{t("botSettings.bsMonthlyLimitGbHint")}</FormHelperText>
                   </FormControl>
+                  <Box
+                    border="1px solid"
+                    borderColor="inherit"
+                    borderRadius="md"
+                    p={4}
+                  >
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.bsExtraResetPoolOnProlong")}
+                      </FormLabel>
+                      <Switch
+                        colorScheme="primary"
+                        isChecked={settings.bs_extra_reset_pool_on_prolong}
+                        onChange={(e) =>
+                          updateSettings({
+                            bs_extra_reset_pool_on_prolong: e.target.checked,
+                          })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.bsExtraResetPoolOnProlongHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </Box>
                 </VStack>
               </TabPanel>
 

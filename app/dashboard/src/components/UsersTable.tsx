@@ -335,14 +335,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               <Th
                 position="sticky"
                 top={top}
-                minW="90px"
-                pr={2}
-              >
-                <span>{t("usersTable.bsDataUsage")}</span>
-              </Th>
-              <Th
-                position="sticky"
-                top={top}
                 minW="50px"
                 pl={0}
                 pr={0}
@@ -407,6 +399,14 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               <Th
                 position="sticky"
                 top={top}
+                minW="90px"
+                pr={2}
+              >
+                <span>{t("usersTable.bsDataUsage")}</span>
+              </Th>
+              <Th
+                position="sticky"
+                top={top}
                 minW="32px"
                 w="32px"
                 p={0}
@@ -435,15 +435,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                           <Text isTruncated>{user.username}</Text>
                         </div>
                       </Td>
-                      <Td borderBottom={0} minW="90px" pr={2}>
-                        <BsTrafficUsage
-                          user={user}
-                          compact
-                          showLabel={false}
-                          colorScheme={statusColors[user.status].bandWidthColor}
-                          emptyPlaceholder
-                        />
-                      </Td>
                       <Td borderBottom={0} minW="50px" pl={0} pr={0}>
                         <StatusBadge
                           compact
@@ -461,6 +452,15 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                           used={user.used_traffic}
                           total={user.data_limit}
                           colorScheme={statusColors[user.status].bandWidthColor}
+                        />
+                      </Td>
+                      <Td borderBottom={0} minW="90px" pr={2}>
+                        <BsTrafficUsage
+                          user={user}
+                          compact
+                          showLabel={false}
+                          colorScheme={statusColors[user.status].bandWidthColor}
+                          emptyPlaceholder
                         />
                       </Td>
                       <Td p={0} borderBottom={0} w="32px" minW="32px">
@@ -620,15 +620,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
             <Th
               position="sticky"
               top={{ base: "unset", md: top }}
-              width="200px"
-              minW="180px"
-              maxW="220px"
-            >
-              <span>{t("usersTable.bsDataUsage")}</span>
-            </Th>
-            <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
               width="280px"
               minW="200px"
               maxW="300px"
@@ -700,6 +691,15 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               top={{ base: "unset", md: top }}
               width="200px"
               minW="180px"
+              maxW="220px"
+            >
+              <span>{t("usersTable.bsDataUsage")}</span>
+            </Th>
+            <Th
+              position="sticky"
+              top={{ base: "unset", md: top }}
+              width="200px"
+              minW="180px"
             />
           </Tr>
         </Thead>
@@ -721,15 +721,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                       <OnlineStatus lastOnline={user.online_at} />
                     </div>
                   </Td>
-                  <Td width="200px" minW="180px" maxW="220px">
-                    <BsTrafficUsage
-                      user={user}
-                      showLabel={false}
-                      barMaxW="200px"
-                      colorScheme={statusColors[user.status].bandWidthColor}
-                      emptyPlaceholder
-                    />
-                  </Td>
                   <Td width="280px" minW="200px" maxW="300px">
                     <StatusBadge
                       expiryDate={user.expire}
@@ -744,6 +735,15 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                       total={user.data_limit}
                       colorScheme={statusColors[user.status].bandWidthColor}
                       barMaxW="220px"
+                    />
+                  </Td>
+                  <Td width="200px" minW="180px" maxW="220px">
+                    <BsTrafficUsage
+                      user={user}
+                      showLabel={false}
+                      barMaxW="200px"
+                      colorScheme={statusColors[user.status].bandWidthColor}
+                      emptyPlaceholder
                     />
                   </Td>
                   <Td width="200px" minW="180px">

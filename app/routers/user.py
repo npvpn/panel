@@ -2,6 +2,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from typing import cast
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -753,7 +754,7 @@ def get_users_usage(
 @router.post("/user/{username}/bs-extra", response_model=UserResponse)
 def modify_user_bs_extra(
     payload: UserBsExtraModify,
-    dbuser: DBUser = Depends(get_validated_user),
+    dbuser: UserResponse = Depends(get_validated_user),
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
@@ -766,7 +767,7 @@ def modify_user_bs_extra(
     try:
         updated_user = crud.modify_user_bs_extra(
             db,
-            dbuser,
+            cast(DBUser, dbuser),
             delta_bytes=payload.delta_bytes,
             reset=payload.reset,
         )
