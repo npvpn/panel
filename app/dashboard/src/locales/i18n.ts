@@ -10,6 +10,8 @@ import HttpApi from "i18next-http-backend";
 import { registerLocale } from "react-datepicker";
 import { initReactI18next } from "react-i18next";
 
+declare const __I18N_VERSION__: string;
+
 declare module "i18next" {
     interface CustomTypeOptions {
         returnNull: false;
@@ -36,10 +38,11 @@ i18n
                 caches: ["localStorage", "sessionStorage", "cookie"],
             },
             backend: {
-                loadPath: joinPaths([
-                    import.meta.env.BASE_URL,
-                    `statics/locales/{{lng}}.json`,
-                ]),
+                loadPath:
+                    joinPaths([
+                        import.meta.env.BASE_URL,
+                        `statics/locales/{{lng}}.json`,
+                    ]) + `?v=${__I18N_VERSION__}`,
             },
         },
         function (err, t) {
