@@ -2,8 +2,15 @@
 
 Хост, связанный с несколькими нодами (или со статическим address через запятую),
 в формате v2ray-json отдаётся одним конфигом с N proxy-outbound (теги proxy, proxy-1, …)
-и балансировщиком strategy=random. Мёртвые ноды отсеиваются observatory: RandomStrategy
-в xray-core фильтрует кандидатов по observation, если observatory присутствует.
+и балансировщиком strategy=random — клиент (xray-ядро) раскидывает соединения по всем
+нодам. Это ровно рабочий путь каскада (app/xray/cascade_config.py), где random-балансировщик
+идёт БЕЗ observatory.
+
+observatory (health-check) сознательно НЕ добавляем: на живом клиенте (Happ/xray 26.x) связка
+random+observatory роняет весь проксируемый трафик — RandomStrategy фильтрует пул по observation,
+а пробы (google/generate_204 через ноды из РФ) не проходят → «живых» нод нет → балансировщик
+не выбирает ни один outbound. Отсев мёртвых нод, если понадобится, делаем серверно (как для
+БС-нод через review-джоб), а не клиентским observatory.
 
 Без импортов БД/шаблонов — покрывается pytest без окружения (как cascade_config/bs_routing).
 """
@@ -13,9 +20,6 @@ from __future__ import annotations
 PROXY_OUTBOUND_TAG = "proxy"
 HOST_BALANCER_TAG = "proxy-balancer"
 HOST_BALANCER_STRATEGY = "random"
-
-OBSERVATORY_PROBE_URL = "https://www.google.com/generate_204"
-OBSERVATORY_INTERVAL = "1m"
 
 
 def proxy_outbound_tag(index: int) -> str:
@@ -46,19 +50,11 @@ def build_balancer_rule() -> dict:
     }
 
 
-def build_observatory() -> dict:
-    """Health-check proxy-outbound'ов: по нему random отсеивает мёртвые ноды."""
-    return {
-        "subjectSelector": [PROXY_OUTBOUND_TAG],
-        "probeUrl": OBSERVATORY_PROBE_URL,
-        "probeInterval": OBSERVATORY_INTERVAL,
-    }
-
-
 def apply_host_balancer(config: dict) -> dict:
-    """Дописать в собранный v2ray-json конфиг балансировщик, catch-all rule и observatory.
+    """Дописать в собранный v2ray-json конфиг балансировщик и catch-all rule.
 
     Вызывается только когда proxy-outbound'ов >1 (см. V2rayJsonConfig.add_balanced).
+    observatory НЕ добавляем (см. модульный docstring — ломает трафик на клиенте).
 
     ВАЖНО: не мутирует config["routing"] на месте — select_routing()
     (app/xray/bs_routing.py) может отдавать ОДИН И ТОТ ЖЕ routing-объект (без копии)
@@ -73,5 +69,4 @@ def apply_host_balancer(config: dict) -> dict:
     routing["balancers"] = list(routing.get("balancers", [])) + [build_balancer()]
     routing["rules"] = list(routing.get("rules", [])) + [build_balancer_rule()]
     config["routing"] = routing
-    config["observatory"] = build_observatory()
     return config
