@@ -21,11 +21,11 @@ def test_proxy_outbound_tag_rest_are_suffixed():
     assert proxy_outbound_tag(2) == "proxy-2"
 
 
-def test_build_balancer_random_over_proxy_prefix():
+def test_build_balancer_leastping_over_proxy_prefix():
     bal = build_balancer()
     assert bal["tag"] == HOST_BALANCER_TAG
     assert bal["selector"] == ["proxy"]
-    assert bal["strategy"] == {"type": "random"}
+    assert bal["strategy"] == {"type": "leastPing"}
 
 
 def test_build_balancer_rule_is_catch_all_tcp_udp():

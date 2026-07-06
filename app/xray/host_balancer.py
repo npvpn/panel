@@ -2,8 +2,17 @@
 
 Хост, связанный с несколькими нодами (или со статическим address через запятую),
 в формате v2ray-json отдаётся одним конфигом с N proxy-outbound (теги proxy, proxy-1, …)
-и балансировщиком strategy=random. Мёртвые ноды отсеиваются observatory: RandomStrategy
-в xray-core фильтрует кандидатов по observation, если observatory присутствует.
+и балансировщиком strategy=leastPing + observatory.
+
+Стратегия leastPing (а не random): проверено вживую — RandomStrategy в xray-core observatory
+ИГНОРИРУЕТ (прозвон идёт, но мёртвая нода остаётся в пуле → ~1/N коннектов падает). observatory
+реально учитывает только leastPing/leastLoad (как в app/xray/cascade_config.py). leastPing
+выбирает живую ноду с наименьшим пингом и автоматически обходит мёртвую (бесконечный пинг).
+Трейд-офф: это «лучшая живая нода + failover», а не равномерный разброс — но отсев мёртвых
+xray даёт только так.
+
+Проба идёт ЧЕРЕЗ ноду до probeUrl: у живой ноды (VPN-выход) google/generate_204 доступен →
+низкий пинг; мёртвая → проба падает → выпадает из пула.
 
 Без импортов БД/шаблонов — покрывается pytest без окружения (как cascade_config/bs_routing).
 """
@@ -12,10 +21,10 @@ from __future__ import annotations
 
 PROXY_OUTBOUND_TAG = "proxy"
 HOST_BALANCER_TAG = "proxy-balancer"
-HOST_BALANCER_STRATEGY = "random"
+HOST_BALANCER_STRATEGY = "leastPing"
 
 OBSERVATORY_PROBE_URL = "https://www.google.com/generate_204"
-OBSERVATORY_INTERVAL = "1m"
+OBSERVATORY_INTERVAL = "15s"
 
 
 def proxy_outbound_tag(index: int) -> str:
@@ -47,7 +56,7 @@ def build_balancer_rule() -> dict:
 
 
 def build_observatory() -> dict:
-    """Health-check proxy-outbound'ов: по нему random отсеивает мёртвые ноды."""
+    """Health-check proxy-outbound'ов: по нему leastPing выбирает живую ноду с мин. пингом."""
     return {
         "subjectSelector": [PROXY_OUTBOUND_TAG],
         "probeUrl": OBSERVATORY_PROBE_URL,
