@@ -504,8 +504,7 @@ def process_inbounds_and_tags(
                     add_kwargs["is_bs"] = True
                 if balanced:
                     addresses = [
-                        addr.replace("*", secrets.token_hex(8)).format_map(format_variables)
-                        for addr in address_list
+                        addr.replace("*", secrets.token_hex(8)).format_map(format_variables) for addr in address_list
                     ]
                     conf.add_balanced(
                         remark=host["remark"].format_map(format_variables),

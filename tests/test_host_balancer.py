@@ -46,8 +46,10 @@ def test_build_observatory_probes_proxy_prefix():
 def test_apply_host_balancer_appends_balancer_and_catch_all_last():
     config = {
         "outbounds": [
-            {"tag": "proxy"}, {"tag": "proxy-1"},
-            {"tag": "direct"}, {"tag": "block"},
+            {"tag": "proxy"},
+            {"tag": "proxy-1"},
+            {"tag": "direct"},
+            {"tag": "block"},
         ],
         "routing": {
             "rules": [
@@ -127,10 +129,22 @@ def _make_v2ray_json_config():
 
 def _inbound():
     return {
-        "network": "tcp", "protocol": "vless", "port": 443, "tls": "reality",
-        "header_type": "", "fragment_setting": "", "noise_setting": "", "path": "",
-        "sni": "example.com", "host": "", "fp": "chrome",
-        "pbk": "pbk", "sid": "0123", "spx": "", "alpn": None, "ais": "",
+        "network": "tcp",
+        "protocol": "vless",
+        "port": 443,
+        "tls": "reality",
+        "header_type": "",
+        "fragment_setting": "",
+        "noise_setting": "",
+        "path": "",
+        "sni": "example.com",
+        "host": "",
+        "fp": "chrome",
+        "pbk": "pbk",
+        "sid": "0123",
+        "spx": "",
+        "alpn": None,
+        "ais": "",
     }
 
 
