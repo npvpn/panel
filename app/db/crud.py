@@ -1902,9 +1902,7 @@ def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None =
         return reset_user_bs_extra_pool(db, dbuser)
     elif delta_bytes is not None:
         db.execute(
-            update(User)
-            .where(User.id == dbuser.id)
-            .values(bs_extra=int(dbuser.bs_extra or 0) + int(delta_bytes))
+            update(User).where(User.id == dbuser.id).values(bs_extra=int(dbuser.bs_extra or 0) + int(delta_bytes))
         )
     else:
         raise ValueError("either delta_bytes or reset must be provided")
