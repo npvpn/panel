@@ -147,14 +147,21 @@ SUB_SUPPORT_URL = config("SUB_SUPPORT_URL", default="https://t.me/")
 SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
 SUB_ROUTING_HAPP = config("SUB_ROUTING_HAPP", default="")
 SUB_ROUTING_V2RAYTUN = config("SUB_ROUTING_V2RAYTUN", default="")
-SUB_CLIENT_NOTE = config("SUB_CLIENT_NOTE", default="")
+_DEFAULT_SUB_CLIENT_NOTE = (
+    "• ID ПОЛЬЗОВАТЕЛЯ: <tg_id> •\n"
+    "• ↖️ ССЫЛКА ДЛЯ УПРАВЛЕНИЯ ПОДПИСКОЙ • ССЫЛКА ПОДДЕРЖКИ ↗️  •\n"
+    "• Не работает VPN? Нажмите на кнопку 🔁👆 •"
+)
+SUB_CLIENT_NOTE = config("SUB_CLIENT_NOTE", default=_DEFAULT_SUB_CLIENT_NOTE)
 SUB_PROFILE_URL = config("SUB_PROFILE_URL", default="")
 BOT_URL = config("BOT_URL", default="")
-SUB_REVOKED_ANNOUNCE_TEXT = config("SUB_REVOKED_ANNOUNCE_TEXT", default="")
-SUB_EXPIRED_ANNOUNCE_TEXT = config("SUB_EXPIRED_ANNOUNCE_TEXT", default="")
-SUB_DEVICE_LIMIT_ANNOUNCE_TEXT = config("SUB_DEVICE_LIMIT_ANNOUNCE_TEXT", default="")
+
+SUB_REVOKED_ANNOUNCE_TEXT = config("SUB_REVOKED_ANNOUNCE_TEXT", default=_DEFAULT_SUB_CLIENT_NOTE)
+SUB_EXPIRED_ANNOUNCE_TEXT = config("SUB_EXPIRED_ANNOUNCE_TEXT", default=_DEFAULT_SUB_CLIENT_NOTE)
+SUB_DEVICE_LIMIT_ANNOUNCE_TEXT = config("SUB_DEVICE_LIMIT_ANNOUNCE_TEXT", default=_DEFAULT_SUB_CLIENT_NOTE)
+SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT = config("SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT", default=_DEFAULT_SUB_CLIENT_NOTE)
+
 SUB_DEVICE_LIMIT_HARD_MODE = config("SUB_DEVICE_LIMIT_HARD_MODE", default=False, cast=bool)
-SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT = config("SUB_UNSUPPORTED_CLIENT_ANNOUNCE_TEXT", default="")
 
 
 def _parse_server_text_list(v):

@@ -150,10 +150,20 @@ class BotSettingsPayload(BaseModel):
 
 def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str, Any]:
     base = dict(DEFAULT_BOT_SETTINGS)
+    text_fallback_keys = {
+        "sub_client_note",
+        "sub_revoked_announce_text",
+        "sub_expired_announce_text",
+        "sub_device_limit_announce_text",
+        "sub_unsupported_client_announce_text",
+    }
     if raw_settings:
         for key, value in raw_settings.items():
-            if value is not None:
-                base[key] = value
+            if value is None:
+                continue
+            if key in text_fallback_keys and isinstance(value, str) and not value.strip():
+                continue
+            base[key] = value
 
     for key in (
         "sub_revoked_server_text",

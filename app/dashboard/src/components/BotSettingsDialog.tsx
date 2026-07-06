@@ -833,7 +833,7 @@ export const BotSettingsDialog: FC = () => {
                     <FormLabel>{t("botSettings.subClientNote")}</FormLabel>
                     <Textarea
                       value={settings.sub_client_note}
-                      placeholder="Текст, который увидит пользователь на странице подписки"
+                      placeholder={defaultSettings.sub_client_note}
                       onChange={(e) =>
                         updateSettings({ sub_client_note: e.target.value })
                       }
@@ -930,9 +930,9 @@ export const BotSettingsDialog: FC = () => {
                           <FormLabel>
                             {t("botSettings.subRevokedAnnounceText")}
                           </FormLabel>
-                          <Input
+                          <Textarea
                             value={settings.sub_revoked_announce_text}
-                            placeholder="Подписка была отозвана"
+                            placeholder={defaultSettings.sub_revoked_announce_text}
                             onChange={(e) =>
                               updateSettings({
                                 sub_revoked_announce_text: e.target.value,
@@ -944,9 +944,9 @@ export const BotSettingsDialog: FC = () => {
                           <FormLabel>
                             {t("botSettings.subExpiredAnnounceText")}
                           </FormLabel>
-                          <Input
+                          <Textarea
                             value={settings.sub_expired_announce_text}
-                            placeholder="Срок действия подписки истёк"
+                            placeholder={defaultSettings.sub_expired_announce_text}
                             onChange={(e) =>
                               updateSettings({
                                 sub_expired_announce_text: e.target.value,
@@ -961,11 +961,13 @@ export const BotSettingsDialog: FC = () => {
                           <FormLabel>
                             {t("botSettings.subUnsupportedClientAnnounceText")}
                           </FormLabel>
-                          <Input
+                          <Textarea
                             value={
                               settings.sub_unsupported_client_announce_text
                             }
-                            placeholder="Ваш клиент не поддерживается"
+                            placeholder={
+                              defaultSettings.sub_unsupported_client_announce_text
+                            }
                             onChange={(e) =>
                               updateSettings({
                                 sub_unsupported_client_announce_text:
@@ -978,9 +980,11 @@ export const BotSettingsDialog: FC = () => {
                           <FormLabel>
                             {t("botSettings.subDeviceLimitAnnounceText")}
                           </FormLabel>
-                          <Input
+                          <Textarea
                             value={settings.sub_device_limit_announce_text}
-                            placeholder="Превышен лимит устройств"
+                            placeholder={
+                              defaultSettings.sub_device_limit_announce_text
+                            }
                             onChange={(e) =>
                               updateSettings({
                                 sub_device_limit_announce_text: e.target.value,
