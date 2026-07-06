@@ -7,6 +7,7 @@ from app.xray.host_balancer import (
     apply_host_balancer,
     build_balancer,
     build_balancer_rule,
+    build_observatory,
     proxy_outbound_tag,
 )
 
@@ -35,6 +36,13 @@ def test_build_balancer_rule_is_catch_all_tcp_udp():
     assert "outboundTag" not in rule
 
 
+def test_build_observatory_probes_proxy_prefix():
+    obs = build_observatory()
+    assert obs["subjectSelector"] == ["proxy"]
+    assert obs["probeUrl"]
+    assert obs["probeInterval"]
+
+
 def test_apply_host_balancer_appends_balancer_and_catch_all_last():
     config = {
         "outbounds": [
@@ -59,8 +67,8 @@ def test_apply_host_balancer_appends_balancer_and_catch_all_last():
     assert rules[-1] == build_balancer_rule()
     assert rules[0]["outboundTag"] == "block"
     assert rules[1]["outboundTag"] == "direct"
-    # observatory НЕ добавляем (ломает трафик на клиенте — см. host_balancer docstring)
-    assert "observatory" not in result
+    # observatory на верхнем уровне
+    assert result["observatory"] == build_observatory()
 
 
 def test_apply_host_balancer_handles_missing_routing():
@@ -68,7 +76,7 @@ def test_apply_host_balancer_handles_missing_routing():
     result = apply_host_balancer(config)
     assert result["routing"]["balancers"] == [build_balancer()]
     assert result["routing"]["rules"] == [build_balancer_rule()]
-    assert "observatory" not in result
+    assert result["observatory"] == build_observatory()
 
 
 def test_apply_host_balancer_does_not_mutate_shared_routing():
@@ -154,7 +162,7 @@ def test_add_single_address_has_no_balancer():
     assert "observatory" not in cfg
 
 
-def test_add_balanced_builds_n_proxies_and_balancer():
+def test_add_balanced_builds_n_proxies_balancer_and_observatory():
     conf = _make_v2ray_json_config()
     conf.add_balanced(
         remark="Balance all",
@@ -169,7 +177,7 @@ def test_add_balanced_builds_n_proxies_and_balancer():
     # адреса разложены по разным outbound
     addrs = [o["settings"]["vnext"][0]["address"] for o in cfg["outbounds"] if o["tag"].startswith("proxy")]
     assert addrs == ["1.1.1.1", "2.2.2.2", "3.3.3.3"]
-    # балансировщик + catch-all последним, БЕЗ observatory
+    # балансировщик + catch-all последним + observatory
     assert cfg["routing"]["balancers"] == [build_balancer()]
     assert cfg["routing"]["rules"][-1] == build_balancer_rule()
-    assert "observatory" not in cfg
+    assert cfg["observatory"] == build_observatory()
