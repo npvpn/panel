@@ -502,7 +502,7 @@ def process_inbounds_and_tags(
                 add_kwargs = {}
                 if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(host["address"], bs_addresses):
                     add_kwargs["is_bs"] = True
-                if balanced:
+                if balanced and isinstance(conf, V2rayJsonConfig):
                     addresses = [
                         addr.replace("*", secrets.token_hex(8)).format_map(format_variables) for addr in address_list
                     ]
