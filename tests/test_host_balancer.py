@@ -75,3 +75,73 @@ def test_apply_host_balancer_handles_missing_routing():
     assert result["routing"]["balancers"] == [build_balancer()]
     assert result["routing"]["rules"] == [build_balancer_rule()]
     assert result["observatory"] == build_observatory()
+
+
+import pytest
+
+
+def _make_v2ray_json_config():
+    """Инстанс V2rayJsonConfig с минимальным шаблоном.
+
+    V2rayJsonConfig.__init__ рендерит mux/user_agent/settings-шаблоны независимо от
+    template_override — если шаблонные зависимости недоступны, тест скипается (как в
+    tests/test_subscription_stubs.py::test_build_v2ray_status_stub_v2ray_json_contains_remark).
+    """
+    template = {
+        "remarks": "",
+        "outbounds": [
+            {"protocol": "freedom", "tag": "direct"},
+            {"protocol": "blackhole", "tag": "block"},
+        ],
+        "routing": {"rules": [{"type": "field", "ip": ["geoip:ru"], "outboundTag": "direct"}]},
+    }
+    try:
+        from app.subscription.v2ray import V2rayJsonConfig
+
+        return V2rayJsonConfig(template_override=template)
+    except Exception as exc:  # тяжёлые шаблонные зависимости недоступны
+        pytest.skip(f"v2ray deps unavailable: {exc}")
+
+
+def _inbound():
+    return {
+        "network": "tcp", "protocol": "vless", "port": 443, "tls": "reality",
+        "header_type": "", "fragment_setting": "", "noise_setting": "", "path": "",
+        "sni": "example.com", "host": "", "fp": "chrome",
+        "pbk": "pbk", "sid": "0123", "spx": "", "alpn": None, "ais": "",
+    }
+
+
+def _settings():
+    return {"id": "00000000-0000-0000-0000-000000000000", "flow": "xtls-rprx-vision"}
+
+
+def test_add_single_address_has_no_balancer():
+    conf = _make_v2ray_json_config()
+    conf.add(remark="Single", address="1.1.1.1", inbound=_inbound(), settings=_settings())
+    cfg = conf.config[-1]
+    proxy_tags = [o["tag"] for o in cfg["outbounds"] if o["tag"].startswith("proxy")]
+    assert proxy_tags == ["proxy"]
+    assert "balancers" not in cfg.get("routing", {})
+    assert "observatory" not in cfg
+
+
+def test_add_balanced_builds_n_proxies_balancer_and_observatory():
+    conf = _make_v2ray_json_config()
+    conf.add_balanced(
+        remark="Balance all",
+        addresses=["1.1.1.1", "2.2.2.2", "3.3.3.3"],
+        inbound=_inbound(),
+        settings=_settings(),
+    )
+    cfg = conf.config[-1]
+
+    proxy_tags = [o["tag"] for o in cfg["outbounds"] if o["tag"].startswith("proxy")]
+    assert proxy_tags == ["proxy", "proxy-1", "proxy-2"]
+    # адреса разложены по разным outbound
+    addrs = [o["settings"]["vnext"][0]["address"] for o in cfg["outbounds"] if o["tag"].startswith("proxy")]
+    assert addrs == ["1.1.1.1", "2.2.2.2", "3.3.3.3"]
+    # балансировщик + catch-all последним + observatory
+    assert cfg["routing"]["balancers"] == [build_balancer()]
+    assert cfg["routing"]["rules"][-1] == build_balancer_rule()
+    assert cfg["observatory"] == build_observatory()
