@@ -6,6 +6,8 @@
   "core.configuration": "Configuration",
   "core.generalErrorMessage": "Something went wrong, please check the configuration",
   "core.logs": "Logs",
+  "core.masterInbounds": "Master inbounds",
+  "core.masterInboundsHint": "Empty — all inbounds are started on the main server.",
   "core.restartCore": "Restart Core",
   "core.restarting": "Restarting...",
   "core.save": "Save",

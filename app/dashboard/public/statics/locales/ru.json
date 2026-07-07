@@ -6,6 +6,8 @@
   "core.configuration": "Конфигурация",
   "core.generalErrorMessage": "Что-то пошло не так, пожалуйста, проверьте конфигурацию",
   "core.logs": "Логи",
+  "core.masterInbounds": "Инбаунды Master",
+  "core.masterInboundsHint": "Пусто — на главном сервере поднимаются все инбаунды.",
   "core.restartCore": "Перезагрузить ядро",
   "core.restarting": "Перезагрузка...",
   "core.save": "Сохранить",
