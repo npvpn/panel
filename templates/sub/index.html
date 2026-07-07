@@ -99,6 +99,7 @@
             id: 'iOS',
             name: 'iOS',
             appName: 'Happ Proxy',
+            appName2: 'Incy',
             ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
             globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
 
@@ -118,6 +119,7 @@
             id: 'Mac',
             name: 'Mac',
             appName: 'Happ Proxy',
+            appName2: 'Incy',
             ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
             globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
 
@@ -373,8 +375,13 @@
                       Выберите регион, соответствующий Apple ID
                     </p>
                     <div class="flex gap-2">
-                      <a
+                      <!-- <a
                         href="https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
+                        target="_blank"
+                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
+                      > -->
+                      <a
+                        href="https://apps.apple.com/ru/app/incy/id6756943388"
                         target="_blank"
                         class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
                       >
@@ -385,8 +392,13 @@
                         >
                         <span class="clients-btn">Для России</span>
                       </a>
-                       <a
+                      <!-- <a
                         href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
+                        target="_blank"
+                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
+                      >  -->
+                      <a
+                        href="https://apps.apple.com/us/app/incy/id6756943388"
                         target="_blank"
                         class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
                       > 
@@ -403,11 +415,17 @@
                       Альтернативные приложения для подключения
                     </p>
     
-                    <a href="https://apps.apple.com/ru/app/incy/id6756943388"
+                    <!-- <a href="https://apps.apple.com/ru/app/incy/id6756943388"
                       target="_blank"
                       class="box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn" style="border-radius: 8px; width: 85px;"
                     > 
                       Incy
+                    </a> -->
+                    <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
+                      target="_blank"
+                      class="box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn" style="border-radius: 8px; width: 120px;"
+                    > 
+                      Happ Proxy Global
                     </a>
     
                   </div>
@@ -508,7 +526,7 @@ sudo apt install ./Happ.linux.x64.deb
                       Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                     </a>
                 </template>
-                <template x-if="['iOS','Mac'].includes(selectedOs)">
+                <!-- <template x-if="['iOS','Mac'].includes(selectedOs)">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <button
                         @click="copyToClipboard(user.subscription_url)"
@@ -533,13 +551,65 @@ sudo apt install ./Happ.linux.x64.deb
                       </button>
                       <a
                         x-show="String(selectedOs).toLowerCase() !== 'linux'"
+                        :href="`incy://add/${user.subscription_url}`"
+                        class="dark-btn"
+                      >
+                        Добавить ключ в&nbsp;<span x-text="currentOs.appName2"></span>
+                      </a>
+                      <a
+                        x-show="String(selectedOs).toLowerCase() !== 'linux'"
                         :href="`happ://add/${user.subscription_url}`"
                         class="dark-btn"
                       >
                         Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
                       </a>
                   </div>
-                </template>
+                </template> -->
+                <template x-if="['iOS','Mac'].includes(selectedOs)">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div class="flex flex-col">
+                          <button
+                              @click="copyToClipboard(user.subscription_url)"
+                              class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0 w-full h-fit"
+                              style="border-radius: 40px;"
+                          >
+                              <span
+                                  class="text-[16px] font-bold"
+                                  style="font-family: var(--third-family)"
+                                  x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
+                              ></span>
+                              <template x-if="!copiedKey">
+                                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
+                                      xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M13.3335 2.5H3.3335V13.3333"
+                                          stroke="#141413" stroke-width="1.66667"
+                                          stroke-linecap="round" stroke-linejoin="round" />
+                                      <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
+                                          stroke="#141413" stroke-width="1.66667"
+                                          stroke-linecap="round" stroke-linejoin="round" />
+                                  </svg>
+                              </template>
+                          </button>
+                      </div>
+
+                      <div class="flex flex-col gap-2">
+                          <a
+                              x-show="String(selectedOs).toLowerCase() !== 'linux'"
+                              :href="`incy://add/${user.subscription_url}`"
+                              class="dark-btn w-full text-center"
+                          >
+                              Добавить ключ в&nbsp;<span x-text="currentOs.appName2"></span>
+                          </a>
+                          <a
+                              x-show="String(selectedOs).toLowerCase() !== 'linux'"
+                              :href="`happ://add/${user.subscription_url}`"
+                              class="dark-btn w-full text-center"
+                          >
+                              Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
+                          </a>
+                      </div>
+                  </div>
+              </template>
               </div>
             </div>
             {% if web_url %}
