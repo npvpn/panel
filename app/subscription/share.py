@@ -455,7 +455,8 @@ def process_inbounds_and_tags(
 
                 address = ""
                 address_list = host["address"]
-                if host["address"]:
+                balanced = isinstance(conf, V2rayJsonConfig) and address_list and len(address_list) > 1
+                if address_list and not balanced:
                     salt = secrets.token_hex(8)
                     address = random.choice(address_list).replace("*", salt)
 
@@ -501,13 +502,25 @@ def process_inbounds_and_tags(
                 add_kwargs = {}
                 if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(host["address"], bs_addresses):
                     add_kwargs["is_bs"] = True
-                conf.add(
-                    remark=host["remark"].format_map(format_variables),
-                    address=address.format_map(format_variables),
-                    inbound=host_inbound,
-                    settings=settings.model_dump(),
-                    **add_kwargs,
-                )
+                if balanced and isinstance(conf, V2rayJsonConfig):
+                    addresses = [
+                        addr.replace("*", secrets.token_hex(8)).format_map(format_variables) for addr in address_list
+                    ]
+                    conf.add_balanced(
+                        remark=host["remark"].format_map(format_variables),
+                        addresses=addresses,
+                        inbound=host_inbound,
+                        settings=settings.model_dump(),
+                        **add_kwargs,
+                    )
+                else:
+                    conf.add(
+                        remark=host["remark"].format_map(format_variables),
+                        address=address.format_map(format_variables),
+                        inbound=host_inbound,
+                        settings=settings.model_dump(),
+                        **add_kwargs,
+                    )
 
     return conf.render(reverse=reverse)
 

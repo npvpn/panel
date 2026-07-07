@@ -12,6 +12,7 @@ from app.subscription.funcs import get_grpc_gun, get_grpc_multi
 from app.templates import render_template
 from app.utils.helpers import UUIDEncoder
 from app.xray.bs_routing import select_routing
+from app.xray.host_balancer import apply_host_balancer, proxy_outbound_tag
 from config import (
     EXTERNAL_CONFIG,
     GRPC_USER_AGENT_TEMPLATE,
@@ -502,7 +503,7 @@ class V2rayJsonConfig(str):
 
         del user_agent_data, grpc_user_agent_data
 
-    def add_config(self, remarks, outbounds, is_bs=False):
+    def _assemble_config(self, remarks, outbounds, is_bs=False):
         json_template = json.loads(self.template)
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
@@ -512,7 +513,23 @@ class V2rayJsonConfig(str):
             self.routing_bs,
             is_bs,
         )
-        self.config.append(json_template)
+        return json_template
+
+    def add_config(self, remarks, outbounds, is_bs=False):
+        self.config.append(self._assemble_config(remarks, outbounds, is_bs))
+
+    def add_balanced(self, remark: str, addresses: list, inbound: dict, settings: dict, is_bs: bool = False):
+        """Multi-address хост → один конфиг с N proxy-outbound + xray-балансировщик."""
+        dialer = self.make_dialer_outbound(inbound["fragment_setting"], inbound["noise_setting"])
+        dialer_proxy = dialer["tag"] if dialer else ""
+        outbounds = [
+            self._build_proxy_outbound(proxy_outbound_tag(i), address, inbound, settings, dialer_proxy)
+            for i, address in enumerate(addresses)
+        ]
+        if dialer:
+            outbounds.append(dialer)
+        config = self._assemble_config(remark, outbounds, is_bs)
+        self.config.append(apply_host_balancer(config))
 
     def render(self, reverse=False):
         if reverse:
@@ -960,8 +977,7 @@ class V2rayJsonConfig(str):
             network=net, security=tls, network_setting=network_setting, tls_settings=tls_settings, sockopt=sockopt
         )
 
-    def add(self, remark: str, address: str, inbound: dict, settings: dict, is_bs: bool = False):
-
+    def _build_proxy_outbound(self, tag, address, inbound, settings, dialer_proxy=""):
         net = inbound["network"]
         protocol = inbound["protocol"]
         port = inbound["port"]
@@ -971,8 +987,6 @@ class V2rayJsonConfig(str):
 
         tls = inbound["tls"]
         headers = inbound["header_type"]
-        fragment = inbound["fragment_setting"]
-        noise = inbound["noise_setting"]
         path = inbound["path"]
         multi_mode = inbound.get("multiMode", False)
 
@@ -982,33 +996,22 @@ class V2rayJsonConfig(str):
             else:
                 path = get_grpc_gun(path)
 
-        outbound = {"tag": "proxy", "protocol": protocol}
+        outbound = {"tag": tag, "protocol": protocol}
 
-        if inbound["protocol"] == "vmess":
+        if protocol == "vmess":
             outbound["settings"] = self.vmess_config(address=address, port=port, id=settings["id"])
-
-        elif inbound["protocol"] == "vless":
+        elif protocol == "vless":
             if net in ("tcp", "raw", "kcp") and headers != "http" and tls in ("tls", "reality"):
                 flow = settings.get("flow", "")
             else:
                 flow = None
-
             outbound["settings"] = self.vless_config(address=address, port=port, id=settings["id"], flow=flow)
-
-        elif inbound["protocol"] == "trojan":
+        elif protocol == "trojan":
             outbound["settings"] = self.trojan_config(address=address, port=port, password=settings["password"])
-
-        elif inbound["protocol"] == "shadowsocks":
+        elif protocol == "shadowsocks":
             outbound["settings"] = self.shadowsocks_config(
                 address=address, port=port, password=settings["password"], method=settings["method"]
             )
-
-        outbounds = [outbound]
-        dialer_proxy = ""
-        extra_outbound = self.make_dialer_outbound(fragment, noise)
-        if extra_outbound:
-            dialer_proxy = extra_outbound["tag"]
-            outbounds.append(extra_outbound)
 
         alpn = inbound.get("alpn", None)
         outbound["streamSettings"] = self.make_stream_setting(
@@ -1038,11 +1041,18 @@ class V2rayJsonConfig(str):
             keepAlivePeriod=inbound.get("keepAlivePeriod", 0),
         )
 
-        mux_json = json.loads(self.mux_template)
-        mux_config = mux_json["v2ray"]
-
         if inbound.get("mux_enable", False):
+            mux_config = json.loads(self.mux_template)["v2ray"]
+            mux_config["enabled"] = True
             outbound["mux"] = mux_config
-            outbound["mux"]["enabled"] = True
 
+        return outbound
+
+    def add(self, remark: str, address: str, inbound: dict, settings: dict, is_bs: bool = False):
+        dialer = self.make_dialer_outbound(inbound["fragment_setting"], inbound["noise_setting"])
+        dialer_proxy = dialer["tag"] if dialer else ""
+        outbound = self._build_proxy_outbound("proxy", address, inbound, settings, dialer_proxy)
+        outbounds = [outbound]
+        if dialer:
+            outbounds.append(dialer)
         self.add_config(remarks=remark, outbounds=outbounds, is_bs=is_bs)

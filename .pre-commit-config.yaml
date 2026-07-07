@@ -5,9 +5,13 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-check
-        name: ruff-strict (staged)
+        name: ruff-strict (manual)
         alias: ruff-strict
         args: [--config, ruff-strict.toml]
+        # Неблокирующий: в CI strict — informational (continue-on-error), только по
+        # изменённым файлам. Здесь тоже не блокируем коммит — запуск вручную:
+        # pre-commit run ruff-strict --hook-stage manual (или uv run ruff check --config ruff-strict.toml).
+        stages: [manual]
       - id: ruff-format
 
   - repo: local
