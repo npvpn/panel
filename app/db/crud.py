@@ -1875,6 +1875,25 @@ def get_bs_usage_totals(db: Session, user_id: int, yyyymm: str) -> int:
     return totals.get(user_id, 0)
 
 
+def get_user_bs_traffic(db: Session, dbuser: User) -> dict[str, int]:
+    """Сводка БС-трафика для API пользователя и внешних клиентов."""
+    from app.xray.bs_limit import monthly_effective_limit, period_keys
+
+    user_id = cast(int, dbuser.id)
+    settings = _bot_settings_for_user(db, dbuser)
+    monthly_limit = int(settings.get("bs_monthly_limit") or 0)
+    monthly_used = get_bs_usage_totals(db, user_id, period_keys(datetime.utcnow()))
+    extra_bytes = int(dbuser.bs_extra or 0)
+    monthly_limit_with_extra = monthly_effective_limit(monthly_limit, extra_bytes) if monthly_limit else 0
+
+    return {
+        "monthly_used": monthly_used,
+        "monthly_limit": monthly_limit,
+        "monthly_limit_with_extra": monthly_limit_with_extra,
+        "extra_bytes": extra_bytes,
+    }
+
+
 def _bot_settings_for_user(db: Session, dbuser: User) -> dict[str, Any]:
     from app.db.models import BotSettings
 
@@ -1897,7 +1916,7 @@ def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None =
     """Инкремент или сброс остатка купленного БС-пула (bs_extra)."""
     if reset:
         settings = _bot_settings_for_user(db, dbuser)
-        if not settings.get("bs_extra_reset_pool_on_prolong", True):
+        if not settings.get("bs_extra_reset_pool_on_prolong", False):
             return dbuser
         return reset_user_bs_extra_pool(db, dbuser)
     elif delta_bytes is not None:

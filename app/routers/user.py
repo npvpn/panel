@@ -25,6 +25,7 @@ from app.models.proxy import (
 )
 from app.models.user import (
     UserBsExtraModify,
+    UserBsTrafficResponse,
     UserCreate,
     UserDeviceCreate,
     UserDeviceResponse,
@@ -782,6 +783,17 @@ def modify_user_bs_extra(
         user.bs_extra,
     )
     return user
+
+
+@router.get("/user/{username}/bs-traffic", response_model=UserBsTrafficResponse)
+def get_user_bs_traffic(
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Сводка БС-трафика пользователя: used/limit + купленный extra-пул."""
+    del admin
+    return crud.get_user_bs_traffic(db, cast(DBUser, dbuser))
 
 
 @router.put("/user/{username}/set-owner", response_model=UserResponse)

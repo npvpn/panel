@@ -424,3 +424,10 @@ class UserBsExtraModify(BaseModel):
         if isinstance(v, int):
             return v
         raise ValueError("delta_bytes must be an integer or a float, not a string")
+
+
+class UserBsTrafficResponse(BaseModel):
+    monthly_used: int = 0
+    monthly_limit: int = 0
+    monthly_limit_with_extra: int = 0
+    extra_bytes: int = 0

@@ -80,7 +80,7 @@ const emptySettings: BotSettings = {
   sub_routing_json_bs: "",
   sub_custom_headers: "",
   bs_monthly_limit: 0,
-  bs_extra_reset_pool_on_prolong: true,
+  bs_extra_reset_pool_on_prolong: false,
 };
 
 type ServerTextField =
