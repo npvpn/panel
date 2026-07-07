@@ -68,6 +68,13 @@ def get_tls():
         return {"key": tls.key, "certificate": tls.certificate}
 
 
+def refresh_master_inbounds(db):
+    """Перечитать теги инбаундов Master из БД в кеш xray.master_inbound_tags (in-place)."""
+    from app import xray
+
+    xray.master_inbound_tags[:] = crud.get_master_inbound_tags(db)
+
+
 @threaded_function
 def _add_user_to_inbound(api: XRayAPI, inbound_tag: str, account: Account):
     try:

@@ -9,6 +9,7 @@ from app.xray import operations
 from app.xray.config import XRayConfig
 from app.xray.core import XRayCore
 from app.xray.host_addresses import resolve_host_addresses
+from app.xray.inbound_filter import apply_inbound_filter
 from app.xray.node import XRayNode
 from config import XRAY_ASSETS_PATH, XRAY_EXECUTABLE_PATH, XRAY_JSON
 from xray_api import XRay as XRayAPI
@@ -29,6 +30,12 @@ finally:
 api = XRayAPI(config.api_host, config.api_port)
 
 nodes: dict[int, XRayNode] = {}
+
+# Кеш тегов инбаундов Master (пусто ⇒ Master поднимает все инбаунды).
+# Обновляется через operations.refresh_master_inbounds(db).
+master_inbound_tags: list[str] = []
+
+core.inbound_filter = lambda cfg: apply_inbound_filter(cfg, master_inbound_tags)
 
 
 if TYPE_CHECKING:
@@ -76,6 +83,7 @@ __all__ = [
     "core",
     "api",
     "nodes",
+    "master_inbound_tags",
     "operations",
     "exceptions",
     "exc",
