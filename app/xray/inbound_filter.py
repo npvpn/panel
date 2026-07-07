@@ -26,3 +26,21 @@ def filtered_inbounds(
     managed = set(managed_tags)
     allowed = set(allowed_tags)
     return [inbound for inbound in inbounds if inbound["tag"] not in managed or inbound["tag"] in allowed]
+
+
+def apply_inbound_filter(base_config, allowed_tags):
+    """Config-level фильтр инбаундов (общий для нод и главного core).
+
+    allowed_tags пуст/None → base_config без изменений (обратная совместимость:
+    поднимаются все инбаунды). Иначе — base_config.copy() с оставленными
+    инфраструктурными инбаундами и разрешёнными управляемыми (allowed_tags).
+    """
+    if not allowed_tags:
+        return base_config
+    cfg = base_config.copy()
+    cfg["inbounds"] = filtered_inbounds(
+        cfg["inbounds"],
+        managed_tags=set(base_config.inbounds_by_tag.keys()),
+        allowed_tags=set(allowed_tags),
+    )
+    return cfg

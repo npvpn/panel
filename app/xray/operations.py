@@ -12,7 +12,7 @@ from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
 from app.xray.bs_limit import strip_blocked_clients
 from app.xray.cascade_config import cascade_config
-from app.xray.inbound_filter import filtered_inbounds
+from app.xray.inbound_filter import apply_inbound_filter
 from app.xray.node import XRayNode
 from config import (
     XRAY_NODE_CONNECT_RETRIES,
@@ -467,23 +467,11 @@ def _cascade_kwargs(db, dbnode) -> dict:
 def _node_specific_config(base_config, node_inbound_tags):
     """Вернуть конфиг для конкретной ноды.
 
-    node_inbound_tags пуст/None → возвращаем base_config без изменений
+    node_inbound_tags пуст/None → base_config без изменений
     (обратная совместимость: нода получает все инбаунды).
-    Иначе — копия конфига, в которой оставлены только инфраструктурные
-    инбаунды и назначенные ноде прокси-инбаунды.
+    Иначе — копия с инфраструктурными + назначенными ноде инбаундами.
     """
-    if not node_inbound_tags:
-        return base_config
-    node_config = base_config.copy()  # deepcopy → остаётся XRayConfig с to_json()
-    # managed_tags — только прокси-инбаунды (inbounds_by_tag). Инфраструктурные
-    # инбаунды (API_INBOUND, fallback, XRAY_EXCLUDE_INBOUND_TAGS) в managed не входят,
-    # поэтому остаются на каждой ноде всегда, независимо от назначений.
-    node_config["inbounds"] = filtered_inbounds(
-        node_config["inbounds"],
-        managed_tags=set(base_config.inbounds_by_tag.keys()),
-        allowed_tags=set(node_inbound_tags),
-    )
-    return node_config
+    return apply_inbound_filter(base_config, node_inbound_tags)
 
 
 def remove_node(node_id: int):
