@@ -35,7 +35,10 @@ nodes: dict[int, XRayNode] = {}
 # Обновляется через operations.refresh_master_inbounds(db).
 master_inbound_tags: list[str] = []
 
-core.inbound_filter = lambda cfg: apply_inbound_filter(cfg, master_inbound_tags)
+# list(...) — снимок на момент вызова: refresh_master_inbounds мутирует список
+# in-place (master_inbound_tags[:] = ...), а хук может читаться из потока
+# APScheduler (core_health_check) параллельно с PUT-обновлением.
+core.inbound_filter = lambda cfg: apply_inbound_filter(cfg, list(master_inbound_tags))
 
 
 if TYPE_CHECKING:
