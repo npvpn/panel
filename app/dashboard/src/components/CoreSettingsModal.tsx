@@ -139,6 +139,11 @@ const CoreSettingModalContent: FC = () => {
     version,
     restartCore,
   } = useCoreSettings();
+  const logsDiv = useRef<HTMLDivElement | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const { t } = useTranslation();
+  const toast = useToast();
+
   const inboundTags = useMemo(
     () =>
       Array.from(
@@ -151,13 +156,27 @@ const CoreSettingModalContent: FC = () => {
     [allInbounds]
   );
   const [masterInbounds, setMasterInboundsState] = useState<string[]>([]);
+  const [masterLoaded, setMasterLoaded] = useState(false);
   const [savingMaster, setSavingMaster] = useState(false);
 
   useEffect(() => {
-    if (isEditingCore)
+    if (isEditingCore) {
+      setMasterLoaded(false);
       getMasterInbounds()
-        .then((r) => setMasterInboundsState(r.inbounds))
-        .catch(() => void 0);
+        .then((r) => {
+          setMasterInboundsState(r.inbounds);
+          setMasterLoaded(true);
+        })
+        .catch(() =>
+          toast({
+            title: t("core.generalErrorMessage"),
+            status: "error",
+            isClosable: true,
+            position: "top",
+            duration: 3000,
+          })
+        );
+    }
   }, [isEditingCore]);
 
   const toggleMasterInbound = (tag: string, checked: boolean) =>
@@ -189,10 +208,6 @@ const CoreSettingModalContent: FC = () => {
       )
       .finally(() => setSavingMaster(false));
   };
-  const logsDiv = useRef<HTMLDivElement | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const { t } = useTranslation();
-  const toast = useToast();
   const form = useForm({
     defaultValues: { config: config || {} },
   });
@@ -418,6 +433,7 @@ const CoreSettingModalContent: FC = () => {
               mt={2}
               variant="outline"
               isLoading={savingMaster}
+              isDisabled={!masterLoaded}
               onClick={handleSaveMaster}
             >
               {t("core.save")}
