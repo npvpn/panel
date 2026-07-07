@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from config import (
     BOT_URL,
+    SUB_BS_LIMIT_ANNOUNCE_TEXT,
     SUB_CLIENT_NOTE,
     SUB_DEVICE_LIMIT_ANNOUNCE_TEXT,
     SUB_DEVICE_LIMIT_HARD_MODE,
@@ -55,7 +56,7 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "bs_daily_limit": 0,
     "bs_monthly_limit": 0,
     "sub_bs_limit_server_text": [],
-    "sub_bs_limit_announce_text": "",
+    "sub_bs_limit_announce_text": SUB_BS_LIMIT_ANNOUNCE_TEXT,
     "sub_v2ray_json_template": "",
     "sub_routing_json_default": "",
     "sub_routing_json_bs": "",
@@ -156,12 +157,22 @@ def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str
         "sub_expired_announce_text",
         "sub_device_limit_announce_text",
         "sub_unsupported_client_announce_text",
+        "sub_bs_limit_announce_text",
+    }
+    server_text_fallback_keys = {
+        "sub_revoked_server_text",
+        "sub_expired_server_text",
+        "sub_device_limit_server_text",
+        "sub_unsupported_client_server_text",
+        "sub_bs_limit_server_text",
     }
     if raw_settings:
         for key, value in raw_settings.items():
             if value is None:
                 continue
             if key in text_fallback_keys and isinstance(value, str) and not value.strip():
+                continue
+            if key in server_text_fallback_keys and not _normalize_server_text(value):
                 continue
             base[key] = value
 

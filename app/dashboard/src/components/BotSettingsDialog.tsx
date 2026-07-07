@@ -272,6 +272,11 @@ export const BotSettingsDialog: FC = () => {
     [bots, selectedBot]
   );
 
+  const defaultListFieldTexts = useMemo(
+    () => toListFieldTexts(defaultSettings),
+    [defaultSettings]
+  );
+
   const mergeWithDefaults = (current: BotSettings): BotSettings => {
     return {
       sub_update_interval:
@@ -993,6 +998,21 @@ export const BotSettingsDialog: FC = () => {
                           />
                         </FormControl>
                       </SimpleGrid>
+
+                      <FormControl>
+                        <FormLabel>
+                          {t("botSettings.subBsLimitAnnounceText")}
+                        </FormLabel>
+                        <Textarea
+                          value={settings.sub_bs_limit_announce_text}
+                          placeholder={defaultSettings.sub_bs_limit_announce_text}
+                          onChange={(e) =>
+                            updateSettings({
+                              sub_bs_limit_announce_text: e.target.value,
+                            })
+                          }
+                        />
+                      </FormControl>
                     </VStack>
                   </Box>
 
@@ -1046,6 +1066,9 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFieldTexts.sub_revoked_server_text}
+                            placeholder={
+                              defaultListFieldTexts.sub_revoked_server_text
+                            }
                             onChange={(e) =>
                               updateListField(
                                 "sub_revoked_server_text",
@@ -1063,6 +1086,9 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFieldTexts.sub_expired_server_text}
+                            placeholder={
+                              defaultListFieldTexts.sub_expired_server_text
+                            }
                             onChange={(e) =>
                               updateListField(
                                 "sub_expired_server_text",
@@ -1080,6 +1106,9 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={listFieldTexts.sub_bs_limit_server_text}
+                            placeholder={
+                              defaultListFieldTexts.sub_bs_limit_server_text
+                            }
                             onChange={(e) =>
                               updateListField(
                                 "sub_bs_limit_server_text",
@@ -1095,25 +1124,13 @@ export const BotSettingsDialog: FC = () => {
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>
-                            {t("botSettings.subBsLimitAnnounceText")}
-                          </FormLabel>
-                          <Input
-                            value={settings.sub_bs_limit_announce_text}
-                            onChange={(e) =>
-                              updateSettings({
-                                sub_bs_limit_announce_text: e.target.value,
-                              })
-                            }
-                          />
-                        </FormControl>
-                      </SimpleGrid>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl>
-                          <FormLabel>
                             {t("botSettings.subDeviceLimitServerText")}
                           </FormLabel>
                           <Textarea
                             value={listFieldTexts.sub_device_limit_server_text}
+                            placeholder={
+                              defaultListFieldTexts.sub_device_limit_server_text
+                            }
                             onChange={(e) =>
                               updateListField(
                                 "sub_device_limit_server_text",
@@ -1132,6 +1149,9 @@ export const BotSettingsDialog: FC = () => {
                           <Textarea
                             value={
                               listFieldTexts.sub_unsupported_client_server_text
+                            }
+                            placeholder={
+                              defaultListFieldTexts.sub_unsupported_client_server_text
                             }
                             onChange={(e) =>
                               updateListField(

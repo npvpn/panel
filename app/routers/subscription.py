@@ -301,10 +301,7 @@ def user_subscription(
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
     elif blocked_bs_addresses and str(bot_settings["sub_bs_limit_announce_text"]).strip():
-        # БС-announce не заменяет стандартный (sub_client_note), а добавляется
-        # первой строкой перед ним.
-        bs_announce = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
-        announce_text = f"{bs_announce}\n{announce_text}" if announce_text else bs_announce
+        announce_text = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
     response_headers = {
@@ -499,10 +496,7 @@ def user_subscription_with_client_type(
     elif unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         announce_text = get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
     elif blocked_bs_addresses and str(bot_settings["sub_bs_limit_announce_text"]).strip():
-        # БС-announce не заменяет стандартный (sub_client_note), а добавляется
-        # первой строкой перед ним.
-        bs_announce = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
-        announce_text = f"{bs_announce}\n{announce_text}" if announce_text else bs_announce
+        announce_text = get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     support_url = bot_settings["sub_support_url"]
     profile_title = bot_settings["sub_profile_title"]
     response_headers = {
