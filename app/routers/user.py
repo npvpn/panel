@@ -2,6 +2,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from typing import cast
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -23,6 +24,8 @@ from app.models.proxy import (
     XTLSFlows,
 )
 from app.models.user import (
+    UserBsExtraModify,
+    UserBsTrafficResponse,
     UserCreate,
     UserDeviceCreate,
     UserDeviceResponse,
@@ -749,6 +752,50 @@ def get_users_usage(
     return {"usages": usages}
 
 
+@router.post("/user/{username}/bs-extra", response_model=UserResponse)
+def modify_user_bs_extra(
+    payload: UserBsExtraModify,
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Инкремент или сброс остатка купленного БС-пула (bs_extra) пользователя."""
+    del admin
+    if not payload.reset and payload.delta_bytes is None:
+        raise HTTPException(status_code=400, detail="Укажите delta_bytes или reset=true")
+    if payload.reset and payload.delta_bytes is not None:
+        raise HTTPException(status_code=400, detail="Нельзя указывать delta_bytes вместе с reset=true")
+    try:
+        updated_user = crud.modify_user_bs_extra(
+            db,
+            cast(DBUser, dbuser),
+            delta_bytes=payload.delta_bytes,
+            reset=payload.reset,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    user = UserResponse.model_validate(updated_user)
+    logger.info(
+        'User "%s" bs_extra updated: reset=%s delta=%s new_value=%s',
+        user.username,
+        payload.reset,
+        payload.delta_bytes,
+        user.bs_extra,
+    )
+    return user
+
+
+@router.get("/user/{username}/bs-traffic", response_model=UserBsTrafficResponse)
+def get_user_bs_traffic(
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Сводка БС-трафика пользователя: used/limit + купленный extra-пул."""
+    del admin
+    return crud.get_user_bs_traffic(db, cast(DBUser, dbuser))
+
+
 @router.put("/user/{username}/set-owner", response_model=UserResponse)
 def set_owner(
     admin_username: str,
@@ -761,8 +808,8 @@ def set_owner(
     if not new_admin:
         raise HTTPException(status_code=404, detail="Admin not found")
 
-    dbuser = crud.set_owner(db, dbuser, new_admin)
-    user = UserResponse.model_validate(dbuser)
+    updated_user = crud.set_owner(db, dbuser, new_admin)
+    user = UserResponse.model_validate(updated_user)
 
     logger.info(f'{user.username}"owner successfully set to{admin.username}')
 

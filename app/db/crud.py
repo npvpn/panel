@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, func, or_
+from sqlalchemy import and_, delete, func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql.functions import coalesce
@@ -234,7 +234,11 @@ def get_user_queryset(db: Session) -> Query:
         Query: Base user query.
     """
     return (
-        db.query(User).options(joinedload(User.admin)).options(joinedload(User.next_plan)).options(joinedload(User.bot))
+        db.query(User)
+        .options(joinedload(User.admin))
+        .options(joinedload(User.next_plan))
+        .options(joinedload(User.bot).joinedload(Bot.settings))
+        .options(joinedload(User.node_bs_usages))
     )
 
 
@@ -1846,16 +1850,13 @@ def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: s
     return dbnode
 
 
-def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> tuple[int, int]:
-    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий период.
-    → (daily_used, monthly_used) в байтах. Один индексированный запрос по user_id."""
+def get_bs_usage_totals(db: Session, user_id: int, yyyymm: str) -> int:
+    """Агрегат БС-расхода юзера (сумма по is_bs-нодам) за текущий месяц в байтах."""
     from app.xray.bs_limit import aggregate_bs_usage
 
     rows = (
         db.query(
             NodeUserBsUsage.user_id,
-            NodeUserBsUsage.daily_used,
-            NodeUserBsUsage.daily_period,
             NodeUserBsUsage.monthly_used,
             NodeUserBsUsage.monthly_period,
         )
@@ -1868,21 +1869,88 @@ def get_bs_usage_totals(db: Session, user_id: int, today: str, yyyymm: str) -> t
     )
 
     totals = aggregate_bs_usage(
-        [
-            {
-                "user_id": r.user_id,
-                "daily_used": r.daily_used,
-                "daily_period": r.daily_period,
-                "monthly_used": r.monthly_used,
-                "monthly_period": r.monthly_period,
-            }
-            for r in rows
-        ],
-        today,
+        [{"user_id": r.user_id, "monthly_used": r.monthly_used, "monthly_period": r.monthly_period} for r in rows],
         yyyymm,
     )
-    t = totals.get(user_id, {"daily_used": 0, "monthly_used": 0})
-    return t["daily_used"], t["monthly_used"]
+    return totals.get(user_id, 0)
+
+
+def get_user_bs_traffic(db: Session, dbuser: User) -> dict[str, int]:
+    """Сводка БС-трафика для API пользователя и внешних клиентов."""
+    from app.xray.bs_limit import monthly_effective_limit, period_keys
+
+    user_id = cast(int, dbuser.id)
+    settings = _bot_settings_for_user(db, dbuser)
+    monthly_limit = int(settings.get("bs_monthly_limit") or 0)
+    monthly_used = get_bs_usage_totals(db, user_id, period_keys(datetime.utcnow()))
+    extra_bytes = int(dbuser.bs_extra or 0)
+    monthly_limit_with_extra = monthly_effective_limit(monthly_limit, extra_bytes) if monthly_limit else 0
+
+    return {
+        "monthly_used": monthly_used,
+        "monthly_limit": monthly_limit,
+        "monthly_limit_with_extra": monthly_limit_with_extra,
+        "extra_bytes": extra_bytes,
+    }
+
+
+def _bot_settings_for_user(db: Session, dbuser: User) -> dict[str, Any]:
+    from app.db.models import BotSettings
+
+    if not dbuser.bot_id:
+        return apply_bot_settings_fallback(None)
+    data = db.query(BotSettings.data).filter(BotSettings.bot_id == dbuser.bot_id).scalar()
+    return apply_bot_settings_fallback(data)
+
+
+def reset_user_bs_extra_pool(db: Session, dbuser: User, *, commit: bool = True) -> User:
+    """Обнуляет купленный пул bs_extra без проверки настроек (внутренний сброс)."""
+    db.execute(update(User).where(User.id == dbuser.id).values(bs_extra=0))
+    if commit:
+        db.commit()
+        db.refresh(dbuser)
+    return dbuser
+
+
+def modify_user_bs_extra(db: Session, dbuser: User, *, delta_bytes: int | None = None, reset: bool = False) -> User:
+    """Инкремент или сброс остатка купленного БС-пула (bs_extra)."""
+    if reset:
+        settings = _bot_settings_for_user(db, dbuser)
+        if not settings.get("bs_extra_reset_pool_on_prolong", False):
+            return dbuser
+        return reset_user_bs_extra_pool(db, dbuser)
+    elif delta_bytes is not None:
+        db.execute(
+            update(User).where(User.id == dbuser.id).values(bs_extra=int(dbuser.bs_extra or 0) + int(delta_bytes))
+        )
+    else:
+        raise ValueError("either delta_bytes or reset must be provided")
+    db.commit()
+    db.refresh(dbuser)
+    return dbuser
+
+
+def apply_bs_extra_pool_consumption(
+    db: Session,
+    user_id: int,
+    old_monthly_agg: int,
+    new_monthly_agg: int,
+    monthly_limit: int,
+) -> None:
+    """Списать из bs_extra прирост расхода сверх monthly_limit (в той же транзакции, что usage)."""
+    from app.xray.bs_limit import monthly_extra_consume_delta
+
+    if not monthly_limit:
+        return
+    consume = monthly_extra_consume_delta(old_monthly_agg, new_monthly_agg, monthly_limit)
+    if consume <= 0:
+        return
+    dbuser = db.query(User).filter(User.id == user_id).with_for_update().first()
+    if not dbuser:
+        return
+    remaining = int(dbuser.bs_extra or 0)
+    new_extra = 0 if remaining <= consume else remaining - consume
+    db.execute(update(User).where(User.id == user_id).values(bs_extra=new_extra))
 
 
 def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
@@ -1930,7 +1998,7 @@ def create_notification_reminder(
     """
     reminder = NotificationReminder(type=reminder_type, expires_at=expires_at, user_id=user_id)
     if threshold is not None:
-        reminder.threshold = threshold
+        setattr(reminder, "threshold", threshold)
     db.add(reminder)
     db.commit()
     db.refresh(reminder)

@@ -29,7 +29,7 @@ export type BotSettings = {
   sub_routing_json_default: string;
   sub_routing_json_bs: string;
   sub_custom_headers: string;
-  bs_daily_limit: number;
   bs_monthly_limit: number;
+  bs_extra_reset_pool_on_prolong: boolean;
   updated_at?: string;
 };

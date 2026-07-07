@@ -107,6 +107,7 @@ class User(Base):
     status = Column(Enum(UserStatus), nullable=False, default=UserStatus.active)
     used_traffic = Column(BigInteger, default=0)
     node_usages = relationship("NodeUserUsage", back_populates="user", cascade="all, delete-orphan")
+    node_bs_usages = relationship("NodeUserBsUsage", back_populates="user", cascade="all, delete-orphan")
     notification_reminders = relationship("NotificationReminder", back_populates="user", cascade="all, delete-orphan")
     data_limit = Column(BigInteger, nullable=True)
     data_limit_reset_strategy = Column(
@@ -130,6 +131,7 @@ class User(Base):
     on_hold_expire_duration = Column(BigInteger, nullable=True, default=None)
     on_hold_timeout = Column(DateTime, nullable=True, default=None)
     device_limit = Column(Integer, nullable=True, default=None)
+    bs_extra = Column(BigInteger, nullable=True, default=None)
 
     # * Positive values: User will be deleted after the value of this field in days automatically.
     # * Negative values: User won't be deleted automatically at all.
@@ -157,6 +159,41 @@ class User(Base):
     @property
     def lifetime_used_traffic(self) -> int:
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]) + self.used_traffic)
+
+    @property
+    def bs_monthly_limit_total(self) -> int | None:
+        """Месячный БС-потолок (лимит бота + остаток bs_extra), None если лимит не задан."""
+        from app.models.bot import apply_bot_settings_fallback
+        from app.xray.bs_limit import monthly_effective_limit
+
+        if not self.bot or not self.bot.settings:
+            return None
+        settings = apply_bot_settings_fallback(self.bot.settings.data or {})
+        monthly_limit = settings.get("bs_monthly_limit") or 0
+        if not monthly_limit:
+            return None
+        return monthly_effective_limit(monthly_limit, self.bs_extra or 0)
+
+    @property
+    def bs_monthly_used(self) -> int:
+        """Агрегат БС-расхода за текущий месяц из node_user_bs_usage."""
+        if self.bs_monthly_limit_total is None:
+            return 0
+        from app.xray.bs_limit import aggregate_bs_usage, period_keys
+
+        yyyymm = period_keys(datetime.utcnow())
+        totals = aggregate_bs_usage(
+            [
+                {
+                    "user_id": row.user_id,
+                    "monthly_used": row.monthly_used,
+                    "monthly_period": row.monthly_period,
+                }
+                for row in (self.node_bs_usages or [])
+            ],
+            yyyymm,
+        )
+        return totals.get(self.id, 0)
 
     @property
     def last_traffic_reset_time(self):
@@ -456,10 +493,9 @@ class NodeUserBsUsage(Base):
     id = Column(Integer, primary_key=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    daily_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     monthly_used = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
-    daily_period = Column(String(10), nullable=True)  # "YYYY-MM-DD"
     monthly_period = Column(String(7), nullable=True)  # "YYYY-MM"
+    user = relationship("User", back_populates="node_bs_usages")
 
 
 class NodeUserBlock(Base):

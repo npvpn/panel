@@ -69,6 +69,7 @@ class User(BaseModel):
     on_hold_timeout: datetime | None | None = Field(None, nullable=True)
 
     auto_delete_in_days: int | None = Field(None, nullable=True)
+    bs_extra: int | None = Field(default=None, ge=0, description="Остаток купленного БС-трафика (пул, байты)")
 
     next_plan: NextPlanModel | None = Field(None, nullable=True)
 
@@ -91,6 +92,16 @@ class User(BaseModel):
         if isinstance(v, int):  # Allow integers directly
             return v
         raise ValueError("device_limit must be an integer or a float, not a string")  # Reject strings
+
+    @field_validator("bs_extra", mode="before")
+    def cast_bs_extra_to_int(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        raise ValueError("bs_extra must be an integer or a float, not a string")
 
     @field_validator("proxies", mode="before")
     def validate_proxies(cls, v, values, **kwargs):
@@ -132,6 +143,7 @@ class User(BaseModel):
 class UserCreate(User):
     username: str
     status: UserStatusCreate = None
+    bs_extra: int | None = None
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -208,6 +220,7 @@ class UserCreate(User):
 class UserModify(User):
     status: UserStatusModify = None
     data_limit_reset_strategy: UserDataLimitResetStrategy = None
+    bs_extra: int | None = None
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -278,6 +291,8 @@ class UserResponse(User):
     status: UserStatus
     used_traffic: int
     lifetime_used_traffic: int = 0
+    bs_monthly_used: int = 0
+    bs_monthly_limit_total: int | None = None
     created_at: datetime
     links: list[str] = []
     subscription_url: str = ""
@@ -314,7 +329,7 @@ class UserResponse(User):
             v = {p.type: p.settings for p in v}
         return super().validate_proxies(v, values, **kwargs)
 
-    @field_validator("used_traffic", "lifetime_used_traffic", mode="before")
+    @field_validator("used_traffic", "lifetime_used_traffic", "bs_monthly_used", mode="before")
     def cast_to_int(cls, v):
         if v is None:  # Allow None values
             return v
@@ -394,3 +409,25 @@ class UserUsagesResponse(BaseModel):
 
 class UsersUsagesResponse(BaseModel):
     usages: list[UserUsageResponse]
+
+
+class UserBsExtraModify(BaseModel):
+    delta_bytes: int | None = Field(None, ge=0, description="Инкремент бонуса в байтах")
+    reset: bool = False
+
+    @field_validator("delta_bytes", mode="before")
+    def cast_delta_bytes(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        raise ValueError("delta_bytes must be an integer or a float, not a string")
+
+
+class UserBsTrafficResponse(BaseModel):
+    monthly_used: int = 0
+    monthly_limit: int = 0
+    monthly_limit_with_extra: int = 0
+    extra_bytes: int = 0
