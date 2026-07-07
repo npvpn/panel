@@ -937,12 +937,16 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={settings.sub_revoked_announce_text}
-                            placeholder={defaultSettings.sub_revoked_announce_text}
+                            placeholder={
+                              defaultSettings.sub_revoked_announce_text
+                            }
                             onChange={(e) =>
                               updateSettings({
                                 sub_revoked_announce_text: e.target.value,
                               })
                             }
+                            _placeholder={{ fontSize: "12px" }}
+                            minH="90px"
                           />
                         </FormControl>
                         <FormControl>
@@ -951,12 +955,16 @@ export const BotSettingsDialog: FC = () => {
                           </FormLabel>
                           <Textarea
                             value={settings.sub_expired_announce_text}
-                            placeholder={defaultSettings.sub_expired_announce_text}
+                            placeholder={
+                              defaultSettings.sub_expired_announce_text
+                            }
                             onChange={(e) =>
                               updateSettings({
                                 sub_expired_announce_text: e.target.value,
                               })
                             }
+                            _placeholder={{ fontSize: "12px" }}
+                            minH="90px"
                           />
                         </FormControl>
                       </SimpleGrid>
@@ -979,6 +987,8 @@ export const BotSettingsDialog: FC = () => {
                                   e.target.value,
                               })
                             }
+                            _placeholder={{ fontSize: "12px" }}
+                            minH="90px"
                           />
                         </FormControl>
                         <FormControl>
@@ -995,6 +1005,8 @@ export const BotSettingsDialog: FC = () => {
                                 sub_device_limit_announce_text: e.target.value,
                               })
                             }
+                            _placeholder={{ fontSize: "12px" }}
+                            minH="90px"
                           />
                         </FormControl>
                       </SimpleGrid>
@@ -1005,12 +1017,15 @@ export const BotSettingsDialog: FC = () => {
                         </FormLabel>
                         <Textarea
                           value={settings.sub_bs_limit_announce_text}
-                          placeholder={defaultSettings.sub_bs_limit_announce_text}
+                          placeholder={
+                            defaultSettings.sub_bs_limit_announce_text
+                          }
                           onChange={(e) =>
                             updateSettings({
                               sub_bs_limit_announce_text: e.target.value,
                             })
                           }
+                          _placeholder={{ fontSize: "12px" }}
                         />
                       </FormControl>
                     </VStack>
@@ -1034,6 +1049,7 @@ export const BotSettingsDialog: FC = () => {
                             sub_device_limit_hard_mode: e.target.checked,
                           })
                         }
+                        _placeholder={{ fontSize: "12px" }}
                       />
                       <FormHelperText>
                         {t("botSettings.subDeviceLimitHardModeHint")}
