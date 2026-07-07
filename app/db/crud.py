@@ -35,6 +35,7 @@ from app.db.models import (
     UserDevice,
     UserTemplate,
     UserUsageResetLogs,
+    master_inbounds_association,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.bot import apply_bot_settings_fallback
@@ -1825,6 +1826,21 @@ def update_node(db: Session, dbnode: Node, modify: NodeModify) -> Node:
     db.commit()
     db.refresh(dbnode)
     return dbnode
+
+
+def get_master_inbound_tags(db: Session) -> list[str]:
+    """Теги инбаундов, назначенных главному серверу (Master). Пусто ⇒ все инбаунды."""
+    return [row[0] for row in db.query(master_inbounds_association.c.inbound_tag).all()]
+
+
+def set_master_inbounds(db: Session, tags: list[str]) -> None:
+    """Переустановить набор инбаундов Master (полная замена)."""
+    for tag in tags:
+        get_or_create_inbound(db, tag)  # гарантировать наличие inbounds.tag под FK
+    db.execute(master_inbounds_association.delete())
+    if tags:
+        db.execute(master_inbounds_association.insert(), [{"inbound_tag": t} for t in tags])
+    db.commit()
 
 
 def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: str = None, version: str = None) -> Node:
