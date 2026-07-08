@@ -43,6 +43,8 @@ client_config = {
         "as_base64": False,
         "reverse": False,
     },
+    # Dedicated output profile for INCY clients.
+    "incy": {"config_format": "v2ray-json", "media_type": "application/json", "as_base64": False, "reverse": False},
 }
 
 router = APIRouter(tags=["Subscription"], prefix=f"/{XRAY_SUBSCRIPTION_PATH}")
@@ -342,6 +344,10 @@ def user_subscription(
             bs_addresses=bs_addresses,
         )
 
+    def build_incy_subscription() -> str:
+        # Keep INCY output independent from USE_CUSTOM_JSON_* toggles.
+        return build_subscription("v2ray-json", False, False)
+
     if re.match(r"^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)", user_agent):
         conf = build_subscription("clash-meta", False, False)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
@@ -396,8 +402,8 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
-    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r"^[Ii][Nn][Cc][Yy]/", user_agent):
-        conf = build_subscription("v2ray-json", False, False)
+    elif re.match(r"^[Ii][Nn][Cc][Yy]/", user_agent):
+        conf = build_incy_subscription()
         return Response(content=conf, media_type="application/json", headers=response_headers)
 
     else:
@@ -455,7 +461,7 @@ def user_get_usage(
 def user_subscription_with_client_type(
     request: Request,
     token: str,
-    client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
+    client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json|incy"),
     db: Session = Depends(get_db),
     user_agent: str = Header(default=""),
     x_hwid: str | None = Header(default=None),
