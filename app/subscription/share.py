@@ -246,6 +246,7 @@ def generate_subscription(
     elif config_format == "outline":
         config = generate_outline_subscription(**kwargs, **bs_kwargs)
     elif config_format == "v2ray-json":
+        from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_ID, JSON_STUB_PORT
         from app.subscription.v2ray import V2rayJsonConfig
 
         conf = V2rayJsonConfig(
@@ -254,11 +255,10 @@ def generate_subscription(
             routing_bs=routing_bs_override,
         )
         if device_limit_text:
-            zero_id = "00000000-0000-0000-0000-000000000000"
             stub_inbound = {
                 "network": "ws",
                 "protocol": "vless",
-                "port": 1,
+                "port": JSON_STUB_PORT,
                 "tls": "none",
                 "header_type": "",
                 "fragment_setting": "",
@@ -270,9 +270,9 @@ def generate_subscription(
             for remark in device_limit_text:
                 conf.add(
                     remark=remark,
-                    address="127.0.0.1",
+                    address=JSON_STUB_ADDRESS,
                     inbound=stub_inbound,
-                    settings={"id": zero_id},
+                    settings={"id": JSON_STUB_ID},
                 )
         format_variables = setup_format_variables(kwargs["extra_data"])
         config = process_inbounds_and_tags(
@@ -408,6 +408,7 @@ def process_inbounds_and_tags(
     bs_stub_text: str = "",
     bs_addresses: set | None = None,
 ) -> list | str:
+    from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_PORT
     from app.xray.bs_limit import host_matches_blocked
 
     bs_stub_addresses = bs_stub_addresses or set()
@@ -487,14 +488,15 @@ def process_inbounds_and_tags(
 
                 # БС-лимит исчерпан → хост заблокированной БС-ноды (матч по
                 # адресу, т.к. инбаунд-теги общие для нод) остаётся на своём
-                # месте, но превращается в мёртвую заглушку (0.0.0.0:0) с
-                # именем-текстом лимита. Хосты обычных нод не трогаем.
+                # месте, но превращается в мёртвую заглушку с именем-текстом
+                # лимита (для v2ray-json — валидный reserved endpoint, чтобы
+                # строгие клиенты не отбрасывали конфиг). Хосты обычных нод не трогаем.
                 if host_matches_blocked(host["address"], bs_stub_addresses):
                     is_v2ray_json = isinstance(conf, V2rayJsonConfig)
-                    host_inbound["port"] = 1 if is_v2ray_json else 0
+                    host_inbound["port"] = JSON_STUB_PORT if is_v2ray_json else 0
                     conf.add(
                         remark=bs_stub_text,
-                        address="127.0.0.1" if is_v2ray_json else "0.0.0.0",
+                        address=JSON_STUB_ADDRESS if is_v2ray_json else "0.0.0.0",
                         inbound=host_inbound,
                         settings=settings.model_dump(),
                     )

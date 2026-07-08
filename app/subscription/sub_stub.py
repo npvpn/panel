@@ -11,6 +11,9 @@ from collections.abc import Mapping, Sequence
 from typing import Literal
 
 ZERO_STUB_ID = "00000000-0000-0000-0000-000000000000"
+JSON_STUB_ID = "11111111-1111-4111-8111-111111111111"
+JSON_STUB_ADDRESS = "198.18.0.1"
+JSON_STUB_PORT = 443
 
 
 def _vless_stub_link(remark: str) -> str:
@@ -52,7 +55,7 @@ def build_v2ray_status_stub(
     as_base64: bool,
     reverse: bool = False,
 ) -> str:
-    """Мёртвые vless-узлы 0.0.0.0:0 с remark из text_list."""
+    """Мёртвые vless-узлы c remark из text_list (формат-зависимые параметры)."""
     if not text_list:
         if config_format == "v2ray":
             return base64.b64encode(b"").decode()
@@ -70,7 +73,7 @@ def build_v2ray_status_stub(
     stub_inbound = {
         "network": "ws",
         "protocol": "vless",
-        "port": 1,
+        "port": JSON_STUB_PORT,
         "tls": "none",
         "header_type": "",
         "fragment_setting": "",
@@ -83,9 +86,9 @@ def build_v2ray_status_stub(
     for remark in text_list:
         conf.add(
             remark=remark,
-            address="127.0.0.1",
+            address=JSON_STUB_ADDRESS,
             inbound=stub_inbound,
-            settings={"id": ZERO_STUB_ID},
+            settings={"id": JSON_STUB_ID},
         )
     config = conf.render(reverse=reverse)
     if as_base64:
