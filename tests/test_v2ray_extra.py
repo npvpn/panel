@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import base64  # noqa: E402
 import json
 import sys
 import types
@@ -81,3 +82,65 @@ def test_trojan_xhttp_extra_is_compact():
     extra = _extra_from_link(link)
     assert " " not in extra
     json.loads(extra)
+
+
+def _vmess_payload(link: str) -> dict:
+    raw = link[len("vmess://") :]
+    return json.loads(base64.b64decode(raw).decode())
+
+
+def test_vless_xhttp_extra_full_replace():
+    custom = {"xPaddingMethod": "tokenish", "seqKey": "chunk_id"}
+    link = V2rayShareLink.vless(
+        remark="t",
+        address="e.com",
+        port=443,
+        id="00000000-0000-0000-0000-000000000000",
+        net="xhttp",
+        tls="tls",
+        xhttp_extra=custom,
+    )
+    extra = json.loads(_extra_from_link(link))
+    assert extra == custom  # только заданные ключи, без дефолтных 5
+
+
+def test_trojan_xhttp_extra_full_replace():
+    custom = {"xPaddingMethod": "tokenish"}
+    link = V2rayShareLink.trojan(
+        remark="t",
+        address="e.com",
+        port=443,
+        password="p",
+        net="xhttp",
+        tls="tls",
+        xhttp_extra=custom,
+    )
+    assert json.loads(_extra_from_link(link)) == custom
+
+
+def test_vmess_xhttp_extra_full_replace():
+    custom = {"xPaddingMethod": "tokenish", "noGRPCHeader": True}
+    link = V2rayShareLink.vmess(
+        remark="t",
+        address="e.com",
+        port=443,
+        id="00000000-0000-0000-0000-000000000000",
+        net="xhttp",
+        tls="tls",
+        xhttp_extra=custom,
+    )
+    assert _vmess_payload(link)["extra"] == custom
+
+
+def test_vless_xhttp_extra_empty_keeps_defaults():
+    link = V2rayShareLink.vless(
+        remark="t",
+        address="e.com",
+        port=443,
+        id="00000000-0000-0000-0000-000000000000",
+        net="xhttp",
+        tls="tls",
+        xhttp_extra=None,
+    )
+    extra = json.loads(_extra_from_link(link))
+    assert "scMaxEachPostBytes" in extra  # прежняя дефолтная сборка не сломана

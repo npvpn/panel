@@ -82,6 +82,7 @@ class V2rayShareLink(str):
                 heartbeatPeriod=inbound.get("heartbeatPeriod", 0),
                 keepAlivePeriod=inbound.get("keepAlivePeriod", 0),
                 xmux=inbound.get("xmux", {}),
+                xhttp_extra=inbound.get("xhttp_extra"),
             )
 
         elif inbound["protocol"] == "vless":
@@ -114,6 +115,7 @@ class V2rayShareLink(str):
                 heartbeatPeriod=inbound.get("heartbeatPeriod", 0),
                 keepAlivePeriod=inbound.get("keepAlivePeriod", 0),
                 xmux=inbound.get("xmux", {}),
+                xhttp_extra=inbound.get("xhttp_extra"),
             )
 
         elif inbound["protocol"] == "trojan":
@@ -146,6 +148,7 @@ class V2rayShareLink(str):
                 heartbeatPeriod=inbound.get("heartbeatPeriod", 0),
                 keepAlivePeriod=inbound.get("keepAlivePeriod", 0),
                 xmux=inbound.get("xmux", {}),
+                xhttp_extra=inbound.get("xhttp_extra"),
             )
 
         elif inbound["protocol"] == "shadowsocks":
@@ -191,6 +194,7 @@ class V2rayShareLink(str):
         heartbeatPeriod: int = 0,
         keepAlivePeriod: int = 0,
         xmux: dict = {},
+        xhttp_extra: dict | None = None,
     ):
         payload = {
             "add": address,
@@ -235,18 +239,21 @@ class V2rayShareLink(str):
                 payload["mode"] = "gun"
 
         elif net in ("splithttp", "xhttp"):
-            extra = {
-                "scMaxEachPostBytes": sc_max_each_post_bytes,
-                "scMaxConcurrentPosts": sc_max_concurrent_posts,
-                "scMinPostsIntervalMs": sc_min_posts_interval_ms,
-                "xPaddingBytes": x_padding_bytes,
-                "noGRPCHeader": noGRPCHeader,
-            }
-            if xmux:
-                extra["xmux"] = xmux
+            if xhttp_extra:
+                extra = copy.deepcopy(xhttp_extra)
+            else:
+                extra = {
+                    "scMaxEachPostBytes": sc_max_each_post_bytes,
+                    "scMaxConcurrentPosts": sc_max_concurrent_posts,
+                    "scMinPostsIntervalMs": sc_min_posts_interval_ms,
+                    "xPaddingBytes": x_padding_bytes,
+                    "noGRPCHeader": noGRPCHeader,
+                }
+                if xmux:
+                    extra["xmux"] = xmux
+                if keepAlivePeriod > 0:
+                    extra["keepAlivePeriod"] = keepAlivePeriod
             payload["type"] = mode
-            if keepAlivePeriod > 0:
-                extra["keepAlivePeriod"] = keepAlivePeriod
             payload["extra"] = extra
 
         elif net == "ws":
@@ -286,6 +293,7 @@ class V2rayShareLink(str):
         heartbeatPeriod: int = 0,
         keepAlivePeriod: int = 0,
         xmux: dict = {},
+        xhttp_extra: dict | None = None,
     ):
 
         payload = {"security": tls, "type": net, "headerType": type}
@@ -308,17 +316,20 @@ class V2rayShareLink(str):
             payload["path"] = path
             payload["host"] = host
             payload["mode"] = mode
-            extra = {
-                "scMaxEachPostBytes": sc_max_each_post_bytes,
-                "scMaxConcurrentPosts": sc_max_concurrent_posts,
-                "scMinPostsIntervalMs": sc_min_posts_interval_ms,
-                "xPaddingBytes": x_padding_bytes,
-                "noGRPCHeader": noGRPCHeader,
-            }
-            if keepAlivePeriod > 0:
-                extra["keepAlivePeriod"] = keepAlivePeriod
-            if xmux:
-                extra["xmux"] = xmux
+            if xhttp_extra:
+                extra = copy.deepcopy(xhttp_extra)
+            else:
+                extra = {
+                    "scMaxEachPostBytes": sc_max_each_post_bytes,
+                    "scMaxConcurrentPosts": sc_max_concurrent_posts,
+                    "scMinPostsIntervalMs": sc_min_posts_interval_ms,
+                    "xPaddingBytes": x_padding_bytes,
+                    "noGRPCHeader": noGRPCHeader,
+                }
+                if keepAlivePeriod > 0:
+                    extra["keepAlivePeriod"] = keepAlivePeriod
+                if xmux:
+                    extra["xmux"] = xmux
             payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
         elif net == "kcp":
@@ -386,6 +397,7 @@ class V2rayShareLink(str):
         heartbeatPeriod: int = 0,
         keepAlivePeriod: int = 0,
         xmux: dict = {},
+        xhttp_extra: dict | None = None,
     ):
 
         payload = {"security": tls, "type": net, "headerType": type}
@@ -404,17 +416,20 @@ class V2rayShareLink(str):
             payload["path"] = path
             payload["host"] = host
             payload["mode"] = mode
-            extra = {
-                "scMaxEachPostBytes": sc_max_each_post_bytes,
-                "scMaxConcurrentPosts": sc_max_concurrent_posts,
-                "scMinPostsIntervalMs": sc_min_posts_interval_ms,
-                "xPaddingBytes": x_padding_bytes,
-                "noGRPCHeader": noGRPCHeader,
-            }
-            if keepAlivePeriod > 0:
-                extra["keepAlivePeriod"] = keepAlivePeriod
-            if xmux:
-                extra["xmux"] = xmux
+            if xhttp_extra:
+                extra = copy.deepcopy(xhttp_extra)
+            else:
+                extra = {
+                    "scMaxEachPostBytes": sc_max_each_post_bytes,
+                    "scMaxConcurrentPosts": sc_max_concurrent_posts,
+                    "scMinPostsIntervalMs": sc_min_posts_interval_ms,
+                    "xPaddingBytes": x_padding_bytes,
+                    "noGRPCHeader": noGRPCHeader,
+                }
+                if keepAlivePeriod > 0:
+                    extra["keepAlivePeriod"] = keepAlivePeriod
+                if xmux:
+                    extra["xmux"] = xmux
             payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
         elif net == "quic":
