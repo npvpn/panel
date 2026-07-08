@@ -2,6 +2,7 @@ import json
 import math
 import re
 from datetime import UTC, datetime
+from typing import Literal, cast
 from urllib.parse import quote
 
 from distutils.version import LooseVersion
@@ -43,11 +44,11 @@ client_config = {
         "as_base64": False,
         "reverse": False,
     },
-    # Dedicated output profile for INCY clients.
-    "incy": {"config_format": "v2ray-json", "media_type": "application/json", "as_base64": False, "reverse": False},
+    "incy": {"config_format": "incy", "media_type": "text/plain", "as_base64": False, "reverse": False},
 }
 
 router = APIRouter(tags=["Subscription"], prefix=f"/{XRAY_SUBSCRIPTION_PATH}")
+SubscriptionConfigFormat = Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json", "incy"]
 
 
 def devices_json(devices) -> str:
@@ -327,7 +328,7 @@ def user_subscription(
     response_headers.update(get_routing_header(user_agent, bot_settings))
     response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
 
-    def build_subscription(config_format: str, as_base64: bool, reverse: bool) -> str:
+    def build_subscription(config_format: SubscriptionConfigFormat, as_base64: bool, reverse: bool) -> str:
         return generate_subscription(
             user=user,
             config_format=config_format,
@@ -343,10 +344,6 @@ def user_subscription(
             bs_stub_text=bs_stub_text,
             bs_addresses=bs_addresses,
         )
-
-    def build_incy_subscription() -> str:
-        # Keep INCY output independent from USE_CUSTOM_JSON_* toggles.
-        return build_subscription("v2ray-json", False, False)
 
     if re.match(r"^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)", user_agent):
         conf = build_subscription("clash-meta", False, False)
@@ -403,8 +400,12 @@ def user_subscription(
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
     elif re.match(r"^[Ii][Nn][Cc][Yy]/", user_agent):
-        conf = build_incy_subscription()
-        return Response(content=conf, media_type="application/json", headers=response_headers)
+        conf = build_subscription("incy", False, False)
+        if USE_CUSTOM_JSON_DEFAULT:
+            media_type = "application/json"
+        else:
+            media_type = "text/plain"
+        return Response(content=conf, media_type=media_type, headers=response_headers)
 
     else:
         conf = build_subscription("v2ray", True, False)
@@ -531,11 +532,16 @@ def user_subscription_with_client_type(
     response_headers.update(parse_custom_headers(bot_settings.get("sub_custom_headers") or ""))
 
     config = client_config.get(client_type)
+    if config is None:
+        raise HTTPException(status_code=400, detail="Unknown client type")
+    config_format = cast(SubscriptionConfigFormat, config["config_format"])
+    as_base64 = bool(config["as_base64"])
+    reverse = bool(config["reverse"])
     conf = generate_subscription(
         user=user,
-        config_format=config["config_format"],
-        as_base64=config["as_base64"],
-        reverse=config["reverse"],
+        config_format=config_format,
+        as_base64=as_base64,
+        reverse=reverse,
         revoked=is_revoked,
         expired=is_expired,
         device_limited=device_limited,
@@ -545,5 +551,7 @@ def user_subscription_with_client_type(
         bs_stub_addresses=blocked_bs_addresses,
         bs_stub_text=bs_stub_text,
     )
-
-    return Response(content=conf, media_type=config["media_type"], headers=response_headers)
+    media_type = str(config["media_type"])
+    if client_type == "incy":
+        media_type = "application/json" if USE_CUSTOM_JSON_DEFAULT else "text/plain"
+    return Response(content=conf, media_type=media_type, headers=response_headers)
