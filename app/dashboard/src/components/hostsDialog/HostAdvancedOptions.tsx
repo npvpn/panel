@@ -365,6 +365,16 @@ export const HostAdvancedOptions = memo(
             }}
           />
 
+          {["splithttp", "xhttp"].includes(inbound?.network) && (
+            <RHFInput
+              label={t("hostsDialog.xhttpExtra")}
+              registerProps={register(`${hostKey}.${index}.xhttp_extra`)}
+              error={accordionErrors?.[index]?.xhttp_extra}
+              placeholder='{"xPaddingMethod": "tokenish"}'
+              inputProps={{ size: "sm", borderRadius: "4px" }}
+            />
+          )}
+
           <RHFCheckbox
             label={t("hostsDialog.useSniAsHost")}
             registerProps={register(`${hostKey}.${index}.use_sni_as_host`)}

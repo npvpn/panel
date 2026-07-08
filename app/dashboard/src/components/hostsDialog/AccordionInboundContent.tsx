@@ -31,6 +31,7 @@ const EMPTY_HOST = {
   alpn: "",
   fingerprint: "",
   use_sni_as_host: false,
+  xhttp_extra: "",
   bot_usernames: [],
   node_ids: [],
 };
