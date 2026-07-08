@@ -634,6 +634,7 @@ class V2rayJsonConfig(str):
         mode: str = "auto",
         noGRPCHeader: bool = False,
         keepAlivePeriod: int = 0,
+        xhttp_extra: dict | None = None,
     ) -> dict:
         config = copy.deepcopy(self.settings.get("splithttpSettings", {}))
 
@@ -644,15 +645,21 @@ class V2rayJsonConfig(str):
             config["host"] = host
         if random_user_agent:
             config["headers"]["User-Agent"] = choice(self.user_agent_list)
-        config.setdefault("scMaxEachPostBytes", sc_max_each_post_bytes)
-        config.setdefault("scMaxConcurrentPosts", sc_max_concurrent_posts)
-        config.setdefault("scMinPostsIntervalMs", sc_min_posts_interval_ms)
-        config.setdefault("xPaddingBytes", x_padding_bytes)
-        config["noGRPCHeader"] = noGRPCHeader
-        if xmux:
-            config["xmux"] = xmux
-        if keepAlivePeriod > 0:
-            config["keepAlivePeriod"] = keepAlivePeriod
+
+        if xhttp_extra:
+            config["extra"] = copy.deepcopy(xhttp_extra)
+        else:
+            extra = copy.deepcopy(config.get("extra", {}))
+            extra.setdefault("scMaxEachPostBytes", sc_max_each_post_bytes)
+            extra.setdefault("scMaxConcurrentPosts", sc_max_concurrent_posts)
+            extra.setdefault("scMinPostsIntervalMs", sc_min_posts_interval_ms)
+            extra.setdefault("xPaddingBytes", x_padding_bytes)
+            extra["noGRPCHeader"] = noGRPCHeader
+            if xmux:
+                extra["xmux"] = xmux
+            if keepAlivePeriod > 0:
+                extra["keepAlivePeriod"] = keepAlivePeriod
+            config["extra"] = extra
         # core will ignore unknown variables
 
         return config
@@ -937,6 +944,7 @@ class V2rayJsonConfig(str):
         noGRPCHeader: bool = False,
         heartbeatPeriod: int = 0,
         keepAlivePeriod: int = 0,
+        xhttp_extra: dict | None = None,
     ) -> dict:
 
         if net == "ws":
@@ -972,6 +980,7 @@ class V2rayJsonConfig(str):
                 mode=mode,
                 noGRPCHeader=noGRPCHeader,
                 keepAlivePeriod=keepAlivePeriod,
+                xhttp_extra=xhttp_extra,
             )
         else:
             network_setting = {}
@@ -1054,6 +1063,7 @@ class V2rayJsonConfig(str):
             noGRPCHeader=inbound.get("noGRPCHeader", False),
             heartbeatPeriod=inbound.get("heartbeatPeriod", 0),
             keepAlivePeriod=inbound.get("keepAlivePeriod", 0),
+            xhttp_extra=inbound.get("xhttp_extra"),
         )
 
         if inbound.get("mux_enable", False):

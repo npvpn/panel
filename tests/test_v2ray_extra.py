@@ -144,3 +144,29 @@ def test_vless_xhttp_extra_empty_keeps_defaults():
     )
     extra = json.loads(_extra_from_link(link))
     assert "scMaxEachPostBytes" in extra  # прежняя дефолтная сборка не сломана
+
+
+from app.subscription.v2ray import V2rayJsonConfig  # noqa: E402
+
+
+def _splithttp(**kwargs):
+    # Обходим тяжёлый __init__: собираем ровно то, что нужно splithttp_config.
+    cfg = V2rayJsonConfig.__new__(V2rayJsonConfig)
+    cfg.settings = {}
+    cfg.user_agent_list = []
+    return cfg.splithttp_config(**kwargs)
+
+
+def test_splithttp_defaults_go_into_nested_extra():
+    cfg = _splithttp(path="/p", host="h.com")
+    assert "extra" in cfg
+    assert cfg["extra"]["scMaxEachPostBytes"] == 1000000
+    assert cfg["extra"]["xPaddingBytes"] == "100-1000"
+    # ключи больше не лежат в корне splithttpSettings
+    assert "scMaxEachPostBytes" not in cfg
+
+
+def test_splithttp_xhttp_extra_full_replace():
+    custom = {"xPaddingMethod": "tokenish", "seqKey": "chunk_id"}
+    cfg = _splithttp(path="/p", host="h.com", xhttp_extra=custom)
+    assert cfg["extra"] == custom
