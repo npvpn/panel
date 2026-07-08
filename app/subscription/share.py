@@ -258,7 +258,7 @@ def generate_subscription(
             stub_inbound = {
                 "network": "ws",
                 "protocol": "vless",
-                "port": 0,
+                "port": 1,
                 "tls": "none",
                 "header_type": "",
                 "fragment_setting": "",
@@ -270,7 +270,7 @@ def generate_subscription(
             for remark in device_limit_text:
                 conf.add(
                     remark=remark,
-                    address="0.0.0.0",
+                    address="127.0.0.1",
                     inbound=stub_inbound,
                     settings={"id": zero_id},
                 )
@@ -490,9 +490,13 @@ def process_inbounds_and_tags(
                 # месте, но превращается в мёртвую заглушку (0.0.0.0:0) с
                 # именем-текстом лимита. Хосты обычных нод не трогаем.
                 if host_matches_blocked(host["address"], bs_stub_addresses):
-                    host_inbound["port"] = 0
+                    is_v2ray_json = isinstance(conf, V2rayJsonConfig)
+                    host_inbound["port"] = 1 if is_v2ray_json else 0
                     conf.add(
-                        remark=bs_stub_text, address="0.0.0.0", inbound=host_inbound, settings=settings.model_dump()
+                        remark=bs_stub_text,
+                        address="127.0.0.1" if is_v2ray_json else "0.0.0.0",
+                        inbound=host_inbound,
+                        settings=settings.model_dump(),
                     )
                     continue
 

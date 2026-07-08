@@ -70,7 +70,7 @@ def build_v2ray_status_stub(
     stub_inbound = {
         "network": "ws",
         "protocol": "vless",
-        "port": 0,
+        "port": 1,
         "tls": "none",
         "header_type": "",
         "fragment_setting": "",
@@ -83,7 +83,7 @@ def build_v2ray_status_stub(
     for remark in text_list:
         conf.add(
             remark=remark,
-            address="0.0.0.0",
+            address="127.0.0.1",
             inbound=stub_inbound,
             settings={"id": ZERO_STUB_ID},
         )

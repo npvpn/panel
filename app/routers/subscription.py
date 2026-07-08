@@ -396,6 +396,10 @@ def user_subscription(
             conf = build_subscription("v2ray", True, False)
             return Response(content=conf, media_type="text/plain", headers=response_headers)
 
+    elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r"^[Ii][Nn][Cc][Yy]/", user_agent):
+        conf = build_subscription("v2ray-json", False, False)
+        return Response(content=conf, media_type="application/json", headers=response_headers)
+
     else:
         conf = build_subscription("v2ray", True, False)
         return Response(content=conf, media_type="text/plain", headers=response_headers)
