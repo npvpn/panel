@@ -10,7 +10,7 @@ import {
 import { FC } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
 import {
@@ -18,20 +18,21 @@ import {
   generateSuccessMessage,
 } from "utils/toastHandler";
 import { NodeForm } from "./NodeForm";
+import { fetch } from "service/http";
+import { useNodeSettings } from "hooks/useNodeSettings";
 
 type AddNodeFormType = {
   resetAccordions: () => void;
   isOpen: boolean;
 };
 
-export const AddNodeForm: FC<AddNodeFormType> = ({
-  resetAccordions,
-  isOpen,
-}) => {
+export const AddNodeForm: FC<AddNodeFormType> = ({ resetAccordions }) => {
   const toast = useToast();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { addNode } = useNodes();
+  const { data: nodeSettings } = useNodeSettings();
+
   const form = useForm<NodeType>({
     resolver: zodResolver(NodeSchema),
     defaultValues: {
@@ -70,6 +71,7 @@ export const AddNodeForm: FC<AddNodeFormType> = ({
         submitBtnText={t("nodes.addNode")}
         btnProps={{ variant: "solid" }}
         addAsHost
+        nodeSettings={nodeSettings}
       />
     </Box>
   );
