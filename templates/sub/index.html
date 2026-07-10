@@ -302,8 +302,10 @@
                 <p class="qr-title">Отсканируйте для подключения другого устройства</p>
                 <div
                   id="qrcode-main"
-                  class="w-[214px] h-[216px]"
+                  class="w-[214px] h-[216px]" 
+                  @click="copyToClipboard(user.subscription_url)"
                 ></div>
+                <p class="text-center" x-text="copiedKey ? 'Ключ скопирован!' : 'Нажмите на QR-код, чтобы скопировать ключ'"></p>
             </div>
     
             <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 custom-gap">
