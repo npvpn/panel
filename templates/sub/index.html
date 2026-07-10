@@ -305,7 +305,7 @@
                   class="w-[214px] h-[216px]" 
                   @click="copyToClipboard(user.subscription_url)"
                 ></div>
-                <p class="text-center" x-text="copiedKey ? 'Ключ скопирован!' : 'Нажмите на QR-код, чтобы скопировать ключ'"></p>
+                <p class="text-center text-[#7b7b7b]" x-text="copiedKey ? 'Ключ скопирован!' : 'Нажмите на QR-код, чтобы скопировать ключ'"></p>
             </div>
     
             <div x-show="selectedOs !== 'QR'" class="grid grid-cols-1 custom-gap">
