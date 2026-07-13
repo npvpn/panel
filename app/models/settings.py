@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+import copy
+import logging
+from typing import Any
+
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
+
+CLIENT_APPS_KEY = "client_apps"
+
+PLATFORMS: tuple[str, ...] = ("ios", "macos", "android", "androidtv", "windows", "linux")
+
+LINK_KEYS: tuple[str, ...] = (
+    "ios_ru",
+    "ios_global",
+    "macos_ru",
+    "macos_global",
+    "android",
+    "androidtv",
+    "windows",
+    "linux",
+)
+
+MAX_LINK_LENGTH = 512
+
+_HAPP_APPSTORE_GLOBAL = "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
+_INCY_APPSTORE_RU = "https://apps.apple.com/ru/app/incy/id6756943388"
+_INCY_APPSTORE_GLOBAL = "https://apps.apple.com/us/app/incy/id6756943388"
+
+# Дефолты повторяют то, что до NPVPN-1657 было захардкожено в templates/sub/index.html.
+# У Happ пустая ru-ссылка: приложения в российском App Store нет.
+DEFAULT_CLIENT_APPS: dict[str, Any] = {
+    "apps": [
+        {
+            "id": "happ",
+            "name": "Happ Proxy",
+            "scheme": "happ",
+            "enabled": True,
+            "links": {
+                "ios_ru": "",
+                "ios_global": _HAPP_APPSTORE_GLOBAL,
+                "macos_ru": "",
+                "macos_global": _HAPP_APPSTORE_GLOBAL,
+                "android": "https://play.google.com/store/apps/details?id=com.happproxy&hl=ru",
+                "androidtv": "https://play.google.com/store/apps/details?id=com.happproxy",
+                "windows": "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe",
+                "linux": "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb",
+            },
+        },
+        {
+            "id": "incy",
+            "name": "Incy",
+            "scheme": "incy",
+            "enabled": True,
+            "links": {
+                "ios_ru": _INCY_APPSTORE_RU,
+                "ios_global": _INCY_APPSTORE_GLOBAL,
+                "macos_ru": _INCY_APPSTORE_RU,
+                "macos_global": _INCY_APPSTORE_GLOBAL,
+                "android": "https://play.google.com/store/apps/details?id=llc.itdev.incy",
+                "androidtv": "",
+                "windows": "https://incy.cc/",
+                "linux": "",
+            },
+        },
+        {
+            "id": "v2raytun",
+            "name": "v2RayTun",
+            "scheme": "v2raytun",
+            "enabled": True,
+            "links": {
+                "ios_ru": "",
+                "ios_global": "",
+                "macos_ru": "",
+                "macos_global": "",
+                "android": "https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru",
+                "androidtv": "",
+                "windows": "https://v2raytun.com/",
+                "linux": "",
+            },
+        },
+    ],
+    "primary_by_platform": {
+        "ios": "incy",
+        "macos": "incy",
+        "android": "happ",
+        "windows": "happ",
+        "linux": "happ",
+        "androidtv": "happ",
+    },
+}
+
+
+class ClientApp(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9_-]{1,32}$")
+    name: str = Field(min_length=1, max_length=64)
+    # Схема deeplink без "://": ссылка строится как {scheme}://add/{subscription_url}.
+    scheme: str = Field(pattern=r"^[a-z][a-z0-9+.-]{0,31}$")
+    enabled: bool = True
+    links: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("scheme")
+    @classmethod
+    def validate_scheme(cls, value: str) -> str:
+        if value in {"javascript", "data", "vbscript", "file"}:
+            raise ValueError(f"scheme {value!r} is not allowed")
+        return value
+
+    @field_validator("links")
+    @classmethod
+    def validate_links(cls, value: dict[str, str]) -> dict[str, str]:
+        cleaned: dict[str, str] = {}
+        for key in LINK_KEYS:
+            raw = str(value.get(key) or "").strip()
+            if not raw:
+                cleaned[key] = ""
+                continue
+            if not raw.startswith(("http://", "https://")):
+                raise ValueError(f"link {key!r} must be an http(s) URL")
+            if len(raw) > MAX_LINK_LENGTH:
+                raise ValueError(f"link {key!r} is longer than {MAX_LINK_LENGTH} characters")
+            cleaned[key] = raw
+        return cleaned
+
+
+class ClientAppsPayload(BaseModel):
+    apps: list[ClientApp] = Field(default_factory=list)
+    primary_by_platform: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_consistency(self) -> ClientAppsPayload:
+        ids = [app.id for app in self.apps]
+        if len(ids) != len(set(ids)):
+            raise ValueError("app ids must be unique")
+
+        enabled_ids = {app.id for app in self.apps if app.enabled}
+        for platform, app_id in self.primary_by_platform.items():
+            if platform not in PLATFORMS:
+                raise ValueError(f"unknown platform {platform!r}")
+            if app_id and app_id not in enabled_ids:
+                raise ValueError(f"primary app {app_id!r} for {platform!r} is unknown or disabled")
+        return self
+
+
+def merge_client_apps_defaults(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Настройки из БД, дополненные дефолтами. Битые данные не роняют страницу подписки."""
+    if not raw:
+        return copy.deepcopy(DEFAULT_CLIENT_APPS)
+    try:
+        return ClientAppsPayload.model_validate(raw).model_dump()
+    except ValidationError:
+        logger.warning("Broken client_apps settings in DB, falling back to defaults", exc_info=True)
+        return copy.deepcopy(DEFAULT_CLIENT_APPS)
