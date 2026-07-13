@@ -53,6 +53,7 @@
           user: userData,
           selectedOs: 'QR',
           currentPage: 'settings',
+          clientApps: JSON.parse('{{ client_apps | tojson }}'),
 
           devices: initialDevices,
           deviceLimit: Number("{{ user.device_limit or 0 }}"),
@@ -91,50 +92,14 @@
           },
 
           osOptions: [
-          {
-            id: 'QR',
-            name: 'QR-код'
-          },
-          {
-            id: 'iOS',
-            name: 'iOS',
-            appName: 'Happ Proxy',
-            appName2: 'Incy',
-            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
-            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-
-          }, {
-            id: 'Android',
-            name: 'Android',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy&hl=ru'
-          }, 
-          {
-            id: 'Windows',
-            name: 'Windows',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe'
-          },
-          {
-            id: 'Mac',
-            name: 'Mac',
-            appName: 'Happ Proxy',
-            appName2: 'Incy',
-            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
-            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-
-          },
-          {
-            id: 'Linux',
-            name: 'Linux',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb'
-          }, {
-            id: 'TV',
-            name: 'TV',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy'
-          }, ],
+            { id: 'QR', name: 'QR-код', platform: null },
+            { id: 'iOS', name: 'iOS', platform: 'ios' },
+            { id: 'Android', name: 'Android', platform: 'android' },
+            { id: 'Windows', name: 'Windows', platform: 'windows' },
+            { id: 'Mac', name: 'Mac', platform: 'macos' },
+            { id: 'Linux', name: 'Linux', platform: 'linux' },
+            { id: 'TV', name: 'TV', platform: 'androidtv' },
+          ],
           init() {
             document.title = `${this.user.username} - Настройка VPN`;
               this.$nextTick(() => {
@@ -154,6 +119,26 @@
           },
           get currentOs() {
             return this.osOptions.find(os => os.id === this.selectedOs) || this.osOptions[0];
+          },
+          get currentPlatform() {
+            return (this.currentOs && this.currentOs.platform) || null;
+          },
+          get platformApps() {
+            const platform = this.currentPlatform;
+            if (!platform) return { primary: null, alternatives: [] };
+            return this.clientApps.platforms[platform] || { primary: null, alternatives: [] };
+          },
+          get primaryApp() {
+            return this.platformApps.primary;
+          },
+          get alternativeApps() {
+            return this.platformApps.alternatives;
+          },
+          deeplink(app) {
+            return `${app.scheme}://add/${this.user.subscription_url}`;
+          },
+          regionLabel(region) {
+            return region === 'ru' ? 'Для России' : (region === 'global' ? 'Global' : 'Скачать');
           },
           get statusText() {
             const statuses = {
@@ -342,117 +327,70 @@
                   </p>
                 </template>
     
-                <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-                  <a :href="currentOs.downloadUrl" target="_blank" class="config-btn clients-btn"> 
-                    Скачать&nbsp;<span x-text="currentOs.appName"></span>
-                  </a>
-                </template>
-    
-                <template x-if="selectedOs === 'Windows'">
+                <template x-if="primaryApp">
                   <div class="flex flex-col custom-gap">
-                    <p class="steps-text">
-                      Альтернативные приложения для подключения
-                    </p>
+                    <template x-if="primaryApp.install.length > 1">
+                      <p class="steps-text">
+                        Выберите регион, соответствующий Apple ID
+                      </p>
+                    </template>
                     <div class="flex gap-2">
-                      <a
-                        href="https://v2raytun.com/"
-                        target="_blank"
-                        class="config-btn clients-btn">
-                        v2RayTun
-                      </a>
-                      <a
-                        href="https://incy.cc/"
-                        target="_blank"
-                        class="config-btn clients-btn"
-                      >
-                        Incy
-                      </a>
-                    </div>
-                  </div>
-                </template>
-    
-                <template x-if="['iOS','Mac'].includes(selectedOs)">
-                  <div class="flex flex-col custom-gap">
-                    <p class="steps-text">
-                      Выберите регион, соответствующий Apple ID
-                    </p>
-                    <div class="flex gap-2">
-                      <!-- <a
-                        href="https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
-                        target="_blank"
-                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
-                      > -->
-                      <a
-                        href="https://apps.apple.com/ru/app/incy/id6756943388"
-                        target="_blank"
-                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
-                      >
-                        <img
-                          src="/statics/sub/assets/russia.svg"
-                          alt="Россия"
-                          class="w-5 h-5"
+                      <template x-for="item in primaryApp.install" :key="item.region">
+                        <a
+                          :href="item.url"
+                          target="_blank"
+                          :class="item.region === 'default'
+                            ? 'config-btn clients-btn'
+                            : 'box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]'"
+                          :style="item.region === 'default' ? '' : 'border-radius: 8px;'"
                         >
-                        <span class="clients-btn">Для России</span>
-                      </a>
-                      <!-- <a
-                        href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
-                        target="_blank"
-                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
-                      >  -->
-                      <a
-                        href="https://apps.apple.com/us/app/incy/id6756943388"
-                        target="_blank"
-                        class="box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]" style="border-radius: 8px;"
-                      > 
-                        <img
-                          src="/statics/sub/assets/globe.svg"
-                          alt="Global"
-                          class="w-5 h-5"
-                        >
-                        <span class="clients-btn">Global</span>
-                      </a>
+                          <span x-show="item.region === 'ru'">
+                            <img
+                              src="/statics/sub/assets/russia.svg"
+                              alt="Россия"
+                              class="w-5 h-5"
+                            >
+                          </span>
+                          <span x-show="item.region === 'global'">
+                            <img
+                              src="/statics/sub/assets/globe.svg"
+                              alt="Global"
+                              class="w-5 h-5"
+                            >
+                          </span>
+                          <span
+                            :class="item.region === 'default' ? '' : 'clients-btn'"
+                            x-text="item.region === 'default'
+                              ? `Скачать ${primaryApp.name}`
+                              : regionLabel(item.region)"
+                          ></span>
+                        </a>
+                      </template>
                     </div>
-    
-                    <p class="steps-text">
-                      Альтернативные приложения для подключения
-                    </p>
-    
-                    <!-- <a href="https://apps.apple.com/ru/app/incy/id6756943388"
-                      target="_blank"
-                      class="box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn" style="border-radius: 8px; width: 85px;"
-                    > 
-                      Incy
-                    </a> -->
-                    <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
-                      target="_blank"
-                      class="box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn" style="border-radius: 8px; width: 120px;"
-                    > 
-                      Happ Proxy Global
-                    </a>
-    
                   </div>
                 </template>
-    
-                <template x-if="selectedOs === 'Android'">
+
+                <template x-if="alternativeApps.length">
                   <div class="flex flex-col custom-gap">
                     <p class="steps-text">
                       Альтернативные приложения для подключения
                     </p>
                     <div class="flex gap-2">
-                      <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru"
-                        target="_blank"
-                        class="config-btn clients-btn">
-                        v2RayTun
-                      </a>
-                      <a href="https://play.google.com/store/apps/details?id=llc.itdev.incy"
-                        target="_blank"
-                        class="config-btn clients-btn">
-                        Incy
-                      </a>
+                      <template x-for="app in alternativeApps" :key="app.id">
+                        <a
+                          :href="app.install[0].url"
+                          target="_blank"
+                          :class="['ios','macos'].includes(currentPlatform)
+                            ? 'box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn'
+                            : 'config-btn clients-btn'"
+                          :style="['ios','macos'].includes(currentPlatform) ? 'border-radius: 8px; width: 120px;' : ''"
+                          x-text="app.name"
+                        ></a>
+                      </template>
                     </div>
                   </div>
                 </template>
-    
+
                 <template x-if="selectedOs === 'Linux'">
                   <div class="flex flex-col custom-gap">
                     <p class="steps-text">
@@ -497,77 +435,7 @@ sudo apt install ./Happ.linux.x64.deb
                   </p>
                 </div>
     
-                <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <button
-                      @click="copyToClipboard(user.subscription_url)"
-                      class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
-                    >
-                      <span
-                        class="text-[16px] font-bold"
-                        style="font-family: var(--third-family)"
-                        x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
-                      ></span>
-                      <template x-if="!copiedKey">
-                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
-                              xmlns="http://www.w3.org/2000/svg">
-                            <path d="M13.3335 2.5H3.3335V13.3333"
-                              stroke="#141413" stroke-width="1.66667"
-                              stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
-                              stroke="#141413" stroke-width="1.66667"
-                              stroke-linecap="round" stroke-linejoin="round" />
-                          </svg>
-                        </template>
-                    </button>
-                    <a
-                      x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                      :href="`happ://add/${user.subscription_url}`"
-                      class="dark-btn"
-                    >
-                      Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
-                    </a>
-                </template>
-                <!-- <template x-if="['iOS','Mac'].includes(selectedOs)">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <button
-                        @click="copyToClipboard(user.subscription_url)"
-                        class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0" style="border-radius: 40px;"
-                      >
-                        <span
-                          class="text-[16px] font-bold"
-                          style="font-family: var(--third-family)"
-                          x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
-                        ></span>
-                        <template x-if="!copiedKey">
-                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
-                              xmlns="http://www.w3.org/2000/svg">
-                            <path d="M13.3335 2.5H3.3335V13.3333"
-                              stroke="#141413" stroke-width="1.66667"
-                              stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
-                              stroke="#141413" stroke-width="1.66667"
-                              stroke-linecap="round" stroke-linejoin="round" />
-                          </svg>
-                        </template>
-                      </button>
-                      <a
-                        x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                        :href="`incy://add/${user.subscription_url}`"
-                        class="dark-btn"
-                      >
-                        Добавить ключ в&nbsp;<span x-text="currentOs.appName2"></span>
-                      </a>
-                      <a
-                        x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                        :href="`happ://add/${user.subscription_url}`"
-                        class="dark-btn"
-                      >
-                        Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
-                      </a>
-                  </div>
-                </template> -->
-                <template x-if="['iOS','Mac'].includes(selectedOs)">
+                <template x-if="!['QR','TV'].includes(selectedOs)">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div class="flex flex-col">
                           <button
@@ -594,22 +462,24 @@ sudo apt install ./Happ.linux.x64.deb
                           </button>
                       </div>
 
-                      <div class="flex flex-col gap-2">
-                          <a
-                              x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                              :href="`incy://add/${user.subscription_url}`"
-                              class="dark-btn w-full text-center"
-                          >
-                              Добавить ключ в&nbsp;<span x-text="currentOs.appName2"></span>
-                          </a>
-                          <a
-                              x-show="String(selectedOs).toLowerCase() !== 'linux'"
-                              :href="`happ://add/${user.subscription_url}`"
-                              class="dark-btn w-full text-center"
-                          >
-                              Добавить ключ в&nbsp;<span x-text="currentOs.appName"></span>
-                          </a>
-                      </div>
+                      <template x-if="primaryApp && String(selectedOs).toLowerCase() !== 'linux'">
+                        <div class="flex flex-col gap-2">
+                            <a
+                                :href="deeplink(primaryApp)"
+                                class="dark-btn w-full text-center"
+                            >
+                                Добавить ключ в&nbsp;<span x-text="primaryApp.name"></span>
+                            </a>
+                            <template x-for="app in alternativeApps" :key="app.id">
+                              <a
+                                  :href="deeplink(app)"
+                                  class="dark-btn w-full text-center"
+                              >
+                                  Добавить ключ в&nbsp;<span x-text="app.name"></span>
+                              </a>
+                            </template>
+                        </div>
+                      </template>
                   </div>
               </template>
               </div>
