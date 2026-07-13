@@ -192,6 +192,11 @@
           deeplink(app) {
             return `${app.scheme}://add/${this.user.subscription_url}`;
           },
+          regionLabel(region) {
+            if (region === 'ru') return 'в App Store 🇷🇺';
+            if (region === 'global') return 'Global 🌎';
+            return '';
+          },
           get statusText() {
             const statuses = {
               active: "Активен",
@@ -319,18 +324,18 @@
               </p>
             </div>
           </template>
-          <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-            <a :href="primaryApp ? primaryApp.install[0].url : '#'" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg" style="height: 52px;">
-              Скачать&nbsp;<span x-text="primaryApp ? primaryApp.name : ''"></span>
+          <template x-if="primaryApp && primaryApp.install.length <= 1 && currentPlatform !== 'androidtv'">
+            <a :href="primaryApp.install[0] ? primaryApp.install[0].url : '#'" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg" style="height: 52px;">
+              Скачать&nbsp;<span x-text="primaryApp.name"></span>
             </a>
           </template>
-          <template x-if="selectedOs === 'iOS'">
+          <template x-if="primaryApp && primaryApp.install.length > 1">
             <div>
-              <template x-for="item in (primaryApp ? primaryApp.install : [])" :key="item.region">
+              <template x-for="item in primaryApp.install" :key="item.region">
                 <a :href="item.url" target="_blank"
                    class="w-full flex items-center justify-center text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52 mt-2"
                    :class="item.region === 'ru' ? 'bg-blue-600 hover:bg-blue-700' : 'btn-ios-secondary'">
-                  Скачать&nbsp;<span x-text="primaryApp.name"></span>&nbsp;<span x-text="item.region === 'ru' ? 'в App Store 🇷🇺' : 'Global 🌎'"></span>
+                  Скачать&nbsp;<span x-text="primaryApp.name"></span>&nbsp;<span x-show="regionLabel(item.region)" x-text="regionLabel(item.region)"></span>
                 </a>
               </template>
               <p class="text-sm text-gray-400 mt-2">
@@ -383,10 +388,14 @@ sudo dpkg -i Happ.linux.x64.deb</code>
           <p class="text-base font-semibold mb-3">
             <span class="text-blue-400">2</span> Настройка VPN-приложения
           </p>
-          <template x-if="['iOS','Android','Windows','Linux'].includes(selectedOs)">
+          <template x-if="currentPlatform !== 'androidtv'">
             <div>
-              <a x-show="String(selectedOs).toLowerCase() !== 'linux' && primaryApp" :href="primaryApp ? deeplink(primaryApp) : '#'" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="primaryApp ? primaryApp.name : ''"></span>
+              <a x-show="currentPlatform !== 'linux' && primaryApp" :href="primaryApp ? deeplink(primaryApp) : '#'" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="primaryApp ? primaryApp.name : ''"></span>
               </a>
+              <template x-for="app in alternativeApps" :key="app.id">
+                <a x-show="currentPlatform !== 'linux'" :href="deeplink(app)" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="app.name"></span>
+                </a>
+              </template>
               <div class="mb-4 border-t border-gray-700 mt-4 pt-4">
                 <input type="text" :value="user.subscription_url" class="w-full bg-gray-700 text-gray-300 rounded-t-lg p-2 text-sm focus:outline-none" readonly @click="$el.select()" />
                 <button @click="copyToClipboard(user.subscription_url, $el, 'Ключ скопирован!')" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-b-lg flex items-center gap-2 justify-center">

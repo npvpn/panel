@@ -327,7 +327,7 @@
                   </p>
                 </template>
     
-                <template x-if="primaryApp">
+                <template x-if="primaryApp && currentPlatform !== 'androidtv'">
                   <div class="flex flex-col custom-gap">
                     <template x-if="primaryApp.install.length > 1">
                       <p class="steps-text">
