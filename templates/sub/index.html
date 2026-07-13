@@ -53,7 +53,7 @@
           user: userData,
           selectedOs: 'QR',
           currentPage: 'settings',
-          clientApps: JSON.parse('{{ client_apps | tojson }}'),
+          clientApps: {{ client_apps | tojson }},
 
           devices: initialDevices,
           deviceLimit: Number("{{ user.device_limit or 0 }}"),
@@ -370,7 +370,7 @@
                   </div>
                 </template>
 
-                <template x-if="alternativeApps.length">
+                <template x-if="alternativeApps.length && currentPlatform !== 'androidtv'">
                   <div class="flex flex-col custom-gap">
                     <p class="steps-text">
                       Альтернативные приложения для подключения
