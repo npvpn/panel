@@ -19,7 +19,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { useDashboard } from "contexts/DashboardContext";
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetch } from "service/http";
 import {
@@ -30,13 +30,23 @@ import {
   PlatformKey,
 } from "types/AppSettings";
 
+// Локальный тип для рендера: добавляем стабильный технический ключ, который
+// не отправляется на бэкенд (см. toPayload), чтобы React не переиспользовал
+// инпуты между позициями при перемещении/удалении карточек.
+type ClientAppWithKey = ClientApp & { _key: number };
+
+type ClientAppsSettingsWithKeys = {
+  apps: ClientAppWithKey[];
+  primary_by_platform: ClientAppsSettings["primary_by_platform"];
+};
+
 const emptyLinks = () =>
   LINK_KEYS.reduce(
     (acc, key) => ({ ...acc, [key]: "" }),
     {} as ClientApp["links"]
   );
 
-const emptySettings: ClientAppsSettings = { apps: [], primary_by_platform: {} };
+const emptySettings: ClientAppsSettingsWithKeys = { apps: [], primary_by_platform: {} };
 
 const newApp = (index: number): ClientApp => ({
   id: `app${index}`,
@@ -46,13 +56,23 @@ const newApp = (index: number): ClientApp => ({
   links: emptyLinks(),
 });
 
+const toPayload = (settings: ClientAppsSettingsWithKeys): ClientAppsSettings => ({
+  ...settings,
+  apps: settings.apps.map(({ _key, ...app }) => app),
+});
+
 export const AppSettingsDialog: FC = () => {
   const { isEditingAppSettings, onEditingAppSettings } = useDashboard();
   const { t } = useTranslation();
   const toast = useToast();
-  const [settings, setSettings] = useState<ClientAppsSettings>(emptySettings);
+  const [settings, setSettings] = useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const nextKeyRef = useRef(0);
+  const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
+    ...data,
+    apps: data.apps.map((app) => ({ ...app, _key: nextKeyRef.current++ })),
+  });
 
   const showValidationErrorToast = (err: any) => {
     const detail = err?.response?._data?.detail;
@@ -78,9 +98,10 @@ export const AppSettingsDialog: FC = () => {
 
   useEffect(() => {
     if (!isEditingAppSettings) return;
+    setSettings(emptySettings);
     setLoading(true);
     fetch("/settings/apps")
-      .then((data: ClientAppsSettings) => setSettings(data))
+      .then((data: ClientAppsSettings) => setSettings(withKeys(data)))
       .catch(() =>
         toast({
           title: t("appSettings.loadFailed"),
@@ -93,10 +114,22 @@ export const AppSettingsDialog: FC = () => {
   }, [isEditingAppSettings]);
 
   const updateApp = (index: number, patch: Partial<ClientApp>) => {
-    setSettings((prev) => ({
-      ...prev,
-      apps: prev.apps.map((app, i) => (i === index ? { ...app, ...patch } : app)),
-    }));
+    setSettings((prev) => {
+      const target = prev.apps[index];
+      const apps = prev.apps.map((app, i) => (i === index ? { ...app, ...patch } : app));
+      // При переименовании id переносим ссылки primary_by_platform, указывавшие
+      // на старый id, на новый — иначе они "теряются" и сохранение падает с 422.
+      if (patch.id !== undefined && target && patch.id !== target.id) {
+        const oldId = target.id;
+        const newId = patch.id;
+        const primary = { ...prev.primary_by_platform };
+        PLATFORM_KEYS.forEach((platform) => {
+          if (primary[platform] === oldId) primary[platform] = newId;
+        });
+        return { apps, primary_by_platform: primary };
+      }
+      return { ...prev, apps };
+    });
   };
 
   const updateLink = (index: number, key: string, value: string) => {
@@ -135,7 +168,7 @@ export const AppSettingsDialog: FC = () => {
   const resetToDefaults = () => {
     setLoading(true);
     fetch("/settings/apps/defaults")
-      .then((data: ClientAppsSettings) => setSettings(data))
+      .then((data: ClientAppsSettings) => setSettings(withKeys(data)))
       .catch(() =>
         toast({
           title: t("appSettings.loadFailed"),
@@ -149,9 +182,9 @@ export const AppSettingsDialog: FC = () => {
 
   const save = () => {
     setSaving(true);
-    fetch("/settings/apps", { method: "PUT", body: settings })
+    fetch("/settings/apps", { method: "PUT", body: toPayload(settings) })
       .then((data: ClientAppsSettings) => {
-        setSettings(data);
+        setSettings(withKeys(data));
         toast({
           title: t("appSettings.saved"),
           status: "success",
@@ -180,7 +213,7 @@ export const AppSettingsDialog: FC = () => {
             <VStack align="stretch" spacing={4}>
               {settings.apps.map((app, index) => (
                 <VStack
-                  key={index}
+                  key={app._key}
                   align="stretch"
                   spacing={3}
                   borderWidth="1px"
@@ -243,7 +276,10 @@ export const AppSettingsDialog: FC = () => {
                 onClick={() =>
                   setSettings((prev) => ({
                     ...prev,
-                    apps: [...prev.apps, newApp(prev.apps.length + 1)],
+                    apps: [
+                      ...prev.apps,
+                      { ...newApp(prev.apps.length + 1), _key: nextKeyRef.current++ },
+                    ],
                   }))
                 }
               >
