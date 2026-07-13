@@ -2117,7 +2117,7 @@ def upsert_global_setting(db: Session, key: str, data: dict[str, Any]) -> dict[s
         row = GlobalSetting(key=key, data=data)
         db.add(row)
     else:
-        row.data = data  # type: ignore[assignment]
+        cast(Any, row).data = data
     db.commit()
     db.refresh(row)
     return dict(row.data)
