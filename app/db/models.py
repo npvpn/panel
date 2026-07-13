@@ -380,6 +380,7 @@ class ProxyHost(Base):
     noise_setting = Column(String(2000), nullable=True)
     random_user_agent = Column(Boolean, nullable=False, default=False, server_default="0")
     use_sni_as_host = Column(Boolean, nullable=False, default=False, server_default="0")
+    xhttp_extra = Column(JSON, nullable=True)
     bots = relationship("Bot", secondary=host_bot_association, back_populates="hosts")
 
     @property

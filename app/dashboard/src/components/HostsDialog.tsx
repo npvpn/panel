@@ -78,7 +78,18 @@ export const HostsDialog: FC = () => {
 
   useEffect(() => {
     if (hosts && isEditingHosts) {
-      form.reset(hosts);
+      const formHosts = Object.fromEntries(
+        Object.entries(hosts).map(([key, hostList]) => [
+          key,
+          (hostList as any[]).map((host) => ({
+            ...host,
+            xhttp_extra: host.xhttp_extra
+              ? JSON.stringify(host.xhttp_extra, null, 2)
+              : "",
+          })),
+        ])
+      );
+      form.reset(formHosts);
     }
   }, [hosts, isEditingHosts, form]);
 
@@ -89,7 +100,18 @@ export const HostsDialog: FC = () => {
 
   const handleFormSubmit = useCallback(
     (hostsData: z.infer<typeof hostsSchema>) => {
-      setHosts(hostsData)
+      const payload = Object.fromEntries(
+        Object.entries(hostsData).map(([key, hostList]) => [
+          key,
+          (hostList as any[]).map((host) => ({
+            ...host,
+            xhttp_extra: host.xhttp_extra
+              ? JSON.parse(host.xhttp_extra)
+              : null,
+          })),
+        ])
+      );
+      setHosts(payload as z.infer<typeof hostsSchema>)
         .then(() => {
           toast({
             title: t("hostsDialog.savedSuccess"),

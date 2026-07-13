@@ -30,6 +30,26 @@ export const hostsSchema = z.record(
         alpn: z.string(),
         fingerprint: z.string(),
         use_sni_as_host: z.boolean().default(false),
+        xhttp_extra: z
+          .string()
+          .nullable()
+          .optional()
+          .refine(
+            (v) => {
+              if (!v) return true;
+              try {
+                const parsed = JSON.parse(v);
+                return (
+                  typeof parsed === "object" &&
+                  !Array.isArray(parsed) &&
+                  parsed !== null
+                );
+              } catch {
+                return false;
+              }
+            },
+            { message: "Must be a valid JSON object" }
+          ),
         bot_usernames: z.array(z.string()).default([]),
         node_ids: z.array(z.number()).default([]),
       })

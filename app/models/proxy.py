@@ -157,6 +157,7 @@ class ProxyHost(BaseModel):
     noise_setting: str | None = Field(None, nullable=True)
     random_user_agent: bool | None = None
     use_sni_as_host: bool | None = None
+    xhttp_extra: dict | None = None
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("remark", mode="after")
@@ -192,6 +193,13 @@ class ProxyHost(BaseModel):
                 raise ValueError("Noise setting must be like this: packet,delay (rand:10-20,100-200).")
             if len(v) > 2000:
                 raise ValueError("Noise can't be longer that 2000 character")
+        return v
+
+    @field_validator("xhttp_extra", check_fields=False)
+    @classmethod
+    def validate_xhttp_extra(cls, v):
+        if v is not None and not isinstance(v, dict):
+            raise ValueError("xhttp_extra must be a JSON object")
         return v
 
 
