@@ -11,9 +11,21 @@ from collections.abc import Mapping, Sequence
 from typing import Literal
 
 ZERO_STUB_ID = "00000000-0000-0000-0000-000000000000"
+INCY_STUB_ID = "11111111-1111-4111-8111-111111111111"
+INCY_STUB_ADDRESS = "198.18.0.1"
+INCY_STUB_PORT = 443
+JSON_STUB_ID = "11111111-1111-4111-8111-111111111111"
+JSON_STUB_ADDRESS = "198.18.0.1"
+JSON_STUB_PORT = 443
 
 
-def _vless_stub_link(remark: str) -> str:
+def _vless_stub_link(
+    remark: str,
+    *,
+    id: str = ZERO_STUB_ID,
+    address: str = "0.0.0.0",
+    port: int = 0,
+) -> str:
     """Минимальная vless-ссылка заглушки (0.0.0.0:0), без импорта v2ray.py."""
     payload = {
         "security": "none",
@@ -22,7 +34,7 @@ def _vless_stub_link(remark: str) -> str:
         "path": "",
         "host": "",
     }
-    return "vless://" + f"{ZERO_STUB_ID}@0.0.0.0:0?" + urlparse.urlencode(payload) + f"#{urlparse.quote(remark)}"
+    return "vless://" + f"{id}@{address}:{port}?" + urlparse.urlencode(payload) + f"#{urlparse.quote(remark)}"
 
 
 def pick_status_stub_text_list(
@@ -51,8 +63,9 @@ def build_v2ray_status_stub(
     *,
     as_base64: bool,
     reverse: bool = False,
+    v2ray_stub_profile: Literal["default", "incy"] = "default",
 ) -> str:
-    """Мёртвые vless-узлы 0.0.0.0:0 с remark из text_list."""
+    """Мёртвые vless-узлы c remark из text_list (формат-зависимые параметры)."""
     if not text_list:
         if config_format == "v2ray":
             return base64.b64encode(b"").decode()
@@ -62,7 +75,18 @@ def build_v2ray_status_stub(
         return config
 
     if config_format == "v2ray":
-        payload = "\n".join(_vless_stub_link(remark) for remark in text_list)
+        if v2ray_stub_profile == "incy":
+            payload = "\n".join(
+                _vless_stub_link(
+                    remark,
+                    id=INCY_STUB_ID,
+                    address=INCY_STUB_ADDRESS,
+                    port=INCY_STUB_PORT,
+                )
+                for remark in text_list
+            )
+        else:
+            payload = "\n".join(_vless_stub_link(remark) for remark in text_list)
         return base64.b64encode(payload.encode()).decode()
 
     from app.subscription.v2ray import V2rayJsonConfig
@@ -70,7 +94,7 @@ def build_v2ray_status_stub(
     stub_inbound = {
         "network": "ws",
         "protocol": "vless",
-        "port": 0,
+        "port": JSON_STUB_PORT,
         "tls": "none",
         "header_type": "",
         "fragment_setting": "",
@@ -83,9 +107,9 @@ def build_v2ray_status_stub(
     for remark in text_list:
         conf.add(
             remark=remark,
-            address="0.0.0.0",
+            address=JSON_STUB_ADDRESS,
             inbound=stub_inbound,
-            settings={"id": ZERO_STUB_ID},
+            settings={"id": JSON_STUB_ID},
         )
     config = conf.render(reverse=reverse)
     if as_base64:
