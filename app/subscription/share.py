@@ -614,7 +614,3 @@ def process_inbounds_and_tags(
                     )
 
     return conf.render(reverse=reverse)
-
-
-def encode_title(text: str) -> str:
-    return f"base64:{base64.b64encode(text.encode()).decode()}"

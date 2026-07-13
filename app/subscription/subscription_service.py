@@ -1,12 +1,17 @@
+import base64
 import re
 from collections.abc import Callable
-from typing import Literal, NamedTuple, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypedDict
 
 from fastapi import Request
 
-from app.models.user import UserResponse
 from app.subscription.custom_headers import parse_custom_headers
-from app.subscription.share import encode_title
+
+# Не тянем тяжелые импорты моделей в runtime (упрощает unit-тесты сервиса).
+if TYPE_CHECKING:
+    from app.models.user import UserResponse
+else:  # pragma: no cover
+    UserResponse = Any
 
 # Сервисный модуль для /sub-эндпоинтов:
 # - выбор плана рендера подписки (формат/тип ответа),
@@ -38,6 +43,11 @@ def _version_gte(version_str: str, min_version: str) -> bool:
         return tuple(int(part) for part in v.split("."))
 
     return parse(version_str) >= parse(min_version)
+
+
+def _ua_has_token(user_agent: str, pattern: str) -> bool:
+    """Ищет сигнатуру клиента в любой части User-Agent."""
+    return bool(re.search(pattern, user_agent, re.IGNORECASE))
 
 
 def resolve_announce_text(
@@ -77,6 +87,9 @@ def build_subscription_response_headers(
     build_content_disposition: Callable[[str], str],
     get_routing_header: Callable[[str, dict], dict],
 ) -> dict[str, str]:
+    def encode_title(text: str) -> str:
+        return f"base64:{base64.b64encode(text.encode()).decode()}"
+
     # Единая сборка subscription-заголовков для обоих /sub эндпоинтов.
     headers = {
         "content-disposition": build_content_disposition(user.username),
@@ -107,23 +120,23 @@ def resolve_subscription_plan_by_user_agent(
     use_custom_json_for_happ: bool,
 ) -> SubscriptionRenderPlan:
     # Весь UA-routing сконцентрирован здесь, чтобы не раздувать роутер.
-    if re.match(r"^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)", user_agent):
+    if _ua_has_token(user_agent, r"(clash-verge|clash[-\.]?meta|flclash|mihomo)"):
         return SubscriptionRenderPlan("clash-meta", False, False, "text/yaml")
-    if re.match(r"^([Cc]lash|[Ss]tash)", user_agent):
+    if _ua_has_token(user_agent, r"\b(clash|stash)\b"):
         return SubscriptionRenderPlan("clash", False, False, "text/yaml")
-    if re.match(r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)", user_agent):
+    if _ua_has_token(user_agent, r"\b(SFA|SFI|SFM|SFT|karing|hiddifynext)\b"):
         return SubscriptionRenderPlan("sing-box", False, False, "application/json")
-    if re.match(r"^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", user_agent):
+    if _ua_has_token(user_agent, r"\b(SS|SSR|SSD|SSS|outline|shadowsocks|ssconf)\b"):
         return SubscriptionRenderPlan("outline", False, False, "application/json")
 
-    v2rayn_match = re.match(r"^v2rayN/(\d+\.\d+)", user_agent)
+    v2rayn_match = re.search(r"(?:^|[;\s])v2rayN/(\d+\.\d+)", user_agent)
     if (use_custom_json_default or use_custom_json_for_v2rayn) and v2rayn_match:
         version_str = v2rayn_match.group(1)
         if _version_gte(version_str, "6.40"):
             return SubscriptionRenderPlan("v2ray-json", False, False, "application/json")
         return SubscriptionRenderPlan("v2ray", True, False, "text/plain")
 
-    v2rayng_match = re.match(r"^v2rayNG/(\d+\.\d+\.\d+)", user_agent)
+    v2rayng_match = re.search(r"(?:^|[;\s])v2rayNG/(\d+\.\d+\.\d+)", user_agent)
     if (use_custom_json_default or use_custom_json_for_v2rayng) and v2rayng_match:
         version_str = v2rayng_match.group(1)
         if _version_gte(version_str, "1.8.29"):
@@ -132,19 +145,19 @@ def resolve_subscription_plan_by_user_agent(
             return SubscriptionRenderPlan("v2ray-json", False, True, "application/json")
         return SubscriptionRenderPlan("v2ray", True, False, "text/plain")
 
-    if re.match(r"^[Ss]treisand", user_agent):
+    if _ua_has_token(user_agent, r"\bstreisand\b"):
         if use_custom_json_default or use_custom_json_for_streisand:
             return SubscriptionRenderPlan("v2ray-json", False, False, "application/json")
         return SubscriptionRenderPlan("v2ray", True, False, "text/plain")
 
-    happ_match = re.match(r"^Happ/(\d+\.\d+\.\d+)", user_agent)
+    happ_match = re.search(r"(?:^|[;\s])Happ/(\d+\.\d+\.\d+)", user_agent)
     if (use_custom_json_default or use_custom_json_for_happ) and happ_match:
         version_str = happ_match.group(1)
         if _version_gte(version_str, "1.63.1"):
             return SubscriptionRenderPlan("v2ray-json", False, False, "application/json")
         return SubscriptionRenderPlan("v2ray", True, False, "text/plain")
 
-    if re.match(r"^[Ii][Nn][Cc][Yy]/", user_agent):
+    if _ua_has_token(user_agent, r"INCY/"):
         return SubscriptionRenderPlan("incy", False, False, resolve_incy_media_type(use_custom_json_default))
 
     return SubscriptionRenderPlan("v2ray", True, False, "text/plain")
