@@ -12,6 +12,7 @@ from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.bot_settings import resolve_bot_settings
 from app.subscription.headers import build_content_disposition, get_routing_header
+from app.subscription.page import build_subscription_page_context
 from app.subscription.share import generate_subscription
 from app.subscription.subscription_service import (
     SubscriptionClientConfigEntry,
@@ -22,7 +23,6 @@ from app.subscription.subscription_service import (
     resolve_subscription_plan_by_user_agent,
 )
 from app.subscription.user_info import (
-    devices_json,
     get_subscription_user_info,
     get_user_note,
     resolve_device_limit_subscription_state,
@@ -140,16 +140,7 @@ def user_subscription(
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
         # HTML-ветка (страница подписки) обрабатывается отдельно от генерации конфигов.
-        devices = crud.get_user_active_devices(db, dbuser)
-        html_context = {
-            "user": user,
-            "devices": devices,
-            "devices_json": devices_json(devices),
-            "token": token,
-            "sub_path": XRAY_SUBSCRIPTION_PATH,
-            "web_url": (bot_settings.get("web_url") or "").strip(),
-            "bot_url": bot_settings["bot_url"],
-        }
+        html_context = build_subscription_page_context(db, dbuser, token)
         if is_revoked:
             return HTMLResponse(render_template("sub/revoked.html", html_context))
         if is_expired:
