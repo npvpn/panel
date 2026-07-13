@@ -19,6 +19,7 @@ from app.db.models import (
     Bot,
     BotSettings,
     CascadeRoute,
+    GlobalSetting,
     NextPlan,
     Node,
     NodeUsage,
@@ -2101,3 +2102,22 @@ def count_online_users(db: Session, hours: int = 24):
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=hours)
     query = db.query(func.count(User.id)).filter(User.online_at.isnot(None), User.online_at >= twenty_four_hours_ago)
     return query.scalar()
+
+
+def get_global_setting(db: Session, key: str) -> dict[str, Any] | None:
+    row = db.query(GlobalSetting).filter(GlobalSetting.key == key).first()
+    if row is None or not row.data:
+        return None
+    return dict(row.data)
+
+
+def upsert_global_setting(db: Session, key: str, data: dict[str, Any]) -> dict[str, Any]:
+    row = db.query(GlobalSetting).filter(GlobalSetting.key == key).first()
+    if row is None:
+        row = GlobalSetting(key=key, data=data)
+        db.add(row)
+    else:
+        row.data = data  # type: ignore[assignment]
+    db.commit()
+    db.refresh(row)
+    return dict(row.data)
