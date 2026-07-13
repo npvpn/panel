@@ -1,8 +1,4 @@
 import {
-  AccordionButton,
-  AccordionIcon,
-  AccordionItem,
-  AccordionPanel,
   Alert,
   AlertIcon,
   Badge,
