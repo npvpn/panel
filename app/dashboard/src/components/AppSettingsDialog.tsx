@@ -1,0 +1,301 @@
+import {
+  Button,
+  Checkbox,
+  FormControl,
+  FormLabel,
+  HStack,
+  Input,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Select,
+  SimpleGrid,
+  Text,
+  VStack,
+  useToast,
+} from "@chakra-ui/react";
+import { useDashboard } from "contexts/DashboardContext";
+import { FC, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { fetch } from "service/http";
+import {
+  ClientApp,
+  ClientAppsSettings,
+  LINK_KEYS,
+  PLATFORM_KEYS,
+  PlatformKey,
+} from "types/AppSettings";
+
+const emptyLinks = () =>
+  LINK_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: "" }),
+    {} as ClientApp["links"]
+  );
+
+const emptySettings: ClientAppsSettings = { apps: [], primary_by_platform: {} };
+
+const newApp = (index: number): ClientApp => ({
+  id: `app${index}`,
+  name: "",
+  scheme: "",
+  enabled: true,
+  links: emptyLinks(),
+});
+
+export const AppSettingsDialog: FC = () => {
+  const { isEditingAppSettings, onEditingAppSettings } = useDashboard();
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [settings, setSettings] = useState<ClientAppsSettings>(emptySettings);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const showValidationErrorToast = (err: any) => {
+    const detail = err?.response?._data?.detail;
+    if (detail && typeof detail === "object") {
+      Object.keys(detail).forEach((key) => {
+        toast({
+          title: `${detail[key]} (${key})`,
+          status: "error",
+          isClosable: true,
+          position: "top",
+        });
+      });
+      return;
+    }
+    toast({
+      title: t("appSettings.saveFailed"),
+      description: typeof detail === "string" ? detail : undefined,
+      status: "error",
+      isClosable: true,
+      position: "top",
+    });
+  };
+
+  useEffect(() => {
+    if (!isEditingAppSettings) return;
+    setLoading(true);
+    fetch("/settings/apps")
+      .then((data: ClientAppsSettings) => setSettings(data))
+      .catch(() =>
+        toast({
+          title: t("appSettings.loadFailed"),
+          status: "error",
+          isClosable: true,
+          position: "top",
+        })
+      )
+      .finally(() => setLoading(false));
+  }, [isEditingAppSettings]);
+
+  const updateApp = (index: number, patch: Partial<ClientApp>) => {
+    setSettings((prev) => ({
+      ...prev,
+      apps: prev.apps.map((app, i) => (i === index ? { ...app, ...patch } : app)),
+    }));
+  };
+
+  const updateLink = (index: number, key: string, value: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      apps: prev.apps.map((app, i) =>
+        i === index ? { ...app, links: { ...app.links, [key]: value } } : app
+      ),
+    }));
+  };
+
+  const moveApp = (index: number, delta: number) => {
+    setSettings((prev) => {
+      const apps = [...prev.apps];
+      const target = index + delta;
+      if (target < 0 || target >= apps.length) return prev;
+      [apps[index], apps[target]] = [apps[target], apps[index]];
+      return { ...prev, apps };
+    });
+  };
+
+  const removeApp = (index: number) => {
+    setSettings((prev) => {
+      const removed = prev.apps[index];
+      const primary = { ...prev.primary_by_platform };
+      PLATFORM_KEYS.forEach((platform) => {
+        if (primary[platform] === removed.id) delete primary[platform];
+      });
+      return {
+        apps: prev.apps.filter((_, i) => i !== index),
+        primary_by_platform: primary,
+      };
+    });
+  };
+
+  const resetToDefaults = () => {
+    setLoading(true);
+    fetch("/settings/apps/defaults")
+      .then((data: ClientAppsSettings) => setSettings(data))
+      .catch(() =>
+        toast({
+          title: t("appSettings.loadFailed"),
+          status: "error",
+          isClosable: true,
+          position: "top",
+        })
+      )
+      .finally(() => setLoading(false));
+  };
+
+  const save = () => {
+    setSaving(true);
+    fetch("/settings/apps", { method: "PUT", body: settings })
+      .then((data: ClientAppsSettings) => {
+        setSettings(data);
+        toast({
+          title: t("appSettings.saved"),
+          status: "success",
+          isClosable: true,
+          position: "top",
+        });
+        onEditingAppSettings(false);
+      })
+      .catch((err) => showValidationErrorToast(err))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <Modal
+      isOpen={isEditingAppSettings}
+      onClose={() => onEditingAppSettings(false)}
+      size="4xl"
+      scrollBehavior="inside"
+    >
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>{t("appSettings.title")}</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <VStack align="stretch" spacing={6}>
+            <VStack align="stretch" spacing={4}>
+              {settings.apps.map((app, index) => (
+                <VStack
+                  key={index}
+                  align="stretch"
+                  spacing={3}
+                  borderWidth="1px"
+                  borderRadius="md"
+                  p={4}
+                >
+                  <HStack justify="space-between" flexWrap="wrap">
+                    <HStack spacing={3} flexWrap="wrap">
+                      <Input
+                        w="140px"
+                        placeholder={t("appSettings.appId")}
+                        value={app.id}
+                        onChange={(e) => updateApp(index, { id: e.target.value })}
+                      />
+                      <Input
+                        w="200px"
+                        placeholder={t("appSettings.appName")}
+                        value={app.name}
+                        onChange={(e) => updateApp(index, { name: e.target.value })}
+                      />
+                      <Input
+                        w="140px"
+                        placeholder={t("appSettings.scheme")}
+                        value={app.scheme}
+                        onChange={(e) => updateApp(index, { scheme: e.target.value })}
+                      />
+                      <Checkbox
+                        isChecked={app.enabled}
+                        onChange={(e) => updateApp(index, { enabled: e.target.checked })}
+                      >
+                        {t("appSettings.enabled")}
+                      </Checkbox>
+                    </HStack>
+                    <HStack>
+                      <Button size="sm" onClick={() => moveApp(index, -1)}>↑</Button>
+                      <Button size="sm" onClick={() => moveApp(index, 1)}>↓</Button>
+                      <Button size="sm" colorScheme="red" onClick={() => removeApp(index)}>
+                        {t("delete")}
+                      </Button>
+                    </HStack>
+                  </HStack>
+                  <SimpleGrid columns={2} spacing={3}>
+                    {LINK_KEYS.map((key) => (
+                      <FormControl key={key}>
+                        <FormLabel fontSize="sm">{t(`appSettings.link.${key}`)}</FormLabel>
+                        <Input
+                          size="sm"
+                          placeholder="https://…"
+                          value={app.links[key] ?? ""}
+                          onChange={(e) => updateLink(index, key, e.target.value)}
+                        />
+                      </FormControl>
+                    ))}
+                  </SimpleGrid>
+                </VStack>
+              ))}
+              <Button
+                alignSelf="flex-start"
+                size="sm"
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    apps: [...prev.apps, newApp(prev.apps.length + 1)],
+                  }))
+                }
+              >
+                {t("appSettings.addApp")}
+              </Button>
+            </VStack>
+
+            <VStack align="stretch" spacing={3}>
+              <Text fontWeight="semibold">{t("appSettings.primaryByPlatform")}</Text>
+              <SimpleGrid columns={3} spacing={3}>
+                {PLATFORM_KEYS.map((platform: PlatformKey) => (
+                  <FormControl key={platform}>
+                    <FormLabel fontSize="sm">{t(`appSettings.platform.${platform}`)}</FormLabel>
+                    <Select
+                      size="sm"
+                      value={settings.primary_by_platform[platform] ?? ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          primary_by_platform: {
+                            ...prev.primary_by_platform,
+                            [platform]: e.target.value,
+                          },
+                        }))
+                      }
+                    >
+                      <option value="">—</option>
+                      {settings.apps
+                        .filter((app) => app.enabled)
+                        .map((app) => (
+                          <option key={app.id} value={app.id}>
+                            {app.name || app.id}
+                          </option>
+                        ))}
+                    </Select>
+                  </FormControl>
+                ))}
+              </SimpleGrid>
+            </VStack>
+          </VStack>
+        </ModalBody>
+        <ModalFooter>
+          <HStack>
+            <Button variant="outline" onClick={resetToDefaults} isLoading={loading}>
+              {t("appSettings.resetDefaults")}
+            </Button>
+            <Button colorScheme="primary" onClick={save} isLoading={saving}>
+              {t("core.save")}
+            </Button>
+          </HStack>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+};
