@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from app.db import Session, crud
+from app.models.settings import CLIENT_APPS_KEY
 from app.models.user import UserResponse
 from app.subscription.bot_settings import resolve_bot_settings
+from app.subscription.client_apps import build_client_apps_view
 from app.subscription.user_info import devices_json
 from config import XRAY_SUBSCRIPTION_PATH
 
@@ -19,4 +21,5 @@ def build_subscription_page_context(db: Session, dbuser, token: str) -> dict:
         "sub_path": XRAY_SUBSCRIPTION_PATH,
         "web_url": (bot_settings.get("web_url") or "").strip(),
         "bot_url": bot_settings["bot_url"],
+        "client_apps": build_client_apps_view(crud.get_global_setting(db, CLIENT_APPS_KEY)),
     }
