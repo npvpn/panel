@@ -103,6 +103,9 @@ def start_core():
     config = xray.config.include_db_users()
     logger.info(f"Xray core config generated in {(time.time() - start_time):.2f} seconds")
 
+    with GetDB() as db:
+        xray.operations.refresh_master_inbounds(db)
+
     # main core
     logger.info("Starting main Xray core")
     try:

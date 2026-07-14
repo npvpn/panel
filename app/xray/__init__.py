@@ -9,6 +9,7 @@ from app.xray import operations
 from app.xray.config import XRayConfig
 from app.xray.core import XRayCore
 from app.xray.host_addresses import resolve_host_addresses
+from app.xray.inbound_filter import apply_inbound_filter
 from app.xray.node import XRayNode
 from config import XRAY_ASSETS_PATH, XRAY_EXECUTABLE_PATH, XRAY_JSON
 from xray_api import XRay as XRayAPI
@@ -29,6 +30,15 @@ finally:
 api = XRayAPI(config.api_host, config.api_port)
 
 nodes: dict[int, XRayNode] = {}
+
+# Кеш тегов инбаундов Master (пусто ⇒ Master поднимает все инбаунды).
+# Обновляется через operations.refresh_master_inbounds(db).
+master_inbound_tags: list[str] = []
+
+# list(...) — снимок на момент вызова: refresh_master_inbounds мутирует список
+# in-place (master_inbound_tags[:] = ...), а хук может читаться из потока
+# APScheduler (core_health_check) параллельно с PUT-обновлением.
+core.inbound_filter = lambda cfg: apply_inbound_filter(cfg, list(master_inbound_tags))
 
 
 if TYPE_CHECKING:
@@ -77,6 +87,7 @@ __all__ = [
     "core",
     "api",
     "nodes",
+    "master_inbound_tags",
     "operations",
     "exceptions",
     "exc",

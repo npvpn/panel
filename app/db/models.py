@@ -261,6 +261,12 @@ node_inbounds_association = Table(
     Column("inbound_tag", ForeignKey("inbounds.tag", ondelete="CASCADE"), primary_key=True),
 )
 
+master_inbounds_association = Table(
+    "master_inbounds",
+    Base.metadata,
+    Column("inbound_tag", ForeignKey("inbounds.tag", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class CascadeRoute(Base):
     """Связь входной ноды с выходной по конкретному инбаунду (NPVPN-1472).

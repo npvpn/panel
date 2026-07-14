@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 from app import xray
-from app.db import Session, get_db
+from app.db import Session, crud, get_db
 from app.models.admin import Admin
-from app.models.core import CoreStats
+from app.models.core import CoreStats, MasterInbounds
 from app.utils import responses
 from app.xray import XRayConfig
 from config import XRAY_JSON
@@ -124,3 +124,29 @@ def modify_core_config(payload: dict, admin: Admin = Depends(Admin.check_sudo_ad
     xray.hosts.update()
 
     return payload
+
+
+@router.get("/master/inbounds", response_model=MasterInbounds, responses={403: responses._403})
+def get_master_inbounds(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+) -> MasterInbounds:
+    """Инбаунды, поднятые на главном сервере (Master). Пусто ⇒ все инбаунды."""
+    return MasterInbounds(inbounds=crud.get_master_inbound_tags(db))
+
+
+@router.put("/master/inbounds", response_model=MasterInbounds, responses={403: responses._403})
+def modify_master_inbounds(
+    payload: MasterInbounds,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+) -> MasterInbounds:
+    """Задать инбаунды Master и перезапустить главный core (ноды не трогаем)."""
+    # оставить только известные прокси-инбаунды (неизвестные молча отбрасываем)
+    known = set(xray.config.inbounds_by_tag.keys())
+    tags = [t for t in payload.inbounds if t in known]
+
+    crud.set_master_inbounds(db, tags)
+    xray.operations.refresh_master_inbounds(db)
+    xray.core.restart(xray.config.include_db_users())
+    return MasterInbounds(inbounds=tags)

@@ -3,6 +3,7 @@ import re
 import subprocess
 import threading
 from collections import deque
+from collections.abc import Callable
 from contextlib import contextmanager
 
 from app import logger
@@ -18,6 +19,7 @@ class XRayCore:
         self.version = self.get_version()
         self.process = None
         self.restarting = False
+        self.inbound_filter: Callable[[XRayConfig], XRayConfig] | None = None  # применяется в start()
 
         self._logs_buffer = deque(maxlen=100)
         self._temp_log_buffers = {}
@@ -104,6 +106,9 @@ class XRayCore:
     def start(self, config: XRayConfig):
         if self.started is True:
             raise RuntimeError("Xray is started already")
+
+        if self.inbound_filter is not None:
+            config = self.inbound_filter(config)
 
         if config.get("log", {}).get("logLevel") in ("none", "error"):
             config["log"]["logLevel"] = "warning"

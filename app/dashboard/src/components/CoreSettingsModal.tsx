@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   chakra,
+  Checkbox,
   CircularProgress,
   FormControl,
   FormLabel,
@@ -19,7 +20,8 @@ import {
   Text,
   Tooltip,
   useToast,
-  useColorMode
+  useColorMode,
+  VStack
 } from "@chakra-ui/react";
 import {
   ArrowPathIcon,
@@ -32,13 +34,14 @@ import classNames from "classnames";
 import { useCoreSettings } from "contexts/CoreSettingsContext";
 import { useDashboard } from "contexts/DashboardContext";
 import debounce from "lodash.debounce";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "react-query";
 import { ReadyState } from "react-use-websocket";
 import { useWebSocket } from "react-use-websocket/dist/lib/use-websocket";
 import { getAuthToken } from "utils/authStorage";
+import { getMasterInbounds, setMasterInbounds } from "service/master";
 import { Icon } from "./Icon";
 import { JsonEditor } from "./JsonEditor";
 import "./JsonEditor/themes.js";
@@ -126,7 +129,7 @@ const CoreSettingModalContent: FC = () => {
     }
   };
 
-  const { isEditingCore } = useDashboard();
+  const { isEditingCore, inbounds: allInbounds } = useDashboard();
   const {
     fetchCoreSettings,
     updateConfig,
@@ -140,6 +143,71 @@ const CoreSettingModalContent: FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const { t } = useTranslation();
   const toast = useToast();
+
+  const inboundTags = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Array.from(allInbounds.values())
+            .flat()
+            .map((i) => i.tag)
+        )
+      ),
+    [allInbounds]
+  );
+  const [masterInbounds, setMasterInboundsState] = useState<string[]>([]);
+  const [masterLoaded, setMasterLoaded] = useState(false);
+  const [savingMaster, setSavingMaster] = useState(false);
+
+  useEffect(() => {
+    if (isEditingCore) {
+      setMasterLoaded(false);
+      getMasterInbounds()
+        .then((r) => {
+          setMasterInboundsState(r.inbounds);
+          setMasterLoaded(true);
+        })
+        .catch(() =>
+          toast({
+            title: t("core.generalErrorMessage"),
+            status: "error",
+            isClosable: true,
+            position: "top",
+            duration: 3000,
+          })
+        );
+    }
+  }, [isEditingCore]);
+
+  const toggleMasterInbound = (tag: string, checked: boolean) =>
+    setMasterInboundsState((prev) =>
+      checked ? [...prev, tag] : prev.filter((x) => x !== tag)
+    );
+
+  const handleSaveMaster = () => {
+    setSavingMaster(true);
+    setMasterInbounds(masterInbounds)
+      .then((r) => {
+        setMasterInboundsState(r.inbounds);
+        toast({
+          title: t("core.successMessage"),
+          status: "success",
+          isClosable: true,
+          position: "top",
+          duration: 3000,
+        });
+      })
+      .catch(() =>
+        toast({
+          title: t("core.generalErrorMessage"),
+          status: "error",
+          isClosable: true,
+          position: "top",
+          duration: 3000,
+        })
+      )
+      .finally(() => setSavingMaster(false));
+  };
   const form = useForm({
     defaultValues: { config: config || {} },
   });
@@ -340,6 +408,38 @@ const CoreSettingModalContent: FC = () => {
             ))}
           </Box>
         </FormControl>
+        {inboundTags.length > 0 && (
+          <FormControl mt="4">
+            <FormLabel>{t("core.masterInbounds", "Инбаунды Master")}</FormLabel>
+            <Text fontSize="xs" opacity={0.7} mb={2}>
+              {t(
+                "core.masterInboundsHint",
+                "Пусто — на главном сервере поднимаются все инбаунды."
+              )}
+            </Text>
+            <VStack align="flex-start" spacing={1}>
+              {inboundTags.map((tag) => (
+                <Checkbox
+                  key={tag}
+                  isChecked={masterInbounds.includes(tag)}
+                  onChange={(e) => toggleMasterInbound(tag, e.target.checked)}
+                >
+                  <Text fontSize="sm">{tag}</Text>
+                </Checkbox>
+              ))}
+            </VStack>
+            <Button
+              size="sm"
+              mt={2}
+              variant="outline"
+              isLoading={savingMaster}
+              isDisabled={!masterLoaded}
+              onClick={handleSaveMaster}
+            >
+              {t("core.save")}
+            </Button>
+          </FormControl>
+        )}
       </ModalBody>
       <ModalFooter>
         <HStack w="full" justifyContent="space-between">
