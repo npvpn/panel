@@ -1972,6 +1972,7 @@ def apply_bs_extra_pool_consumption(
     db.execute(update(User).where(User.id == user_id).values(bs_extra=new_extra))
 
 
+# TODO(NPVPN-1652): удалить после перевода роутера на *_node_ids (Task 4).
 def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
     """Адреса БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
 
@@ -1988,6 +1989,7 @@ def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
     return {addr for (addr,) in rows if addr}
 
 
+# TODO(NPVPN-1652): удалить после перевода роутера на *_node_ids (Task 4).
 def get_bs_node_addresses(db: Session) -> set[str]:
     """Адреса всех БС-нод (Node.is_bs=True).
 
@@ -1997,6 +1999,23 @@ def get_bs_node_addresses(db: Session) -> set[str]:
     get_blocked_bs_node_addresses)."""
     rows = db.query(Node.address).filter(Node.is_bs.is_(True)).all()
     return {addr for (addr,) in rows if addr}
+
+
+def get_blocked_bs_node_ids(db: Session, user_id: int) -> set[int]:
+    """ID БС-нод, на которых юзер сейчас заблокирован по лимиту (node_user_blocks).
+
+    Хост подписки соотносится с нодой по связи host_nodes (ProxyHost.nodes), а НЕ по
+    адресу: адрес хоста может быть доменом (маскировка TLS/SNI), тогда как нода
+    подключена по IP (NPVPN-1652). Инбаунд-теги в Marzban общие для всех нод и для
+    матча не годятся. При блоке юзер теряет ноду целиком — глушим все её хосты."""
+    rows = db.query(NodeUserBlock.node_id).filter(NodeUserBlock.user_id == user_id).all()
+    return {node_id for (node_id,) in rows}
+
+
+def get_bs_node_ids(db: Session) -> set[int]:
+    """ID всех БС-нод (Node.is_bs=True) — для пер-серверного выбора клиентского routing."""
+    rows = db.query(Node.id).filter(Node.is_bs.is_(True)).all()
+    return {node_id for (node_id,) in rows}
 
 
 def create_notification_reminder(

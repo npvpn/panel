@@ -58,6 +58,9 @@ def hosts(storage: dict):
                 {
                     "remark": host.remark,
                     "address": resolve_host_addresses(host),
+                    # Привязанные ноды хоста: по ним определяется БС-признак и БС-блокировки
+                    # (NPVPN-1652), адрес хоста для этого не годится — он может быть доменом.
+                    "node_ids": host.node_ids,
                     "port": host.port,
                     "path": host.path if host.path else None,
                     "sni": [i.strip() for i in host.sni.split(",")] if host.sni else [],
