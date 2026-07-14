@@ -8,7 +8,7 @@ from app.utils.system import check_port
 from app.xray import operations
 from app.xray.config import XRayConfig
 from app.xray.core import XRayCore
-from app.xray.host_addresses import resolve_host_addresses
+from app.xray.host_addresses import resolve_host_addresses, resolve_host_node_ids
 from app.xray.inbound_filter import apply_inbound_filter
 from app.xray.node import XRayNode
 from config import XRAY_ASSETS_PATH, XRAY_EXECUTABLE_PATH, XRAY_JSON
@@ -60,7 +60,9 @@ def hosts(storage: dict):
                     "address": resolve_host_addresses(host),
                     # Привязанные ноды хоста: по ним определяется БС-признак и БС-блокировки
                     # (NPVPN-1652), адрес хоста для этого не годится — он может быть доменом.
-                    "node_ids": host.node_ids,
+                    # Инвариант: адреса и node_ids строятся по одному множеству нод —
+                    # обе функции живут рядом в host_addresses.py.
+                    "node_ids": resolve_host_node_ids(host),
                     "port": host.port,
                     "path": host.path if host.path else None,
                     "sni": [i.strip() for i in host.sni.split(",")] if host.sni else [],
