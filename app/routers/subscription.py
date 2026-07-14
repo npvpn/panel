@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,13 +12,14 @@ from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.bot_settings import resolve_bot_settings
-from app.subscription.bs_context import BsContext
+from app.subscription.bs_context_builder import build_bs_context
 from app.subscription.headers import build_content_disposition, get_routing_header
 from app.subscription.page import build_subscription_page_context
 from app.subscription.share import generate_subscription
 from app.subscription.subscription_service import (
     SubscriptionClientConfigEntry,
-    SubscriptionConfigFormat,
+    SubscriptionRenderContext,
+    SubscriptionRenderPlan,
     build_subscription_response_headers,
     resolve_announce_text,
     resolve_subscription_plan_by_client_type,
@@ -30,7 +32,6 @@ from app.subscription.user_info import (
 )
 from app.templates import render_template
 from app.utils.jwt import get_subscription_payload
-from app.xray.bs_limit import bs_stub_remark
 from config import (
     SUBSCRIPTION_PAGE_TEMPLATE,
     USE_CUSTOM_JSON_DEFAULT,
@@ -113,6 +114,91 @@ def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
         )
 
 
+def build_render_context(
+    request: Request,
+    db: Session,
+    dbuser: User,
+    user: UserResponse,
+    bot_settings: dict,
+    *,
+    is_revoked: bool,
+    is_expired: bool,
+    user_agent: str,
+    x_hwid: str | None,
+    x_device_os: str | None,
+    x_ver_os: str | None,
+    x_device_model: str | None,
+) -> SubscriptionRenderContext:
+    """Общий контекст обоих /sub-эндпоинтов: лимиты устройств, БС-контекст, заголовки."""
+    user, device_limited, device_limited_hard, unsupported_blocks = resolve_device_limit_subscription_state(
+        user,
+        db,
+        dbuser,
+        is_revoked,
+        is_expired,
+        bot_settings,
+        user_agent=user_agent,
+        x_hwid=x_hwid,
+        x_device_os=x_device_os,
+        x_ver_os=x_ver_os,
+        x_device_model=x_device_model,
+    )
+    # Хосты заблокированной БС-ноды (матч по связям host→nodes) остаются в подписке на
+    # своих местах, но рендерятся как мёртвые заглушки (см. generate_subscription).
+    bs = build_bs_context(db, dbuser, is_revoked=is_revoked, is_expired=is_expired, bot_settings=bot_settings)
+    announce_text = resolve_announce_text(
+        user,
+        is_revoked=is_revoked,
+        is_expired=is_expired,
+        device_limited=device_limited,
+        unsupported_blocks=unsupported_blocks,
+        bs=bs,
+        bot_settings=bot_settings,
+        get_user_note=get_user_note,
+    )
+    user_info = get_subscription_user_info(user, db=db, bot_settings=bot_settings, user_id=cast(int, dbuser.id))
+    subscription_userinfo = "; ".join(f"{key}={val}" for key, val in user_info.items())
+    response_headers = build_subscription_response_headers(
+        request=request,
+        user=user,
+        bot_settings=bot_settings,
+        announce_text=announce_text,
+        subscription_userinfo=subscription_userinfo,
+        user_agent=user_agent,
+        build_content_disposition=build_content_disposition,
+        get_routing_header=get_routing_header,
+    )
+    return SubscriptionRenderContext(
+        user=user,
+        is_revoked=is_revoked,
+        is_expired=is_expired,
+        device_limited=device_limited,
+        device_limited_hard=device_limited_hard,
+        unsupported_blocks=unsupported_blocks,
+        bot_settings=bot_settings,
+        bs=bs,
+        response_headers=response_headers,
+    )
+
+
+def render_subscription(ctx: SubscriptionRenderContext, plan: SubscriptionRenderPlan) -> Response:
+    """Единая точка генерации ответа подписки по контексту и плану рендера."""
+    conf = generate_subscription(
+        user=ctx.user,
+        config_format=plan.config_format,
+        as_base64=plan.as_base64,
+        reverse=plan.reverse,
+        revoked=ctx.is_revoked,
+        expired=ctx.is_expired,
+        device_limited=ctx.device_limited,
+        device_limited_hard=ctx.device_limited_hard,
+        unsupported_client=ctx.unsupported_blocks,
+        settings=ctx.bot_settings,
+        bs=ctx.bs,
+    )
+    return Response(content=conf, media_type=plan.media_type, headers=ctx.response_headers)
+
+
 @router.get("/{token}/")
 @router.get("/{token}", include_in_schema=False)
 def user_subscription(
@@ -150,14 +236,15 @@ def user_subscription(
             return HTMLResponse(render_template("sub/limited.html", html_context))
         return HTMLResponse(render_template(SUBSCRIPTION_PAGE_TEMPLATE, html_context))
 
-    # 2) Состояние лимитов/блоков устройства.
-    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = resolve_device_limit_subscription_state(
-        user,
+    # 2) Общий контекст рендера (лимиты устройств, БС-контекст, заголовки).
+    ctx = build_render_context(
+        request,
         db,
         dbuser,
-        is_revoked,
-        is_expired,
+        user,
         bot_settings,
+        is_revoked=is_revoked,
+        is_expired=is_expired,
         user_agent=user_agent,
         x_hwid=x_hwid,
         x_device_os=x_device_os,
@@ -165,75 +252,11 @@ def user_subscription(
         x_device_model=x_device_model,
     )
 
-    # 3) Подготовка BS-заглушек и фона.
-    blocked_bs_addresses = set()
-    if not is_revoked and not is_expired:
-        blocked_bs_addresses = crud.get_blocked_bs_node_addresses(db, dbuser.id)
-    # Хосты заблокированной БС-ноды (матч по адресу) остаются в подписке на своих
-    # местах, но рендерятся как мёртвые заглушки с текстом лимита (см. generate_subscription).
-    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
-
-    bs_addresses = set()
-    if not is_revoked and not is_expired:
-        bs_addresses = crud.get_bs_node_addresses(db)
-
-    if is_revoked or is_expired:
-        bs = BsContext.empty()
-    else:
-        blocked_bs_node_ids = crud.get_blocked_bs_node_ids(db, dbuser.id)
-        bs_node_ids = crud.get_bs_node_ids(db)
-        bs = BsContext(
-            bs_node_ids=frozenset(bs_node_ids),
-            blocked_node_ids=frozenset(blocked_bs_node_ids),
-            stub_text=bs_stub_text,
-        )
-
+    # 3) Фоновый апдейт sub_updated_at / sub_last_user_agent — только на этом эндпоинте.
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
 
-    # 4) Общие announce + response headers вынесены в сервис.
-    announce_text = resolve_announce_text(
-        user,
-        is_revoked=is_revoked,
-        is_expired=is_expired,
-        device_limited=device_limited,
-        unsupported_blocks=unsupported_blocks,
-        blocked_bs_addresses=blocked_bs_addresses,
-        bot_settings=bot_settings,
-        get_user_note=get_user_note,
-    )
-    subscription_userinfo = "; ".join(
-        f"{key}={val}"
-        for key, val in get_subscription_user_info(user, db=db, bot_settings=bot_settings, user_id=dbuser.id).items()
-    )
-    response_headers = build_subscription_response_headers(
-        request=request,
-        user=user,
-        bot_settings=bot_settings,
-        announce_text=announce_text,
-        subscription_userinfo=subscription_userinfo,
-        user_agent=user_agent,
-        build_content_disposition=build_content_disposition,
-        get_routing_header=get_routing_header,
-    )
-
-    def build_subscription(config_format: SubscriptionConfigFormat, as_base64: bool, reverse: bool) -> str:
-        # Локальная обёртка передаёт общий контекст генератору подписки.
-        return generate_subscription(
-            user=user,
-            config_format=config_format,
-            as_base64=as_base64,
-            reverse=reverse,
-            revoked=is_revoked,
-            expired=is_expired,
-            device_limited=device_limited,
-            device_limited_hard=device_limited_hard_for_gen,
-            unsupported_client=unsupported_blocks,
-            settings=bot_settings,
-            bs=bs,
-        )
-
-    # 5) Выбор плана рендера по User-Agent и возврат ответа.
+    # 4) Выбор плана рендера по User-Agent и возврат ответа.
     plan = resolve_subscription_plan_by_user_agent(
         user_agent,
         use_custom_json_default=USE_CUSTOM_JSON_DEFAULT,
@@ -242,8 +265,7 @@ def user_subscription(
         use_custom_json_for_streisand=USE_CUSTOM_JSON_FOR_STREISAND,
         use_custom_json_for_happ=USE_CUSTOM_JSON_FOR_HAPP,
     )
-    conf = build_subscription(plan.config_format, plan.as_base64, plan.reverse)
-    return Response(content=conf, media_type=plan.media_type, headers=response_headers)
+    return render_subscription(ctx, plan)
 
 
 @router.get("/{token}/devices/{device_id}/revoke", include_in_schema=False)
@@ -315,61 +337,19 @@ def user_subscription_with_client_type(
     user: UserResponse = UserResponse.model_validate(dbuser)
     bot_settings = resolve_bot_settings(dbuser)
 
-    user, device_limited, device_limited_hard_for_gen, unsupported_blocks = resolve_device_limit_subscription_state(
-        user,
+    ctx = build_render_context(
+        request,
         db,
         dbuser,
-        is_revoked,
-        is_expired,
+        user,
         bot_settings,
+        is_revoked=is_revoked,
+        is_expired=is_expired,
         user_agent=user_agent,
         x_hwid=x_hwid,
         x_device_os=x_device_os,
         x_ver_os=x_ver_os,
         x_device_model=x_device_model,
-    )
-
-    blocked_bs_addresses = set()
-    if not is_revoked and not is_expired:
-        blocked_bs_addresses = crud.get_blocked_bs_node_addresses(db, dbuser.id)
-    # Хосты заблокированной БС-ноды (матч по адресу) остаются на местах как мёртвые
-    # заглушки (см. первый эндпоинт).
-    bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
-
-    if is_revoked or is_expired:
-        bs = BsContext.empty()
-    else:
-        blocked_bs_node_ids = crud.get_blocked_bs_node_ids(db, dbuser.id)
-        bs_node_ids = crud.get_bs_node_ids(db)
-        bs = BsContext(
-            bs_node_ids=frozenset(bs_node_ids),
-            blocked_node_ids=frozenset(blocked_bs_node_ids),
-            stub_text=bs_stub_text,
-        )
-
-    announce_text = resolve_announce_text(
-        user,
-        is_revoked=is_revoked,
-        is_expired=is_expired,
-        device_limited=device_limited,
-        unsupported_blocks=unsupported_blocks,
-        blocked_bs_addresses=blocked_bs_addresses,
-        bot_settings=bot_settings,
-        get_user_note=get_user_note,
-    )
-    subscription_userinfo = "; ".join(
-        f"{key}={val}"
-        for key, val in get_subscription_user_info(user, db=db, bot_settings=bot_settings, user_id=dbuser.id).items()
-    )
-    response_headers = build_subscription_response_headers(
-        request=request,
-        user=user,
-        bot_settings=bot_settings,
-        announce_text=announce_text,
-        subscription_userinfo=subscription_userinfo,
-        user_agent=user_agent,
-        build_content_disposition=build_content_disposition,
-        get_routing_header=get_routing_header,
     )
 
     try:
@@ -381,17 +361,4 @@ def user_subscription_with_client_type(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Unknown client type") from exc
-    conf = generate_subscription(
-        user=user,
-        config_format=plan.config_format,
-        as_base64=plan.as_base64,
-        reverse=plan.reverse,
-        revoked=is_revoked,
-        expired=is_expired,
-        device_limited=device_limited,
-        device_limited_hard=device_limited_hard_for_gen,
-        unsupported_client=unsupported_blocks,
-        settings=bot_settings,
-        bs=bs,
-    )
-    return Response(content=conf, media_type=plan.media_type, headers=response_headers)
+    return render_subscription(ctx, plan)

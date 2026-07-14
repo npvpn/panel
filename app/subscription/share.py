@@ -3,6 +3,7 @@ import logging
 import random
 import secrets
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime as dt
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, cast
@@ -48,7 +49,16 @@ STATUS_TEXTS = {
 }
 
 
-CONF_FACTORIES = {
+SubscriptionConf = (
+    V2rayShareLink
+    | V2rayJsonConfig
+    | SingBoxConfiguration
+    | ClashConfiguration
+    | ClashMetaConfiguration
+    | OutlineConfiguration
+)
+
+CONF_FACTORIES: dict[str, Callable[[], SubscriptionConf]] = {
     "v2ray": V2rayShareLink,
     "clash": ClashConfiguration,
     "clash-meta": ClashMetaConfiguration,
@@ -66,8 +76,8 @@ def _render(
     reverse: bool,
     bs: BsContext | None = None,
     stub: StubEndpoint | None = None,
-    conf=None,
-):
+    conf: SubscriptionConf | None = None,
+) -> list | str:
     """Единая точка рендера: формат → класс конфига → process_inbounds_and_tags.
 
     conf передаётся готовым только для v2ray-json (его конструктор принимает
@@ -214,57 +224,33 @@ def generate_subscription(
         stub = ZERO_STUB
 
     if render_format == "v2ray":
-        links = _render(
-            "v2ray",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
+        links = cast(
+            list,
+            _render(
+                "v2ray",
+                proxies=user.proxies,
+                inbounds=user.inbounds,
+                extra_data=user.__dict__,
+                reverse=reverse,
+                bs=bs,
+                stub=stub,
+            ),
         )
         if device_limit_links:
             links = [*device_limit_links, *links]
         config = "\n".join(links)
-    elif render_format == "clash-meta":
-        config = _render(
-            "clash-meta",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
-        )
-    elif render_format == "clash":
-        config = _render(
-            "clash",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
-        )
-    elif render_format == "sing-box":
-        config = _render(
-            "sing-box",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
-        )
-    elif render_format == "outline":
-        config = _render(
-            "outline",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
+    elif render_format in ("clash-meta", "clash", "sing-box", "outline"):
+        config = cast(
+            str,
+            _render(
+                render_format,
+                proxies=user.proxies,
+                inbounds=user.inbounds,
+                extra_data=user.__dict__,
+                reverse=reverse,
+                bs=bs,
+                stub=stub,
+            ),
         )
     elif render_format == "v2ray-json":
         from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_ID, JSON_STUB_PORT
@@ -295,15 +281,18 @@ def generate_subscription(
                     inbound=stub_inbound,
                     settings={"id": JSON_STUB_ID},
                 )
-        config = _render(
-            "v2ray-json",
-            proxies=user.proxies,
-            inbounds=user.inbounds,
-            extra_data=user.__dict__,
-            reverse=reverse,
-            bs=bs,
-            stub=stub,
-            conf=conf,
+        config = cast(
+            str,
+            _render(
+                "v2ray-json",
+                proxies=user.proxies,
+                inbounds=user.inbounds,
+                extra_data=user.__dict__,
+                reverse=reverse,
+                bs=bs,
+                stub=stub,
+                conf=conf,
+            ),
         )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')

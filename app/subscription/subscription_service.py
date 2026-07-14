@@ -1,10 +1,12 @@
 import base64
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypedDict
 
 from fastapi import Request
 
+from app.subscription.bs_context import BsContext
 from app.subscription.custom_headers import parse_custom_headers
 
 # Не тянем тяжелые импорты моделей в runtime (упрощает unit-тесты сервиса).
@@ -36,6 +38,21 @@ class SubscriptionRenderPlan(NamedTuple):
     media_type: str
 
 
+@dataclass
+class SubscriptionRenderContext:
+    """Всё, что нужно обоим /sub-эндпоинтам, кроме плана рендера."""
+
+    user: UserResponse
+    is_revoked: bool
+    is_expired: bool
+    device_limited: bool
+    device_limited_hard: bool
+    unsupported_blocks: bool
+    bot_settings: dict
+    bs: BsContext
+    response_headers: dict[str, str]
+
+
 def _version_gte(version_str: str, min_version: str) -> bool:
     """Лёгкое сравнение версий без distutils (mypy-friendly)."""
 
@@ -57,7 +74,7 @@ def resolve_announce_text(
     is_expired: bool,
     device_limited: bool,
     unsupported_blocks: bool,
-    blocked_bs_addresses: set,
+    bs: BsContext,
     bot_settings: dict,
     get_user_note: Callable[[UserResponse, str], str],
 ) -> str:
@@ -71,7 +88,7 @@ def resolve_announce_text(
         return get_user_note(user, bot_settings["sub_device_limit_announce_text"])
     if unsupported_blocks and str(bot_settings["sub_unsupported_client_announce_text"]).strip():
         return get_user_note(user, bot_settings["sub_unsupported_client_announce_text"])
-    if blocked_bs_addresses and str(bot_settings["sub_bs_limit_announce_text"]).strip():
+    if bs.has_blocks and str(bot_settings["sub_bs_limit_announce_text"]).strip():
         return get_user_note(user, bot_settings["sub_bs_limit_announce_text"])
     return announce_text
 

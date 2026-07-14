@@ -175,3 +175,54 @@ def test_resolve_plan_by_client_type():
 
     with pytest.raises(ValueError):
         resolve_subscription_plan_by_client_type("unknown", client_config=client_config, use_custom_json_default=False)
+
+
+def _announce_settings(**overrides):
+    settings = {
+        "sub_client_note": "",
+        "sub_revoked_announce_text": "",
+        "sub_expired_announce_text": "",
+        "sub_device_limit_announce_text": "",
+        "sub_unsupported_client_announce_text": "",
+        "sub_bs_limit_announce_text": "",
+    }
+    settings.update(overrides)
+    return settings
+
+
+def test_announce_uses_bs_limit_text_when_nodes_blocked():
+    from app.subscription.bs_context import BsContext
+    from app.subscription.subscription_service import resolve_announce_text
+
+    bs = BsContext(bs_node_ids=frozenset({7}), blocked_node_ids=frozenset({7}), stub_text="лимит")
+    text = resolve_announce_text(
+        object(),
+        is_revoked=False,
+        is_expired=False,
+        device_limited=False,
+        unsupported_blocks=False,
+        bs=bs,
+        bot_settings=_announce_settings(sub_bs_limit_announce_text="БС-лимит исчерпан"),
+        get_user_note=lambda _user, template: template,
+    )
+    assert text == "БС-лимит исчерпан"
+
+
+def test_announce_ignores_bs_text_without_blocks():
+    from app.subscription.bs_context import BsContext
+    from app.subscription.subscription_service import resolve_announce_text
+
+    text = resolve_announce_text(
+        object(),
+        is_revoked=False,
+        is_expired=False,
+        device_limited=False,
+        unsupported_blocks=False,
+        bs=BsContext.empty(),
+        bot_settings=_announce_settings(
+            sub_client_note="заметка",
+            sub_bs_limit_announce_text="БС-лимит исчерпан",
+        ),
+        get_user_note=lambda _user, template: template,
+    )
+    assert text == "заметка"
