@@ -11,6 +11,7 @@ from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.bot_settings import resolve_bot_settings
+from app.subscription.bs_context import BsContext
 from app.subscription.headers import build_content_disposition, get_routing_header
 from app.subscription.page import build_subscription_page_context
 from app.subscription.share import generate_subscription
@@ -176,6 +177,17 @@ def user_subscription(
     if not is_revoked and not is_expired:
         bs_addresses = crud.get_bs_node_addresses(db)
 
+    if is_revoked or is_expired:
+        bs = BsContext.empty()
+    else:
+        blocked_bs_node_ids = crud.get_blocked_bs_node_ids(db, dbuser.id)
+        bs_node_ids = crud.get_bs_node_ids(db)
+        bs = BsContext(
+            bs_node_ids=frozenset(bs_node_ids),
+            blocked_node_ids=frozenset(blocked_bs_node_ids),
+            stub_text=bs_stub_text,
+        )
+
     if not is_revoked and not is_expired:
         background_tasks.add_task(_update_user_sub_bg, dbuser.id, user_agent)
 
@@ -218,9 +230,7 @@ def user_subscription(
             device_limited_hard=device_limited_hard_for_gen,
             unsupported_client=unsupported_blocks,
             settings=bot_settings,
-            bs_stub_addresses=blocked_bs_addresses,
-            bs_stub_text=bs_stub_text,
-            bs_addresses=bs_addresses,
+            bs=bs,
         )
 
     # 5) Выбор плана рендера по User-Agent и возврат ответа.
@@ -326,6 +336,17 @@ def user_subscription_with_client_type(
     # заглушки (см. первый эндпоинт).
     bs_stub_text = bs_stub_remark(bot_settings["sub_bs_limit_server_text"]) if blocked_bs_addresses else ""
 
+    if is_revoked or is_expired:
+        bs = BsContext.empty()
+    else:
+        blocked_bs_node_ids = crud.get_blocked_bs_node_ids(db, dbuser.id)
+        bs_node_ids = crud.get_bs_node_ids(db)
+        bs = BsContext(
+            bs_node_ids=frozenset(bs_node_ids),
+            blocked_node_ids=frozenset(blocked_bs_node_ids),
+            stub_text=bs_stub_text,
+        )
+
     announce_text = resolve_announce_text(
         user,
         is_revoked=is_revoked,
@@ -371,7 +392,6 @@ def user_subscription_with_client_type(
         device_limited_hard=device_limited_hard_for_gen,
         unsupported_client=unsupported_blocks,
         settings=bot_settings,
-        bs_stub_addresses=blocked_bs_addresses,
-        bs_stub_text=bs_stub_text,
+        bs=bs,
     )
     return Response(content=conf, media_type=plan.media_type, headers=response_headers)

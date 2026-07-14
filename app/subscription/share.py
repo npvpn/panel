@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from jdatetime import date as jd
 
 from app import xray
+from app.subscription.bs_context import ZERO_STUB, BsContext, StubEndpoint
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import *
@@ -47,123 +48,67 @@ STATUS_TEXTS = {
 }
 
 
+CONF_FACTORIES = {
+    "v2ray": V2rayShareLink,
+    "clash": ClashConfiguration,
+    "clash-meta": ClashMetaConfiguration,
+    "sing-box": SingBoxConfiguration,
+    "outline": OutlineConfiguration,
+}
+
+
+def _render(
+    render_format: str,
+    *,
+    proxies: dict,
+    inbounds: dict,
+    extra_data: dict,
+    reverse: bool,
+    bs: BsContext | None = None,
+    stub: StubEndpoint | None = None,
+    conf=None,
+):
+    """Единая точка рендера: формат → класс конфига → process_inbounds_and_tags.
+
+    conf передаётся готовым только для v2ray-json (его конструктор принимает
+    шаблон и routing-оверрайды из настроек бота).
+    """
+    if conf is None:
+        factory = CONF_FACTORIES.get(render_format)
+        if factory is None:
+            raise ValueError(f'Unsupported format "{render_format}"')
+        conf = factory()
+    return process_inbounds_and_tags(
+        inbounds,
+        proxies,
+        setup_format_variables(extra_data),
+        conf=conf,
+        reverse=reverse,
+        bs=bs,
+        stub=stub,
+    )
+
+
 def generate_v2ray_links(
     proxies: dict,
     inbounds: dict,
     extra_data: dict,
     reverse: bool,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    v2ray_stub_address: str = "0.0.0.0",
-    v2ray_stub_port: int = 0,
+    bs: BsContext | None = None,
+    stub: StubEndpoint | None = None,
 ) -> list:
-    format_variables = setup_format_variables(extra_data)
-    conf = V2rayShareLink()
-    return process_inbounds_and_tags(
-        inbounds,
-        proxies,
-        format_variables,
-        conf=conf,
-        reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses,
-        bs_stub_text=bs_stub_text,
-        v2ray_stub_address=v2ray_stub_address,
-        v2ray_stub_port=v2ray_stub_port,
+    return cast(
+        list,
+        _render(
+            "v2ray",
+            proxies=proxies,
+            inbounds=inbounds,
+            extra_data=extra_data,
+            reverse=reverse,
+            bs=bs,
+            stub=stub,
+        ),
     )
-
-
-def generate_clash_subscription(
-    proxies: dict,
-    inbounds: dict,
-    extra_data: dict,
-    reverse: bool,
-    is_meta: bool = False,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    v2ray_stub_address: str = "0.0.0.0",
-    v2ray_stub_port: int = 0,
-) -> str:
-    if is_meta is True:
-        conf = ClashMetaConfiguration()
-    else:
-        conf = ClashConfiguration()
-
-    format_variables = setup_format_variables(extra_data)
-    return process_inbounds_and_tags(
-        inbounds,
-        proxies,
-        format_variables,
-        conf=conf,
-        reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses,
-        bs_stub_text=bs_stub_text,
-        v2ray_stub_address=v2ray_stub_address,
-        v2ray_stub_port=v2ray_stub_port,
-    )
-
-
-def generate_singbox_subscription(
-    proxies: dict,
-    inbounds: dict,
-    extra_data: dict,
-    reverse: bool,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    v2ray_stub_address: str = "0.0.0.0",
-    v2ray_stub_port: int = 0,
-) -> str:
-    conf = SingBoxConfiguration()
-
-    format_variables = setup_format_variables(extra_data)
-    return process_inbounds_and_tags(
-        inbounds,
-        proxies,
-        format_variables,
-        conf=conf,
-        reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses,
-        bs_stub_text=bs_stub_text,
-        v2ray_stub_address=v2ray_stub_address,
-        v2ray_stub_port=v2ray_stub_port,
-    )
-
-
-def generate_outline_subscription(
-    proxies: dict,
-    inbounds: dict,
-    extra_data: dict,
-    reverse: bool,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    v2ray_stub_address: str = "0.0.0.0",
-    v2ray_stub_port: int = 0,
-) -> str:
-    conf = OutlineConfiguration()
-
-    format_variables = setup_format_variables(extra_data)
-    return process_inbounds_and_tags(
-        inbounds,
-        proxies,
-        format_variables,
-        conf=conf,
-        reverse=reverse,
-        bs_stub_addresses=bs_stub_addresses,
-        bs_stub_text=bs_stub_text,
-        v2ray_stub_address=v2ray_stub_address,
-        v2ray_stub_port=v2ray_stub_port,
-    )
-
-
-def generate_v2ray_json_subscription(
-    proxies: dict,
-    inbounds: dict,
-    extra_data: dict,
-    reverse: bool,
-) -> str:
-    conf = V2rayJsonConfig()
-
-    format_variables = setup_format_variables(extra_data)
-    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
 
 
 def generate_subscription(
@@ -177,10 +122,9 @@ def generate_subscription(
     device_limited_hard: bool = False,
     unsupported_client: bool = False,
     settings: dict | None = None,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    bs_addresses: set | None = None,
+    bs: BsContext | None = None,
 ) -> str:
+    bs = bs or BsContext.empty()
     from app.models.bot import DEFAULT_BOT_SETTINGS, apply_bot_settings_fallback
     from config import USE_CUSTOM_JSON_DEFAULT
 
@@ -261,70 +205,66 @@ def generate_subscription(
     if incy_v2ray_mode:
         from app.subscription.sub_stub import INCY_STUB_ADDRESS, INCY_STUB_PORT
 
-        v2ray_stub_address = INCY_STUB_ADDRESS
-        v2ray_stub_port = INCY_STUB_PORT
+        stub = StubEndpoint(address=INCY_STUB_ADDRESS, port=INCY_STUB_PORT)
+    elif render_format == "v2ray-json":
+        from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_PORT
+
+        stub = StubEndpoint(address=JSON_STUB_ADDRESS, port=JSON_STUB_PORT)
     else:
-        v2ray_stub_address = "0.0.0.0"
-        v2ray_stub_port = 0
+        stub = ZERO_STUB
 
     if render_format == "v2ray":
-        links = generate_v2ray_links(
+        links = _render(
+            "v2ray",
             proxies=user.proxies,
             inbounds=user.inbounds,
             extra_data=user.__dict__,
             reverse=reverse,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
         )
         if device_limit_links:
             links = [*device_limit_links, *links]
         config = "\n".join(links)
     elif render_format == "clash-meta":
-        config = generate_clash_subscription(
+        config = _render(
+            "clash-meta",
             proxies=user.proxies,
             inbounds=user.inbounds,
             extra_data=user.__dict__,
             reverse=reverse,
-            is_meta=True,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
         )
     elif render_format == "clash":
-        config = generate_clash_subscription(
+        config = _render(
+            "clash",
             proxies=user.proxies,
             inbounds=user.inbounds,
             extra_data=user.__dict__,
             reverse=reverse,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
         )
     elif render_format == "sing-box":
-        config = generate_singbox_subscription(
+        config = _render(
+            "sing-box",
             proxies=user.proxies,
             inbounds=user.inbounds,
             extra_data=user.__dict__,
             reverse=reverse,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
         )
     elif render_format == "outline":
-        config = generate_outline_subscription(
+        config = _render(
+            "outline",
             proxies=user.proxies,
             inbounds=user.inbounds,
             extra_data=user.__dict__,
             reverse=reverse,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
         )
     elif render_format == "v2ray-json":
         from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_ID, JSON_STUB_PORT
@@ -355,18 +295,15 @@ def generate_subscription(
                     inbound=stub_inbound,
                     settings={"id": JSON_STUB_ID},
                 )
-        format_variables = setup_format_variables(user.__dict__)
-        config = process_inbounds_and_tags(
-            user.inbounds,
-            user.proxies,
-            format_variables,
-            conf=conf,
+        config = _render(
+            "v2ray-json",
+            proxies=user.proxies,
+            inbounds=user.inbounds,
+            extra_data=user.__dict__,
             reverse=reverse,
-            bs_stub_addresses=bs_stub_addresses,
-            bs_stub_text=bs_stub_text,
-            bs_addresses=bs_addresses,
-            v2ray_stub_address=v2ray_stub_address,
-            v2ray_stub_port=v2ray_stub_port,
+            bs=bs,
+            stub=stub,
+            conf=conf,
         )
     else:
         raise ValueError(f'Unsupported format "{config_format}"')
@@ -487,17 +424,11 @@ def process_inbounds_and_tags(
     | ClashMetaConfiguration
     | OutlineConfiguration,
     reverse=False,
-    bs_stub_addresses: set | None = None,
-    bs_stub_text: str = "",
-    bs_addresses: set | None = None,
-    v2ray_stub_address: str = "0.0.0.0",
-    v2ray_stub_port: int = 0,
+    bs: BsContext | None = None,
+    stub: StubEndpoint | None = None,
 ) -> list | str:
-    from app.subscription.sub_stub import JSON_STUB_ADDRESS, JSON_STUB_PORT
-    from app.xray.bs_limit import host_matches_blocked
-
-    bs_stub_addresses = bs_stub_addresses or set()
-    bs_addresses = bs_addresses or set()
+    bs = bs or BsContext.empty()
+    stub = stub or ZERO_STUB
     _inbounds = []
     for protocol, tags in inbounds.items():
         for tag in tags:
@@ -572,27 +503,23 @@ def process_inbounds_and_tags(
                     }
                 )
 
-                # БС-лимит исчерпан → хост заблокированной БС-ноды (матч по
-                # адресу, т.к. инбаунд-теги общие для нод) остаётся на своём
-                # месте, но превращается в мёртвую заглушку с именем-текстом
-                # лимита (для v2ray-json — валидный reserved endpoint, чтобы
-                # строгие клиенты не отбрасывали конфиг). Хосты обычных нод не трогаем.
-                if host_matches_blocked(host["address"], bs_stub_addresses):
-                    is_v2ray_json = isinstance(conf, V2rayJsonConfig)
-                    host_inbound["port"] = JSON_STUB_PORT if is_v2ray_json else v2ray_stub_port
+                # БС-лимит исчерпан → хост заблокированной БС-ноды (матч по связям
+                # host→nodes) остаётся на своём месте, но превращается в мёртвую
+                # заглушку с именем-текстом лимита. Хосты обычных нод не трогаем.
+                if bs.is_blocked(host):
+                    host_inbound["port"] = stub.port
                     conf.add(
-                        remark=bs_stub_text,
-                        address=JSON_STUB_ADDRESS if is_v2ray_json else v2ray_stub_address,
+                        remark=bs.stub_text,
+                        address=stub.address,
                         inbound=host_inbound,
                         settings=settings.model_dump(),
                     )
                     continue
 
-                # Пер-серверный routing только для v2ray-json: БС-хост (адрес
-                # совпал с is_bs-нодой) получает routing_bs, остальные — default.
-                # Другие форматы не знают про is_bs — туда флаг не передаём.
+                # Пер-серверный routing только для v2ray-json: БС-хост получает
+                # routing_bs, остальные — default. Другие форматы про is_bs не знают.
                 add_kwargs = {}
-                if isinstance(conf, V2rayJsonConfig) and host_matches_blocked(host["address"], bs_addresses):
+                if isinstance(conf, V2rayJsonConfig) and bs.is_bs(host):
                     add_kwargs["is_bs"] = True
                 if balanced and isinstance(conf, V2rayJsonConfig):
                     addresses = [
