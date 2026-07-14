@@ -8,6 +8,7 @@ jinja2 из app/templates), остальное — настоящие V2rayJsonC
 
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import sys
 import types
@@ -29,14 +30,6 @@ def _stub_module(name: str, attrs: dict) -> types.ModuleType:
     return module
 
 
-# app.templates: настоящий пакет тянет app.utils.system → app.scheduler (весь FastAPI).
-# Подменяем лёгким jinja-рендером тех же файлов app/templates/*.
-_env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(_ROOT / "app" / "templates")))
-_stub_module(
-    "app.templates",
-    {"render_template": lambda template, context=None: _env.get_template(template).render(context or {})},
-)
-
 # app.utils.system: тянет app.scheduler; в тестируемом пути нужны только эти функции.
 _stub_module(
     "app.utils.system",
@@ -45,6 +38,30 @@ _stub_module(
         "get_public_ipv6": lambda: "::1",
         "readable_size": lambda size: str(size),
     },
+)
+
+
+def _load_real_module(name: str, path: pathlib.Path) -> types.ModuleType:
+    """Импортировать конкретный файл модуля напрямую, минуя app/templates/__init__.py
+    (тот тянет app.utils.system → app.scheduler и не нужен: сами фильтры от него
+    зависят только через readable_size, который уже застаблен выше)."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# app.templates: настоящий пакет (через __init__.py) тянет app.utils.system → app.scheduler
+# (весь FastAPI). Подменяем лёгким jinja-рендером тех же файлов app/templates/*, но с
+# НАСТОЯЩИМИ кастомными фильтрами (yaml/except/only/...) из app/templates/filters.py —
+# без них clash/singbox шаблоны не рендерятся (используют `| yaml`, `| except(...)`).
+_templates_filters = _load_real_module("app.templates.filters", _ROOT / "app" / "templates" / "filters.py")
+_env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(_ROOT / "app" / "templates")))
+_env.filters.update(_templates_filters.CUSTOM_FILTERS)
+_stub_module(
+    "app.templates",
+    {"render_template": lambda template, context=None: _env.get_template(template).render(context or {})},
 )
 
 from app.subscription.bs_context import ZERO_STUB, BsContext, StubEndpoint  # noqa: E402
@@ -274,6 +291,28 @@ def test_is_bs_never_leaks_into_other_formats(xray_stub):
 
     assert conf.calls[0]["kwargs"] == {}
     assert conf.calls[0]["remark"] == "BS server"
+
+
+# _FakeConf.add(**kwargs) молча проглотит лишний is_bs, если isinstance-гвард
+# (`isinstance(conf, V2rayJsonConfig)` в share.py) снять — assert kwargs == {} выше
+# страхует только сам факт "kwargs пустой", но не докажет, что ДРУГИЕ форматы вообще
+# не умеют принять is_bs. Настоящие ClashConfiguration/ClashMetaConfiguration/
+# SingBoxConfiguration/OutlineConfiguration.add() параметра is_bs не имеют — при снятии
+# гварда process_inbounds_and_tags упал бы TypeError'ом (500 на подписке). Прогоняем
+# process_inbounds_and_tags с настоящими классами, чтобы рендер БС-хоста в этих форматах
+# доказуемо не падал (а при регрессии гварда — падал бы).
+@pytest.mark.parametrize(
+    "conf_factory",
+    [ClashConfiguration, ClashMetaConfiguration, SingBoxConfiguration, OutlineConfiguration],
+    ids=["clash", "clash_meta", "singbox", "outline"],
+)
+def test_is_bs_host_renders_without_error_in_real_non_v2ray_formats(xray_stub, conf_factory):
+    xray_stub([_host("bs.example.com", node_ids=[BS_NODE_ID])])
+    conf = conf_factory()
+
+    rendered = _render(conf, _bs_ctx())
+
+    assert rendered  # рендер прошёл до конца, а не упал TypeError'ом на лишнем kwarg
 
 
 # --- build_bs_context: stub_text считается от node-id-пути, а не от адресов ---
