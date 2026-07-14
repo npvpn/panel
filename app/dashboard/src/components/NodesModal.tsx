@@ -21,7 +21,7 @@ import {
   MagnifyingGlassIcon,
   SquaresPlusIcon,
 } from "@heroicons/react/24/outline";
-import { NodeType, useNodesQuery } from "contexts/NodesContext";
+import { useNodesQuery } from "contexts/NodesContext";
 import { FC, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
@@ -35,6 +35,7 @@ import { fetch } from "service/http";
 import { NodeAccordion } from "./NodeAccordion";
 import { AddNodeForm } from "./AddNodeForm";
 import { PlusIcon as HeroIconPlusIcon } from "@heroicons/react/24/outline";
+import { useNodeSettings } from "hooks/useNodeSettings";
 
 const ModalIcon = chakra(SquaresPlusIcon, {
   baseStyle: {
@@ -50,6 +51,7 @@ export const NodesDialog: FC = () => {
   const { t } = useTranslation();
   const [openAccordion, setOpenAccordion] = useState<number | null>(null);
   const { data: nodes, isLoading } = useNodesQuery();
+  const { data: nodeSettings } = useNodeSettings();
 
   useEffect(() => {
     if (isEditingNodes) {
@@ -63,15 +65,6 @@ export const NodesDialog: FC = () => {
       document.body.style.paddingRight = "";
     };
   }, [isEditingNodes]);
-
-  const { data: nodeSettings } = useQuery({
-    queryKey: ["node-settings"],
-    queryFn: () =>
-      fetch<{
-        min_node_version: string;
-        certificate: string;
-      }>("/node/settings"),
-  });
 
   const onClose = () => {
     setOpenAccordion(null);
