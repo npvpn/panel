@@ -32,9 +32,13 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Stage 3: Final image
 FROM python:${PYTHON_VERSION}-slim
 ENV PYTHONUNBUFFERED=1
+ENV UV_PROJECT_ENVIRONMENT=/code/.venv
 ENV PATH="/code/.venv/bin:$PATH"
 WORKDIR /code
 
+# uv нужен и в рантайме: в venv, созданном uv sync, нет pip, поэтому доустановка
+# пакетов (например debugpy в dev-режиме) идёт через `uv pip install`.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY --from=build /code/.venv /code/.venv
 RUN mkdir -p /usr/local/share/xray
 COPY --from=build /usr/local/bin/xray /usr/local/bin/xray
