@@ -8,14 +8,19 @@ jinja2 из app/templates), остальное — настоящие V2rayJsonC
 
 from __future__ import annotations
 
+import base64
 import importlib.util
+import json
 import pathlib
 import sys
 import types
+import urllib.parse
 from collections import defaultdict
 
 import jinja2
 import pytest
+
+import config as panel_config
 
 _ROOT = pathlib.Path(__file__).parent.parent
 
@@ -68,6 +73,12 @@ from app.subscription.bs_context import ZERO_STUB, BsContext, StubEndpoint  # no
 from app.subscription.clash import ClashConfiguration, ClashMetaConfiguration  # noqa: E402
 from app.subscription.outline import OutlineConfiguration  # noqa: E402
 from app.subscription.singbox import SingBoxConfiguration  # noqa: E402
+from app.subscription.sub_stub import (  # noqa: E402
+    INCY_STUB_ADDRESS,
+    INCY_STUB_PORT,
+    JSON_STUB_ADDRESS,
+    JSON_STUB_PORT,
+)
 from app.subscription.v2ray import V2rayJsonConfig, V2rayShareLink  # noqa: E402
 
 # share.py делает `from . import *`; в песочнице app/subscription/__init__.py не выполняется
@@ -367,3 +378,78 @@ def test_build_bs_context_is_empty_for_revoked_or_expired():
     expired = build_bs_context(db, user, is_revoked=False, is_expired=True, bot_settings=BS_SETTINGS)
     assert revoked == BsContext.empty()
     assert expired == BsContext.empty()
+
+
+# --- generate_subscription: маппинг формата в StubEndpoint (адрес/порт заглушки БС-лимита) ---
+# Регрессия в этом if/elif (например, перестановка веток incy / v2ray-json) отдала бы
+# строгим клиентам невалидный endpoint заглушки, поэтому дёргаем НАСТОЯЩИЙ
+# generate_subscription и смотрим, какой адрес/порт реально доехал до рендера.
+
+
+@pytest.fixture
+def sub_user(xray_stub, monkeypatch):
+    """Юзер для generate_subscription с одним заблокированным БС-хостом в подписке.
+
+    setup_format_variables тянет app.models.user → app.models.admin → app.db (get_db,
+    FastAPI-зависимости) — в песочнице conftest.py этого нет; подменяем её тем же
+    набором переменных, что и _render выше. Всё остальное в generate_subscription
+    (выбор формата, StubEndpoint, V2rayShareLink/V2rayJsonConfig) — настоящее.
+    """
+    xray_stub([_host("bs.example.com", node_ids=[BS_NODE_ID])])
+    monkeypatch.setattr(
+        share,
+        "setup_format_variables",
+        lambda extra_data: defaultdict(lambda: "<missing>", {"USERNAME": "u1", "BOT_USERNAME": None}),
+    )
+    protocol = _Protocol()
+    return types.SimpleNamespace(proxies={protocol: _ProxySettings()}, inbounds={protocol: [BS_TAG]})
+
+
+def _generate(user, config_format: str) -> str:
+    return share.generate_subscription(
+        user=user,
+        config_format=config_format,
+        as_base64=False,
+        reverse=False,
+        bs=_blocked_ctx(),
+    )
+
+
+def _v2ray_stub_endpoint(config: str) -> tuple[str, int]:
+    """Адрес/порт из vless-ссылки заглушки: vless://<id>@<address>:<port>?..."""
+    assert urllib.parse.quote(STUB_TEXT) in config  # это именно заглушка лимита (remark в #фрагменте)
+    endpoint = config.split("@", 1)[1].split("?", 1)[0]
+    address, port = endpoint.rsplit(":", 1)
+    return address, int(port)
+
+
+def _json_stub_endpoint(config: str) -> tuple[str, int]:
+    (profile,) = json.loads(config)
+    assert profile["remarks"] == STUB_TEXT
+    vnext = profile["outbounds"][0]["settings"]["vnext"][0]
+    return vnext["address"], vnext["port"]
+
+
+def test_generate_subscription_v2ray_uses_zero_stub(sub_user):
+    assert _v2ray_stub_endpoint(_generate(sub_user, "v2ray")) == (ZERO_STUB.address, ZERO_STUB.port)
+
+
+def test_generate_subscription_v2ray_json_uses_json_stub(sub_user):
+    assert _json_stub_endpoint(_generate(sub_user, "v2ray-json")) == (JSON_STUB_ADDRESS, JSON_STUB_PORT)
+
+
+def test_generate_subscription_incy_with_custom_json_uses_json_stub(sub_user, monkeypatch):
+    """USE_CUSTOM_JSON_DEFAULT=True → incy рендерится как v2ray-json → JSON-заглушка."""
+    monkeypatch.setattr(panel_config, "USE_CUSTOM_JSON_DEFAULT", True)
+
+    assert _json_stub_endpoint(_generate(sub_user, "incy")) == (JSON_STUB_ADDRESS, JSON_STUB_PORT)
+
+
+def test_generate_subscription_incy_without_custom_json_uses_incy_stub(sub_user, monkeypatch):
+    """USE_CUSTOM_JSON_DEFAULT=False → incy рендерится как v2ray (base64) → INCY-заглушка,
+    а НЕ 0.0.0.0:0: incy-клиент отбрасывает невалидный endpoint целиком."""
+    monkeypatch.setattr(panel_config, "USE_CUSTOM_JSON_DEFAULT", False)
+
+    config = base64.b64decode(_generate(sub_user, "incy")).decode()  # incy/v2ray всегда base64
+
+    assert _v2ray_stub_endpoint(config) == (INCY_STUB_ADDRESS, INCY_STUB_PORT)
