@@ -47,6 +47,7 @@ type DashboardStateType = {
   isEditingHosts: boolean;
   isEditingNodes: boolean;
   isEditingBotSettings: boolean;
+  isEditingAppSettings: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
   isConfirmingSyncInbounds: boolean;
@@ -79,6 +80,7 @@ type DashboardStateType = {
   onEditingHosts: (isEditingHosts: boolean) => void;
   onEditingNodes: (isEditingHosts: boolean) => void;
   onEditingBotSettings: (isEditingBotSettings: boolean) => void;
+  onEditingAppSettings: (isEditingAppSettings: boolean) => void;
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
@@ -131,6 +133,7 @@ export const useDashboard = create(
     isEditingHosts: false,
     isEditingNodes: false,
     isEditingBotSettings: false,
+    isEditingAppSettings: false,
     isShowingNodesUsage: false,
     resetUsageUser: null,
     revokeSubscriptionUser: null,
@@ -265,6 +268,9 @@ export const useDashboard = create(
     },
     onEditingBotSettings: (isEditingBotSettings: boolean) => {
       set({ isEditingBotSettings });
+    },
+    onEditingAppSettings: (isEditingAppSettings: boolean) => {
+      set({ isEditingAppSettings });
     },
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });

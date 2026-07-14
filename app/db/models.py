@@ -98,6 +98,15 @@ class BotSettings(Base):
     bot = relationship("Bot", back_populates="settings")
 
 
+class GlobalSetting(Base):
+    __tablename__ = "global_settings"
+
+    key = Column(String(64), primary_key=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class User(Base):
     __tablename__ = "users"
 

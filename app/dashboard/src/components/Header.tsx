@@ -16,6 +16,7 @@ import {
   ChartPieIcon,
   Cog6ToothIcon,
   CurrencyDollarIcon,
+  DevicePhoneMobileIcon,
   DocumentMinusIcon,
   LinkIcon,
   MoonIcon,
@@ -56,6 +57,7 @@ const NodesIcon = chakra(SquaresPlusIcon, iconProps);
 const NodesUsageIcon = chakra(ChartPieIcon, iconProps);
 const ResetUsageIcon = chakra(DocumentMinusIcon, iconProps);
 const BotSettingsIcon = chakra(WrenchScrewdriverIcon, iconProps);
+const AppSettingsIcon = chakra(DevicePhoneMobileIcon, iconProps);
 const NotificationCircle = chakra(Box, {
   baseStyle: {
     bg: "yellow.500",
@@ -98,6 +100,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     onResetAllUsage,
     onEditingNodes,
     onEditingBotSettings,
+    onEditingAppSettings,
     onShowingNodesUsage,
   } = useDashboard();
   const { t } = useTranslation();
@@ -185,6 +188,14 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                     onClick={onEditingBotSettings.bind(null, true)}
                   >
                     {t("header.botSettings")}
+                  </MenuItem>
+                  <MenuItem
+                    maxW="170px"
+                    fontSize="sm"
+                    icon={<AppSettingsIcon />}
+                    onClick={onEditingAppSettings.bind(null, true)}
+                  >
+                    {t("header.appSettings")}
                   </MenuItem>
                 </>
               )}

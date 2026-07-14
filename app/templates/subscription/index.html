@@ -130,37 +130,32 @@
           isQrModalOpen: false,
           isImageModalOpen: false,
           modalImageUrl: '',
+          clientApps: {{ client_apps | tojson }},
           osOptions: [{
             id: 'Windows',
             name: 'Windows',
             icon: 'https://img.icons8.com/color/96/windows-11.png',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe'
+            platform: 'windows'
           }, {
             id: 'iOS',
             name: 'iOS или Mac',
             icon: 'https://img.icons8.com/?size=100&id=30659&format=png&color=ffffff',
-            appName: 'Happ Proxy',
-            ruUrl: 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973',
-            globalUrl: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215'
+            platform: 'ios'
           }, {
             id: 'Android',
             name: 'Android',
             icon: 'https://img.icons8.com/color/96/android-os.png',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy&hl=ru'
+            platform: 'android'
           }, {
             id: 'Linux',
             name: 'Linux',
             icon: 'https://img.icons8.com/color/96/linux--v1.png',
-            appName: 'Happ Proxy',
-            downloadUrl: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb'
+            platform: 'linux'
           }, {
             id: 'AndroidTV',
             name: 'Android TV',
-            appName: 'Happ Proxy',
             icon: 'https://img.icons8.com/?size=100&id=111173&format=png&color=ffffff',
-            downloadUrl: 'https://play.google.com/store/apps/details?id=com.happproxy'
+            platform: 'androidtv'
           }, ],
           init() {
             this.selectedOs = detectOS();
@@ -179,6 +174,28 @@
           },
           get currentOs() {
             return this.osOptions.find(os => os.id === this.selectedOs) || this.osOptions[0];
+          },
+          get currentPlatform() {
+            return (this.currentOs && this.currentOs.platform) || null;
+          },
+          get platformApps() {
+            const platform = this.currentPlatform;
+            if (!platform) return { primary: null, alternatives: [] };
+            return this.clientApps.platforms[platform] || { primary: null, alternatives: [] };
+          },
+          get primaryApp() {
+            return this.platformApps.primary;
+          },
+          get alternativeApps() {
+            return this.platformApps.alternatives;
+          },
+          deeplink(app) {
+            return `${app.scheme}://add/${this.user.subscription_url}`;
+          },
+          regionLabel(region) {
+            if (region === 'ru') return 'в App Store 🇷🇺';
+            if (region === 'global') return 'Global 🌎';
+            return '';
           },
           get statusText() {
             const statuses = {
@@ -307,22 +324,30 @@
               </p>
             </div>
           </template>
-          <template x-if="['Android','Windows','Linux'].includes(selectedOs)">
-            <a :href="currentOs.downloadUrl" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg" style="height: 52px;"> 
-              Скачать&nbsp;<span x-text="currentOs.appName"></span>
+          <template x-if="primaryApp && primaryApp.install.length <= 1 && currentPlatform !== 'androidtv'">
+            <a :href="primaryApp.install[0] ? primaryApp.install[0].url : '#'" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg" style="height: 52px;">
+              Скачать&nbsp;<span x-text="primaryApp.name"></span>
             </a>
           </template>
-          <template x-if="selectedOs === 'iOS'">
+          <template x-if="primaryApp && primaryApp.install.length > 1">
             <div>
-              <a :href="currentOs.ruUrl" target="_blank" class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52"> 
-                Скачать Happ Proxy в App Store 🇷🇺
-              </a>
-              <a :href="currentOs.globalUrl" target="_blank" class="w-full flex items-center justify-center text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52 btn-ios-secondary mt-2"> 
-                Скачать Happ Proxy Global 🌎
-              </a>
+              <template x-for="item in primaryApp.install" :key="item.region">
+                <a :href="item.url" target="_blank"
+                   class="w-full flex items-center justify-center text-white font-bold py-3 rounded-lg transition-colors text-lg btn-h-52 mt-2"
+                   :class="item.region === 'ru' ? 'bg-blue-600 hover:bg-blue-700' : 'btn-ios-secondary'">
+                  Скачать&nbsp;<span x-text="primaryApp.name"></span>&nbsp;<span x-show="regionLabel(item.region)" x-text="regionLabel(item.region)"></span>
+                </a>
+              </template>
               <p class="text-sm text-gray-400 mt-2">
                 Выберите кнопку, соответствующую региону вашего Apple ID. <br><br>
-                Можно использовать альтернативные приложения для подключения, например, <a href="https://apps.apple.com/ru/app/v2raytun/id6476628951" target="_blank" class="text-blue-400 hover:underline">v2rayTun</a> или <a href="https://apps.apple.com/ru/app/streisand/id6450534064" target="_blank" class="text-blue-400 hover:underline">Streisand.</a>
+                <template x-if="alternativeApps.length">
+                  <span>
+                    Можно использовать альтернативные приложения для подключения, например,
+                    <template x-for="app in alternativeApps" :key="app.id">
+                      <span><a :href="app.install[0].url" target="_blank" class="text-blue-400 hover:underline" x-text="app.name"></a>&nbsp;</span>
+                    </template>.
+                  </span>
+                </template>
               </p>
             </div>
           </template>
@@ -334,10 +359,14 @@
               </div>
             </div>
           </template>
-          <template x-if="selectedOs === 'Android'">
+          <template x-if="selectedOs === 'Android' && alternativeApps.length">
             <div class="mt-4 pt-4 border-t border-gray-700">
               <div class="flex justify-between items-center mb-2">
-                <p class="text-sm text-gray-400">Скачать <a href="https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" target="_blank" class="text-blue-400 hover:underline">Happ</a> с сайта разработчика. Можно использовать альтернативные приложения для подключения, например, <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android&hl=ru" target="_blank" class="text-blue-400 hover:underline">v2rayTun</a>.
+                <p class="text-sm text-gray-400">
+                  Можно использовать альтернативные приложения для подключения, например,
+                  <template x-for="app in alternativeApps" :key="app.id">
+                    <span><a :href="app.install[0].url" target="_blank" class="text-blue-400 hover:underline" x-text="app.name"></a>&nbsp;</span>
+                  </template>.
                 </p>
               </div>
             </div>
@@ -359,10 +388,14 @@ sudo dpkg -i Happ.linux.x64.deb</code>
           <p class="text-base font-semibold mb-3">
             <span class="text-blue-400">2</span> Настройка VPN-приложения
           </p>
-          <template x-if="['iOS','Android','Windows','Linux'].includes(selectedOs)">
+          <template x-if="currentPlatform !== 'androidtv'">
             <div>
-              <a x-show="String(selectedOs).toLowerCase() !== 'linux'" :href="`happ://add/${user.subscription_url}`" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="currentOs.appName"></span>
+              <a x-show="currentPlatform !== 'linux' && primaryApp" :href="primaryApp ? deeplink(primaryApp) : '#'" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="primaryApp ? primaryApp.name : ''"></span>
               </a>
+              <template x-for="app in alternativeApps" :key="app.id">
+                <a x-show="currentPlatform !== 'linux'" :href="deeplink(app)" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mb-3 text-center block" style="height: 48px;"> Добавить ключ в <span x-text="app.name"></span>
+                </a>
+              </template>
               <div class="mb-4 border-t border-gray-700 mt-4 pt-4">
                 <input type="text" :value="user.subscription_url" class="w-full bg-gray-700 text-gray-300 rounded-t-lg p-2 text-sm focus:outline-none" readonly @click="$el.select()" />
                 <button @click="copyToClipboard(user.subscription_url, $el, 'Ключ скопирован!')" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-b-lg flex items-center gap-2 justify-center">

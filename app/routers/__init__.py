@@ -6,6 +6,7 @@ from . import (
     core,
     home,
     node,
+    settings,
     subscription,
     system,
     user,
@@ -14,11 +15,12 @@ from . import (
 
 api_router = APIRouter()
 
-routers = [
+routers: list[APIRouter] = [
     admin.router,
     bot.router,
     core.router,
     node.router,
+    settings.router,  # type: ignore[has-type]
     subscription.router,
     system.router,
     user_template.router,

@@ -1,8 +1,4 @@
-import json
-import math
-import re
 from datetime import UTC, datetime
-from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -15,6 +11,8 @@ from app.db.models import User
 from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.bot_settings import resolve_bot_settings
+from app.subscription.headers import build_content_disposition, get_routing_header
+from app.subscription.page import build_subscription_page_context
 from app.subscription.share import generate_subscription
 from app.subscription.subscription_service import (
     SubscriptionClientConfigEntry,
@@ -23,6 +21,11 @@ from app.subscription.subscription_service import (
     resolve_announce_text,
     resolve_subscription_plan_by_client_type,
     resolve_subscription_plan_by_user_agent,
+)
+from app.subscription.user_info import (
+    get_subscription_user_info,
+    get_user_note,
+    resolve_device_limit_subscription_state,
 )
 from app.templates import render_template
 from app.utils.jwt import get_subscription_payload
@@ -55,36 +58,6 @@ client_config: dict[str, SubscriptionClientConfigEntry] = {
 router = APIRouter(tags=["Subscription"], prefix=f"/{XRAY_SUBSCRIPTION_PATH}")
 
 
-def devices_json(devices) -> str:
-    return json.dumps(
-        [
-            {
-                "id": device.id,
-                "device_model": device.device_model or "Неизвестная модель",
-                "device_os": device.device_os or "Неизвестно",
-                "ver_os": device.ver_os or "",
-                "user_agent": device.user_agent or "",
-            }
-            for device in devices
-        ],
-        ensure_ascii=False,
-    )
-
-
-def get_user_note(user: UserResponse, note_template: str) -> str:
-    """Return note from SUB_CLIENT_NOTE with <days_left> and <tg_id> placeholders."""
-    if not note_template:
-        return ""
-    note_template = note_template.replace("<tg_id>", user.username.split("_", 1)[0])
-    expire_ts = int(user.expire or 0)
-    if expire_ts <= 0:
-        return note_template.replace("<days_left>", "0")
-    now_ts = int(datetime.now(UTC).timestamp())
-    seconds_left = max(0, expire_ts - now_ts)
-    days_left = math.ceil(seconds_left / 86400)
-    return note_template.replace("<days_left>", str(days_left))
-
-
 def resolve_subscription_context(token: str, db: Session):
     """
     Returns tuple: (dbuser or None, is_revoked: bool, created_at)
@@ -102,85 +75,6 @@ def resolve_subscription_context(token: str, db: Session):
         return None, False, None
     revoked = bool(dbuser.sub_revoked_at and sub.get("created_at") and dbuser.sub_revoked_at > sub["created_at"])
     return dbuser, revoked, sub.get("created_at")
-
-
-def build_content_disposition(username: str) -> str:
-    """Build RFC 5987 compatible Content-Disposition with ASCII fallback and UTF-8 filename*."""
-    fallback = re.sub(r"[^A-Za-z0-9._-]+", "_", username or "profile")
-    utf8_quoted = quote(username or "profile", safe="")
-    return f'attachment; filename="{fallback}"; filename*=UTF-8{{utf8_quoted}}'
-
-
-def get_subscription_user_info(user: UserResponse, *, db=None, bot_settings=None, user_id: int | None = None) -> dict:
-    """upload/download/total/expire для Happ. Если у бота юзера задан БС-лимит и есть
-    БС-расход — download/total отражают месячный агрегат БС, иначе глобальный."""
-    info = {
-        "upload": 0,
-        "download": user.used_traffic,
-        "total": user.data_limit if user.data_limit is not None else 0,
-        "expire": user.expire if user.expire is not None else 0,
-    }
-    if db is None or bot_settings is None or user_id is None:
-        return info
-
-    monthly_limit = bot_settings.get("bs_monthly_limit") or 0
-    if not monthly_limit:
-        return info
-
-    from app.xray.bs_limit import monthly_effective_limit, period_keys, pick_bs_bar
-
-    dbuser = crud.get_user_by_id(db, user_id)
-    bs_extra = (dbuser.bs_extra or 0) if dbuser else 0
-    monthly_limit_eff = monthly_effective_limit(monthly_limit, bs_extra)
-
-    yyyymm = period_keys(datetime.utcnow())
-    monthly_used = crud.get_bs_usage_totals(db, user_id, yyyymm)
-    bar = pick_bs_bar(monthly_used, monthly_limit_eff)
-    if bar is not None:
-        info["download"], info["total"] = bar
-    return info
-
-
-def get_empty_subscription_user(user: UserResponse) -> UserResponse:
-    return user.model_copy(update={"proxies": {}, "inbounds": {}})
-
-
-def resolve_device_limit_subscription_state(
-    user: UserResponse,
-    db: Session,
-    dbuser: User,
-    is_revoked: bool,
-    is_expired: bool,
-    bot_settings: dict,
-    *,
-    user_agent: str,
-    x_hwid: str | None,
-    x_device_os: str | None,
-    x_ver_os: str | None,
-    x_device_model: str | None,
-) -> tuple[UserResponse, bool, bool, bool]:
-    """Returns user, device_limited, device_limited_hard_for_gen, unsupported_blocks."""
-    device_limited = False
-    hard_device_limited = False
-    unsupported_client = False
-    if not is_revoked and not is_expired:
-        registered, unsupported_client = crud.register_user_device(
-            db, dbuser, x_hwid, x_device_os, x_ver_os, x_device_model, user_agent
-        )
-        hard_device_limited = not registered and not unsupported_client
-        device_limited = hard_device_limited or crud.is_device_limit_exceeded(db, dbuser)
-    unsupported_blocks = unsupported_client
-    hard_mode = bool(bot_settings.get("sub_device_limit_hard_mode"))
-    if (
-        is_revoked
-        or is_expired
-        or unsupported_blocks
-        or (hard_mode and device_limited)
-        or (not hard_mode and hard_device_limited)
-    ):
-        user = get_empty_subscription_user(user)
-    device_limited_hard_for_gen = (hard_mode and device_limited) or (not hard_mode and hard_device_limited)
-    return user, device_limited, device_limited_hard_for_gen, unsupported_blocks
 
 
 def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
@@ -218,17 +112,6 @@ def _update_user_sub_bg(user_id: int, user_agent: str) -> None:
         )
 
 
-def get_routing_header(user_agent: str, settings: dict) -> dict:
-    """Build optional routing header for Happ/v2raytun clients."""
-    routing_value = ""
-    if re.search(r"v2raytun", user_agent or "", re.IGNORECASE):
-        routing_value = str(settings.get("sub_routing_v2raytun") or "").strip()
-    elif re.search(r"\bhapp(?:/|\b)", user_agent or "", re.IGNORECASE):
-        routing_value = str(settings.get("sub_routing_happ") or "").strip()
-
-    return {"routing": routing_value} if routing_value else {}
-
-
 @router.get("/{token}/")
 @router.get("/{token}", include_in_schema=False)
 def user_subscription(
@@ -257,16 +140,7 @@ def user_subscription(
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
         # HTML-ветка (страница подписки) обрабатывается отдельно от генерации конфигов.
-        devices = crud.get_user_active_devices(db, dbuser)
-        html_context = {
-            "user": user,
-            "devices": devices,
-            "devices_json": devices_json(devices),
-            "token": token,
-            "sub_path": XRAY_SUBSCRIPTION_PATH,
-            "web_url": (bot_settings.get("web_url") or "").strip(),
-            "bot_url": bot_settings["bot_url"],
-        }
+        html_context = build_subscription_page_context(db, dbuser, token)
         if is_revoked:
             return HTMLResponse(render_template("sub/revoked.html", html_context))
         if is_expired:
