@@ -267,7 +267,7 @@
   "appSettings.title": "Client apps",
   "appSettings.appId": "ID",
   "appSettings.appName": "Name",
-  "appSettings.scheme": "Scheme (happ)",
+  "appSettings.scheme": "Scheme",
   "appSettings.enabled": "Show",
   "appSettings.addApp": "Add app",
   "appSettings.primaryByPlatform": "Primary app by platform",

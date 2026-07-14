@@ -220,37 +220,50 @@ export const AppSettingsDialog: FC = () => {
                   borderRadius="md"
                   p={4}
                 >
-                  <HStack justify="space-between" flexWrap="wrap">
-                    <HStack spacing={3} flexWrap="wrap">
-                      <Input
-                        w="140px"
-                        placeholder={t("appSettings.appId")}
-                        value={app.id}
-                        onChange={(e) => updateApp(index, { id: e.target.value })}
-                      />
-                      <Input
-                        w="200px"
-                        placeholder={t("appSettings.appName")}
-                        value={app.name}
-                        onChange={(e) => updateApp(index, { name: e.target.value })}
-                      />
-                      <Input
-                        w="140px"
-                        placeholder={t("appSettings.scheme")}
-                        value={app.scheme}
-                        onChange={(e) => updateApp(index, { scheme: e.target.value })}
-                      />
+                  <HStack justify="space-between" align="start" spacing={3}>
+                    <HStack spacing={3} flexWrap="wrap" align="end" flex="1" minW={0}>
+                      <FormControl flex="1 1 140px" minW="120px" maxW="180px">
+                        <FormLabel fontSize="sm">{t("appSettings.appId")}</FormLabel>
+                        <Input
+                          placeholder="happ"
+                          value={app.id}
+                          onChange={(e) => updateApp(index, { id: e.target.value })}
+                        />
+                      </FormControl>
+                      <FormControl flex="1 1 200px" minW="140px" maxW="240px">
+                        <FormLabel fontSize="sm">{t("appSettings.appName")}</FormLabel>
+                        <Input
+                          placeholder="Happ"
+                          value={app.name}
+                          onChange={(e) => updateApp(index, { name: e.target.value })}
+                        />
+                      </FormControl>
+                      <FormControl flex="1 1 140px" minW="120px" maxW="180px">
+                        <FormLabel fontSize="sm">{t("appSettings.scheme")}</FormLabel>
+                        <Input
+                          placeholder="happ"
+                          value={app.scheme}
+                          onChange={(e) => updateApp(index, { scheme: e.target.value })}
+                        />
+                      </FormControl>
                       <Checkbox
+                        flexShrink={0}
+                        pb={2}
                         isChecked={app.enabled}
                         onChange={(e) => updateApp(index, { enabled: e.target.checked })}
                       >
                         {t("appSettings.enabled")}
                       </Checkbox>
                     </HStack>
-                    <HStack>
+                    <HStack flexShrink={0} pt={8}>
                       <Button size="sm" onClick={() => moveApp(index, -1)}>↑</Button>
                       <Button size="sm" onClick={() => moveApp(index, 1)}>↓</Button>
-                      <Button size="sm" colorScheme="red" onClick={() => removeApp(index)}>
+                      <Button
+                        size="sm"
+                        colorScheme="red"
+                        whiteSpace="nowrap"
+                        onClick={() => removeApp(index)}
+                      >
                         {t("delete")}
                       </Button>
                     </HStack>

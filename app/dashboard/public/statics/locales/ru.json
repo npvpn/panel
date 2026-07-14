@@ -267,7 +267,7 @@
   "appSettings.title": "Клиентские приложения",
   "appSettings.appId": "ID",
   "appSettings.appName": "Название",
-  "appSettings.scheme": "Схема (happ)",
+  "appSettings.scheme": "Схема",
   "appSettings.enabled": "Показывать",
   "appSettings.addApp": "Добавить приложение",
   "appSettings.primaryByPlatform": "Главное приложение по платформам",
