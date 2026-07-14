@@ -98,8 +98,8 @@ export const AccordionInboundContent: FC<Props> = ({
   );
 
   return (
-    <AccordionPanel px={2} pb={2}>
-      <VStack gap={3}>
+    <AccordionPanel px={0} pb={0}>
+      <VStack>
         {hosts.map((host, index) => (
           <HostRow
             key={host.id}
@@ -119,6 +119,7 @@ export const AccordionInboundContent: FC<Props> = ({
             proxyALPN={proxyALPN}
             proxyFingerprint={proxyFingerprint}
             t={t}
+            isFirst={index === 0}
           />
         ))}
 
