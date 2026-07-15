@@ -125,7 +125,7 @@
   "nodes.notFound": "No nodes found",
   "nodes.reconnect": "Reconnect",
   "nodes.reconnecting": "Reconnecting...",
-  "nodes.search": "Search nodes...",
+  "nodes.search": "Search by name or address...",
   "nodes.show-certificate": "Show certificate",
   "nodes.title": "Using Marzban-Node, you are able to scale up your connection quality by adding different nodes on different servers.",
   "nodes.usageCoefficient": "Usage Ratio",
