@@ -287,6 +287,8 @@
   "botSettings.subUnsupportedClientServerText": "不支持客户端服务器文本",
   "botSettings.subUpdateInterval": "配置更新间隔",
   "botSettings.webUrlHint": "订阅页按钮指向的 Web 控制台 URL。从 Telegram 机器人同步（web_frontend.domain）。",
+  "botSettings.showAds": "显示平台链接",
+  "botSettings.showAdsHint": "在过期、吊销或设备受限的订阅页面显示“由 npvpn 提供支持”。",
   "botSettings.tabBotInfo": "基本信息",
   "botSettings.tabSubscription": "订阅设置",
   "botSettings.tabMessages": "消息",

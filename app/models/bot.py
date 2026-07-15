@@ -61,6 +61,7 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_routing_json_default": "",
     "sub_routing_json_bs": "",
     "sub_custom_headers": "",
+    "show_ads": True,
 }
 
 
@@ -121,6 +122,7 @@ class BotSettingsPayload(BaseModel):
     sub_routing_json_default: str = ""
     sub_routing_json_bs: str = ""
     sub_custom_headers: str = ""
+    show_ads: bool = True
 
     @field_validator(
         "sub_revoked_server_text",
@@ -187,5 +189,6 @@ def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str
 
     base["sub_device_limit_hard_mode"] = bool(base.get("sub_device_limit_hard_mode"))
     base["bs_extra_reset_pool_on_prolong"] = bool(base.get("bs_extra_reset_pool_on_prolong", False))
+    base["show_ads"] = bool(base.get("show_ads", True))
 
     return base
