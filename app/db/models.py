@@ -107,6 +107,16 @@ class GlobalSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ManagedSetting(Base):
+    __tablename__ = "managed_settings"
+
+    key = Column(String(64), primary_key=True)
+    scope = Column(String(16), nullable=False, default="global")
+    source = Column(String(255), nullable=False, default="")
+    version = Column(String(64), nullable=False, default="")
+    applied_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class User(Base):
     __tablename__ = "users"
 
