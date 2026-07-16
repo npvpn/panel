@@ -21,3 +21,14 @@ def test_validate_broken_payload_raises():
         validate_managed_payload(
             "client_apps", {"apps": [{"id": "x", "enabled": True}], "primary_by_platform": {"ios": "x"}}
         )
+
+
+def test_push_request_defaults():
+    from app.models.managed import ManagedPushRequest
+
+    req = ManagedPushRequest.model_validate({"data": {"a": 1}, "version": "abc", "source": "admin"})
+    assert req.data == {"a": 1}
+    assert req.version == "abc"
+
+    empty = ManagedPushRequest.model_validate({})
+    assert empty.data == {} and empty.version == ""
