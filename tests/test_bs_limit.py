@@ -5,7 +5,6 @@ from app.xray.bs_limit import (
     bs_counter_step,
     bs_stub_remark,
     diff_blocks,
-    host_matches_blocked,
     monthly_effective_limit,
     monthly_extra_consume_delta,
     monthly_extra_overflow,
@@ -156,20 +155,3 @@ def test_bs_stub_remark_string_and_blanks():
 def test_bs_stub_remark_empty_inputs():
     assert bs_stub_remark([]) == ""
     assert bs_stub_remark(None) == ""
-
-
-BS_ADDR = "192.0.2.10"
-OTHER_ADDR = "198.51.100.20"
-
-
-def test_host_matches_blocked_by_address():
-    blocked = {BS_ADDR}
-    assert host_matches_blocked([BS_ADDR], blocked) is True
-    assert host_matches_blocked([OTHER_ADDR], blocked) is False
-    assert host_matches_blocked(["203.0.113.5", BS_ADDR], blocked) is True
-
-
-def test_host_matches_blocked_empty():
-    assert host_matches_blocked([BS_ADDR], set()) is False
-    assert host_matches_blocked([], {BS_ADDR}) is False
-    assert host_matches_blocked(None, {BS_ADDR}) is False

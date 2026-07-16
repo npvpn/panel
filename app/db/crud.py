@@ -1972,31 +1972,21 @@ def apply_bs_extra_pool_consumption(
     db.execute(update(User).where(User.id == user_id).values(bs_extra=new_extra))
 
 
-def get_blocked_bs_node_addresses(db: Session, user_id: int) -> set[str]:
-    """Адреса БС-нод, на которых юзер сейчас заблокирован (node_user_blocks).
+def get_blocked_bs_node_ids(db: Session, user_id: int) -> set[int]:
+    """ID БС-нод, на которых юзер сейчас заблокирован по лимиту (node_user_blocks).
 
-    Матчим заглушку в подписке по адресу хоста, а НЕ по инбаунд-тегу: теги в
-    Marzban общие для всех нод (node_inbounds — m2m), поэтому стаб по тегу
-    задевал бы хосты обычных нод. Адрес же = Node.address уникально указывает
-    на конкретную ноду. При блоке юзер теряет ноду целиком."""
-    rows = (
-        db.query(Node.address)
-        .join(NodeUserBlock, NodeUserBlock.node_id == Node.id)
-        .filter(NodeUserBlock.user_id == user_id)
-        .all()
-    )
-    return {addr for (addr,) in rows if addr}
+    Хост подписки соотносится с нодой по связи host_nodes (ProxyHost.nodes), а НЕ по
+    адресу: адрес хоста может быть доменом (маскировка TLS/SNI), тогда как нода
+    подключена по IP (NPVPN-1652). Инбаунд-теги в Marzban общие для всех нод и для
+    матча не годятся. При блоке юзер теряет ноду целиком — глушим все её хосты."""
+    rows = db.query(NodeUserBlock.node_id).filter(NodeUserBlock.user_id == user_id).all()
+    return {node_id for (node_id,) in rows}
 
 
-def get_bs_node_addresses(db: Session) -> set[str]:
-    """Адреса всех БС-нод (Node.is_bs=True).
-
-    Для пер-серверного выбора клиентского routing в подписке: хост в подписке
-    относится к БС-ноде, если его адрес совпадает с адресом is_bs-ноды (теги
-    инбаундов в Marzban общие, различает только Node.address — как в
-    get_blocked_bs_node_addresses)."""
-    rows = db.query(Node.address).filter(Node.is_bs.is_(True)).all()
-    return {addr for (addr,) in rows if addr}
+def get_bs_node_ids(db: Session) -> set[int]:
+    """ID всех БС-нод (Node.is_bs=True) — для пер-серверного выбора клиентского routing."""
+    rows = db.query(Node.id).filter(Node.is_bs.is_(True)).all()
+    return {node_id for (node_id,) in rows}
 
 
 def create_notification_reminder(
