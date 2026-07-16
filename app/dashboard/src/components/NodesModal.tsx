@@ -78,8 +78,13 @@ export const NodesDialog: FC = () => {
   const filteredNodes = useMemo(() => {
     if (!nodes) return [];
     if (!search.trim()) return nodes;
-    return nodes.filter((node) =>
-      node.name.toLowerCase().includes(search.toLowerCase())
+
+    const query = search.toLowerCase();
+
+    return nodes.filter(
+      (node) =>
+        node.name.toLowerCase().includes(query) ||
+        node.address.toLowerCase().includes(query)
     );
   }, [nodes, search]);
 

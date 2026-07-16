@@ -120,7 +120,7 @@
   "nodes.notFound": "未找到节点",
   "nodes.reconnect": "重新连接",
   "nodes.reconnecting": "重连中...",
-  "nodes.search": "搜索节点...",
+  "nodes.search": "按名称或地址搜索...",
   "nodes.show-certificate": "如何证书",
   "nodes.title": "使用 Marzban-Node，您可以通过在不同的服务器上添加不同的节点来提供多节点负载。",
   "nodes.usageCoefficient": "使用系数",
