@@ -48,3 +48,9 @@ export type ClientAppsSettings = {
   apps: ClientApp[];
   primary_by_platform: Partial<Record<PlatformKey, string>>;
 };
+
+export type ManagedState = {
+  version: string;
+  source: string;
+  applied_at: string | null;
+} | null;
