@@ -42,10 +42,15 @@ sudo bash -c "$(curl -sL https://github.com/npvpn/Marzban-scripts/raw/master/mar
   --subscription-title 'My VPN' \
   --support-telegram support_bot \
   --bot-telegram my_vpn_bot \
+  --token 'GITHUB_RUNNER_REGISTRATION_TOKEN' \
   --non-interactive
 ```
 
+`--token` — registration token runner’а в репе `npvpn/telegram_bot` (метка будет `partner-<bot-telegram>`). Опционально: `--project-dir /opt/marzban`, `--skip-runner`.
+
 Панель будет доступна по адресу: `https://<домен>:8001/dashboard/`
+
+**Обновление панели на партнёрах:** образ собирается в этом репозитории (`build.yml` → Docker Hub). Выкат — Actions приватного [`npvpn/telegram_bot`](https://github.com/npvpn/telegram_bot) (workflow **Deploy partner panels**). Инструкция: [docs/deploy.md](https://github.com/npvpn/telegram_bot/blob/master/docs/deploy.md#partner-panels).
 
 ---
 
