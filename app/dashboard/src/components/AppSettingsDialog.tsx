@@ -75,9 +75,6 @@ const toPayload = (
   apps: settings.apps.map(({ _key, ...app }) => app),
 });
 
-// Иконки перемещения — специально НЕ шевроны (в отличие от AccordionIcon,
-// который тоже шеврон). Стрелка со стержнем читается однозначно как
-// "переместить", а не "развернуть/свернуть" — так их легко отличить друг от друга.
 const MoveUpIcon: FC = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
     <path
@@ -107,8 +104,6 @@ const MoveDownIcon: FC = () => (
 const isAppIncomplete = (app: ClientApp) =>
   !app.id.trim() || !app.name.trim() || !app.scheme.trim();
 
-// Тонкий кастомный скроллбар для ModalBody: webkit-свойства для Chrome/Safari/Edge,
-// scrollbarWidth/scrollbarColor — fallback для Firefox.
 const thinScrollbarSx = {
   "&::-webkit-scrollbar": {
     width: "6px",
@@ -135,8 +130,7 @@ export const AppSettingsDialog: FC = () => {
     useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Контролируемое состояние открытых панелей аккордеона — нужно, чтобы
-  // при добавлении нового приложения сразу открыть его карточку.
+
   const [openIndexes, setOpenIndexes] = useState<number[]>([]);
   const nextKeyRef = useRef(0);
   const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
@@ -190,8 +184,7 @@ export const AppSettingsDialog: FC = () => {
       const apps = prev.apps.map((app, i) =>
         i === index ? { ...app, ...patch } : app
       );
-      // При переименовании id переносим ссылки primary_by_platform, указывавшие
-      // на старый id, на новый — иначе они "теряются" и сохранение падает с 422.
+
       if (patch.id !== undefined && target && patch.id !== target.id) {
         const oldId = target.id;
         const newId = patch.id;
@@ -222,8 +215,7 @@ export const AppSettingsDialog: FC = () => {
       [apps[index], apps[target]] = [apps[target], apps[index]];
       return { ...prev, apps };
     });
-    // Открытые панели привязаны к индексам, а не к id — при перестановке
-    // сдвигаем их вместе с элементами, чтобы открытая карточка не "перескочила".
+
     setOpenIndexes((prev) =>
       prev.map((i) => {
         if (i === index) return index + delta;
@@ -276,7 +268,6 @@ export const AppSettingsDialog: FC = () => {
         { ...newApp(prev.apps.length + 1), _key: nextKeyRef.current++ },
       ],
     }));
-    // Индекс нового элемента — последний в обновлённом массиве.
     setOpenIndexes((prev) => [...prev, settings.apps.length]);
   };
 
