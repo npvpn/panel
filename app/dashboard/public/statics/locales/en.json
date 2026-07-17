@@ -271,6 +271,7 @@
   "appSettings.moveUp": "Move up",
   "appSettings.moveDown": "Move down",
   "appSettings.links": "Links",
+  "appSettings.general": "General",
   "appSettings.appId": "ID",
   "appSettings.appName": "Name",
   "appSettings.scheme": "Scheme",

@@ -243,6 +243,7 @@
   "appSettings.incomplete": "Some fields are missing",
   "appSettings.moveUp": "Move up",
   "appSettings.moveDown": "Move down",
+  "appSettings.general": "General",
   "appSettings.links": "Links",
   "appSettings.appsList": "App List",
   "appSettings.appId": "ID",

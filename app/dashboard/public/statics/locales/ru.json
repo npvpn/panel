@@ -271,6 +271,7 @@
   "appSettings.moveUp": "Переместить выше",
   "appSettings.moveDown": "Переместить ниже",
   "appSettings.links": "Ссылки",
+  "appSettings.general": "Основное",
   "appSettings.appId": "ID",
   "appSettings.appName": "Название",
   "appSettings.scheme": "Схема",

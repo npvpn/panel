@@ -99,8 +99,6 @@ const MoveDownIcon: FC = () => (
   </svg>
 );
 
-// Приложение считаем незаполненным, если не указаны ключевые поля —
-// используем это, чтобы подсветить карточку точкой в свёрнутом виде.
 const isAppIncomplete = (app: ClientApp) =>
   !app.id.trim() || !app.name.trim() || !app.scheme.trim();
 
@@ -130,7 +128,8 @@ export const AppSettingsDialog: FC = () => {
     useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  // Контролируемое состояние открытых панелей аккордеона — нужно, чтобы
+  // при добавлении нового приложения сразу открыть его карточку.
   const [openIndexes, setOpenIndexes] = useState<number[]>([]);
   const nextKeyRef = useRef(0);
   const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
@@ -465,8 +464,22 @@ export const AppSettingsDialog: FC = () => {
                       </Box>
                       <AccordionPanel pb={4}>
                         <VStack align="stretch" spacing={3}>
+                          <Text
+                            fontSize="xs"
+                            color="gray.500"
+                            textTransform="uppercase"
+                            fontWeight="semibold"
+                            letterSpacing="wide"
+                          >
+                            {t("appSettings.general")}
+                          </Text>
                           <HStack spacing={3} flexWrap="wrap" align="end">
-                            <FormControl flex="1 1 140px" minW="120px">
+                            <FormControl
+                              flex="1 1 140px"
+                              minW="120px"
+                              isInvalid={!app.id.trim()}
+                              isRequired
+                            >
                               <FormLabel fontSize="sm">
                                 {t("appSettings.appId")}
                               </FormLabel>
@@ -478,7 +491,12 @@ export const AppSettingsDialog: FC = () => {
                                 }
                               />
                             </FormControl>
-                            <FormControl flex="1 1 200px" minW="140px">
+                            <FormControl
+                              flex="1 1 200px"
+                              minW="140px"
+                              isInvalid={!app.name.trim()}
+                              isRequired
+                            >
                               <FormLabel fontSize="sm">
                                 {t("appSettings.appName")}
                               </FormLabel>
@@ -490,7 +508,12 @@ export const AppSettingsDialog: FC = () => {
                                 }
                               />
                             </FormControl>
-                            <FormControl flex="1 1 140px" minW="120px">
+                            <FormControl
+                              flex="1 1 140px"
+                              minW="120px"
+                              isInvalid={!app.scheme.trim()}
+                              isRequired
+                            >
                               <FormLabel fontSize="sm">
                                 {t("appSettings.scheme")}
                               </FormLabel>
