@@ -24,7 +24,7 @@ import {
   SunIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
-import { DONATION_URL, REPO_URL } from "constants/Project";
+import { REPO_URL } from "constants/Project";
 import { useDashboard } from "contexts/DashboardContext";
 import differenceInDays from "date-fns/differenceInDays";
 import isValid from "date-fns/isValid";
@@ -199,20 +199,6 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                   </MenuItem>
                 </>
               )}
-              <Link to={DONATION_URL} target="_blank">
-                <MenuItem
-                  maxW="170px"
-                  fontSize="sm"
-                  icon={<DonationIcon />}
-                  position="relative"
-                  onClick={handleOnClose}
-                >
-                  {t("header.donation")}{" "}
-                  {showDonationNotif && (
-                    <NotificationCircle top="3" right="2" />
-                  )}
-                </MenuItem>
-              </Link>
               <Link to="/login">
                 <MenuItem maxW="170px" fontSize="sm" icon={<LogoutIcon />}>
                   {t("header.logout")}

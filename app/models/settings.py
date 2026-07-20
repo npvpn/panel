@@ -144,6 +144,10 @@ class ClientAppsPayload(BaseModel):
         return self
 
 
+class ClientAppsWithManagedResponse(ClientAppsPayload):
+    managed: dict[str, Any] | None = None
+
+
 def merge_client_apps_defaults(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Настройки из БД, дополненные дефолтами. Битые данные не роняют страницу подписки."""
     if not raw:

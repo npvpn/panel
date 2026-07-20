@@ -5,6 +5,7 @@ from . import (
     bot,
     core,
     home,
+    managed,
     node,
     settings,
     subscription,
@@ -19,6 +20,7 @@ routers: list[APIRouter] = [
     admin.router,
     bot.router,
     core.router,
+    managed.router,  # type: ignore[has-type]
     node.router,
     settings.router,  # type: ignore[has-type]
     subscription.router,
