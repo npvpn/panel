@@ -20,6 +20,7 @@ from app.db.models import (
     BotSettings,
     CascadeRoute,
     GlobalSetting,
+    ManagedSetting,
     NextPlan,
     Node,
     NodeUsage,
@@ -2111,3 +2112,50 @@ def upsert_global_setting(db: Session, key: str, data: dict[str, Any]) -> dict[s
     db.commit()
     db.refresh(row)
     return dict(row.data)
+
+
+def get_managed_setting(db: Session, key: str) -> dict[str, Any] | None:
+    row = db.query(ManagedSetting).filter(ManagedSetting.key == key).first()
+    if row is None:
+        return None
+    return {
+        "key": row.key,
+        "scope": row.scope,
+        "source": row.source,
+        "version": row.version,
+        "applied_at": row.applied_at,
+    }
+
+
+def is_managed(db: Session, key: str) -> bool:
+    return db.query(ManagedSetting).filter(ManagedSetting.key == key).first() is not None
+
+
+def upsert_managed_setting(db: Session, key: str, *, scope: str, source: str, version: str) -> dict[str, Any]:
+    row = db.query(ManagedSetting).filter(ManagedSetting.key == key).first()
+    if row is None:
+        row = ManagedSetting(key=key, scope=scope, source=source, version=version)
+        db.add(row)
+    else:
+        cast(Any, row).scope = scope
+        cast(Any, row).source = source
+        cast(Any, row).version = version
+        cast(Any, row).applied_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return {
+        "key": row.key,
+        "scope": row.scope,
+        "source": row.source,
+        "version": row.version,
+        "applied_at": row.applied_at,
+    }
+
+
+def delete_managed_setting(db: Session, key: str) -> bool:
+    row = db.query(ManagedSetting).filter(ManagedSetting.key == key).first()
+    if row is None:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

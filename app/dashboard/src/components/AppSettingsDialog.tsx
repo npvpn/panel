@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Checkbox,
   FormControl,
@@ -26,6 +27,7 @@ import {
   ClientApp,
   ClientAppsSettings,
   LINK_KEYS,
+  ManagedState,
   PLATFORM_KEYS,
   PlatformKey,
 } from "types/AppSettings";
@@ -61,6 +63,8 @@ const toPayload = (settings: ClientAppsSettingsWithKeys): ClientAppsSettings => 
   apps: settings.apps.map(({ _key, ...app }) => app),
 });
 
+type ClientAppsResponse = ClientAppsSettings & { managed?: ManagedState };
+
 export const AppSettingsDialog: FC = () => {
   const { isEditingAppSettings, onEditingAppSettings } = useDashboard();
   const { t } = useTranslation();
@@ -68,6 +72,9 @@ export const AppSettingsDialog: FC = () => {
   const [settings, setSettings] = useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [managed, setManaged] = useState<ManagedState>(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const isLocked = managed != null;
   const nextKeyRef = useRef(0);
   const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
     ...data,
@@ -99,9 +106,13 @@ export const AppSettingsDialog: FC = () => {
   useEffect(() => {
     if (!isEditingAppSettings) return;
     setSettings(emptySettings);
+    setManaged(null);
     setLoading(true);
     fetch("/settings/apps")
-      .then((data: ClientAppsSettings) => setSettings(withKeys(data)))
+      .then((data: ClientAppsResponse) => {
+        setSettings(withKeys(data));
+        setManaged(data.managed ?? null);
+      })
       .catch(() =>
         toast({
           title: t("appSettings.loadFailed"),
@@ -197,6 +208,32 @@ export const AppSettingsDialog: FC = () => {
       .finally(() => setSaving(false));
   };
 
+  const handleUnlink = () => {
+    if (!window.confirm(t("appSettings.unlinkConfirm"))) return;
+    setUnlinking(true);
+    fetch("/managed/client_apps", { method: "DELETE" })
+      .then(() => fetch("/settings/apps"))
+      .then((data: ClientAppsResponse) => {
+        setSettings(withKeys(data));
+        setManaged(data.managed ?? null);
+        toast({
+          title: t("appSettings.unlinked"),
+          status: "success",
+          isClosable: true,
+          position: "top",
+        });
+      })
+      .catch(() =>
+        toast({
+          title: t("appSettings.loadFailed"),
+          status: "error",
+          isClosable: true,
+          position: "top",
+        })
+      )
+      .finally(() => setUnlinking(false));
+  };
+
   return (
     <Modal
       isOpen={isEditingAppSettings}
@@ -206,7 +243,22 @@ export const AppSettingsDialog: FC = () => {
     >
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{t("appSettings.title")}</ModalHeader>
+        <ModalHeader>
+          <HStack spacing={3} align="center" flexWrap="wrap">
+            <Text>{t("appSettings.title")}</Text>
+            {isLocked && (
+              <>
+                <Badge colorScheme="orange">{t("appSettings.managedByAdmin")}</Badge>
+                <Text fontSize="sm" fontWeight="normal" color="gray.500">
+                  {t("appSettings.managedInfo", {
+                    source: managed?.source,
+                    at: managed?.applied_at,
+                  })}
+                </Text>
+              </>
+            )}
+          </HStack>
+        </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack align="stretch" spacing={6}>
@@ -227,6 +279,7 @@ export const AppSettingsDialog: FC = () => {
                         <Input
                           placeholder="happ"
                           value={app.id}
+                          isDisabled={isLocked}
                           onChange={(e) => updateApp(index, { id: e.target.value })}
                         />
                       </FormControl>
@@ -235,6 +288,7 @@ export const AppSettingsDialog: FC = () => {
                         <Input
                           placeholder="Happ"
                           value={app.name}
+                          isDisabled={isLocked}
                           onChange={(e) => updateApp(index, { name: e.target.value })}
                         />
                       </FormControl>
@@ -243,6 +297,7 @@ export const AppSettingsDialog: FC = () => {
                         <Input
                           placeholder="happ"
                           value={app.scheme}
+                          isDisabled={isLocked}
                           onChange={(e) => updateApp(index, { scheme: e.target.value })}
                         />
                       </FormControl>
@@ -250,18 +305,20 @@ export const AppSettingsDialog: FC = () => {
                         flexShrink={0}
                         pb={2}
                         isChecked={app.enabled}
+                        isDisabled={isLocked}
                         onChange={(e) => updateApp(index, { enabled: e.target.checked })}
                       >
                         {t("appSettings.enabled")}
                       </Checkbox>
                     </HStack>
                     <HStack flexShrink={0} pt={8}>
-                      <Button size="sm" onClick={() => moveApp(index, -1)}>↑</Button>
-                      <Button size="sm" onClick={() => moveApp(index, 1)}>↓</Button>
+                      <Button size="sm" isDisabled={isLocked} onClick={() => moveApp(index, -1)}>↑</Button>
+                      <Button size="sm" isDisabled={isLocked} onClick={() => moveApp(index, 1)}>↓</Button>
                       <Button
                         size="sm"
                         colorScheme="red"
                         whiteSpace="nowrap"
+                        isDisabled={isLocked}
                         onClick={() => removeApp(index)}
                       >
                         {t("delete")}
@@ -276,6 +333,7 @@ export const AppSettingsDialog: FC = () => {
                           size="sm"
                           placeholder="https://…"
                           value={app.links[key] ?? ""}
+                          isDisabled={isLocked}
                           onChange={(e) => updateLink(index, key, e.target.value)}
                         />
                       </FormControl>
@@ -286,6 +344,7 @@ export const AppSettingsDialog: FC = () => {
               <Button
                 alignSelf="flex-start"
                 size="sm"
+                isDisabled={isLocked}
                 onClick={() =>
                   setSettings((prev) => ({
                     ...prev,
@@ -309,6 +368,7 @@ export const AppSettingsDialog: FC = () => {
                     <Select
                       size="sm"
                       value={settings.primary_by_platform[platform] ?? ""}
+                      isDisabled={isLocked}
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
@@ -336,10 +396,30 @@ export const AppSettingsDialog: FC = () => {
         </ModalBody>
         <ModalFooter>
           <HStack>
-            <Button variant="outline" onClick={resetToDefaults} isLoading={loading}>
+            {isLocked && (
+              <Button
+                colorScheme="red"
+                variant="outline"
+                onClick={handleUnlink}
+                isLoading={unlinking}
+              >
+                {t("appSettings.unlink")}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={resetToDefaults}
+              isLoading={loading}
+              isDisabled={isLocked}
+            >
               {t("appSettings.resetDefaults")}
             </Button>
-            <Button colorScheme="primary" onClick={save} isLoading={saving}>
+            <Button
+              colorScheme="primary"
+              onClick={save}
+              isLoading={saving}
+              isDisabled={isLocked}
+            >
               {t("core.save")}
             </Button>
           </HStack>

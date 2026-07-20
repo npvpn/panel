@@ -293,6 +293,8 @@
   "botSettings.subUpdateInterval": "بازه به‌روزرسانی پروفایل",
   "botSettings.webUrlHint": "آدرس وب‌کابین برای دکمه صفحه اشتراک. از ربات تلگرام همگام‌سازی می‌شود (web_frontend.domain).",
   "botSettings.subSubscriptionDomainHint": "دامنه لینک‌های اشتراک، مثلاً example.net. خالی بگذارید تا از XRAY_SUBSCRIPTION_URL_PREFIX در env استفاده شود.",
+  "botSettings.showAds": "نمایش لینک پلتفرم",
+  "botSettings.showAdsHint": "نمایش «سایت روی پلتفرم npvpn کار می‌کند» در صفحات اشتراک منقضی، لغوشده یا محدود.",
   "botSettings.tabBotInfo": "اطلاعات ربات",
   "botSettings.tabSubscription": "اشتراک",
   "botSettings.tabMessages": "پیام‌ها",

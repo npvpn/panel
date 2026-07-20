@@ -82,6 +82,7 @@ const emptySettings: BotSettings = {
   sub_custom_headers: "",
   bs_monthly_limit: 0,
   bs_extra_reset_pool_on_prolong: false,
+  show_ads: true,
 };
 
 type ServerTextField =
@@ -343,6 +344,7 @@ export const BotSettingsDialog: FC = () => {
       sub_custom_headers: current.sub_custom_headers,
       bs_monthly_limit: current.bs_monthly_limit,
       bs_extra_reset_pool_on_prolong: current.bs_extra_reset_pool_on_prolong,
+      show_ads: current.show_ads,
     };
   };
 
@@ -744,6 +746,20 @@ export const BotSettingsDialog: FC = () => {
                       </FormHelperText>
                     </FormControl>
                   </SimpleGrid>
+
+                  <FormControl>
+                    <FormLabel>{t("botSettings.showAds")}</FormLabel>
+                    <Switch
+                      colorScheme="primary"
+                      isChecked={settings.show_ads}
+                      onChange={(e) =>
+                        updateSettings({ show_ads: e.target.checked })
+                      }
+                    />
+                    <FormHelperText>
+                      {t("botSettings.showAdsHint")}
+                    </FormHelperText>
+                  </FormControl>
                 </VStack>
               </TabPanel>
 
