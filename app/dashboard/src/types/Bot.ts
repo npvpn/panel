@@ -31,5 +31,6 @@ export type BotSettings = {
   sub_custom_headers: string;
   bs_monthly_limit: number;
   bs_extra_reset_pool_on_prolong: boolean;
+  show_ads: boolean;
   updated_at?: string;
 };
