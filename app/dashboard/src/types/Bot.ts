@@ -12,6 +12,7 @@ export type BotSettings = {
   sub_routing_v2raytun: string;
   sub_client_note: string;
   sub_profile_url: string;
+  sub_subscription_domain: string;
   bot_url: string;
   web_url: string;
   sub_revoked_announce_text: string;

@@ -62,6 +62,7 @@ const emptySettings: BotSettings = {
   sub_routing_v2raytun: "",
   sub_client_note: "",
   sub_profile_url: "",
+  sub_subscription_domain: "",
   bot_url: "",
   web_url: "",
   sub_revoked_announce_text: "",
@@ -295,6 +296,9 @@ export const BotSettingsDialog: FC = () => {
         current.sub_client_note.trim() || defaultSettings.sub_client_note,
       sub_profile_url:
         current.sub_profile_url.trim() || defaultSettings.sub_profile_url,
+      sub_subscription_domain:
+        (current.sub_subscription_domain || "").trim() ||
+        defaultSettings.sub_subscription_domain,
       bot_url: current.bot_url.trim() || defaultSettings.bot_url,
       web_url: current.web_url.trim() || defaultSettings.web_url,
       sub_revoked_announce_text:
@@ -789,6 +793,26 @@ export const BotSettingsDialog: FC = () => {
                         {t("botSettings.subProfileUrlHint")}
                       </FormHelperText>
                     </FormControl>
+                    <FormControl>
+                      <FormLabel>
+                        {t("botSettings.subSubscriptionDomain")}
+                      </FormLabel>
+                      <Input
+                        value={settings.sub_subscription_domain || ""}
+                        placeholder="example.net"
+                        onChange={(e) =>
+                          updateSettings({
+                            sub_subscription_domain: e.target.value,
+                          })
+                        }
+                      />
+                      <FormHelperText>
+                        {t("botSettings.subSubscriptionDomainHint")}
+                      </FormHelperText>
+                    </FormControl>
+                  </SimpleGrid>
+
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>
                         {t("botSettings.subUpdateInterval")}
