@@ -1,10 +1,16 @@
 import {
-  Badge,
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
+  Box,
   Button,
   Checkbox,
   FormControl,
   FormLabel,
   HStack,
+  IconButton,
   Input,
   Modal,
   ModalBody,
@@ -16,6 +22,7 @@ import {
   Select,
   SimpleGrid,
   Text,
+  Tooltip,
   VStack,
   useToast,
 } from "@chakra-ui/react";
@@ -27,10 +34,10 @@ import {
   ClientApp,
   ClientAppsSettings,
   LINK_KEYS,
-  ManagedState,
   PLATFORM_KEYS,
   PlatformKey,
 } from "types/AppSettings";
+import { DeleteIcon } from "./DeleteUserModal";
 
 // Локальный тип для рендера: добавляем стабильный технический ключ, который
 // не отправляется на бэкенд (см. toPayload), чтобы React не переиспользовал
@@ -48,7 +55,10 @@ const emptyLinks = () =>
     {} as ClientApp["links"]
   );
 
-const emptySettings: ClientAppsSettingsWithKeys = { apps: [], primary_by_platform: {} };
+const emptySettings: ClientAppsSettingsWithKeys = {
+  apps: [],
+  primary_by_platform: {},
+};
 
 const newApp = (index: number): ClientApp => ({
   id: `app${index}`,
@@ -58,23 +68,68 @@ const newApp = (index: number): ClientApp => ({
   links: emptyLinks(),
 });
 
-const toPayload = (settings: ClientAppsSettingsWithKeys): ClientAppsSettings => ({
+const toPayload = (
+  settings: ClientAppsSettingsWithKeys
+): ClientAppsSettings => ({
   ...settings,
   apps: settings.apps.map(({ _key, ...app }) => app),
 });
 
-type ClientAppsResponse = ClientAppsSettings & { managed?: ManagedState };
+const MoveUpIcon: FC = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path
+      d="M6 10V2M6 2L2.5 5.5M6 2L9.5 5.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const MoveDownIcon: FC = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path
+      d="M6 2V10M6 10L2.5 6.5M6 10L9.5 6.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const isAppIncomplete = (app: ClientApp) =>
+  !app.id.trim() || !app.name.trim() || !app.scheme.trim();
+
+const thinScrollbarSx = {
+  "&::-webkit-scrollbar": {
+    width: "6px",
+  },
+  "&::-webkit-scrollbar-track": {
+    background: "transparent",
+  },
+  "&::-webkit-scrollbar-thumb": {
+    background: "var(--chakra-colors-gray-300)",
+    borderRadius: "full",
+  },
+  "&::-webkit-scrollbar-thumb:hover": {
+    background: "var(--chakra-colors-gray-400)",
+  },
+  scrollbarWidth: "thin",
+  scrollbarColor: "var(--chakra-colors-gray-300) transparent",
+} as const;
 
 export const AppSettingsDialog: FC = () => {
   const { isEditingAppSettings, onEditingAppSettings } = useDashboard();
   const { t } = useTranslation();
   const toast = useToast();
-  const [settings, setSettings] = useState<ClientAppsSettingsWithKeys>(emptySettings);
+  const [settings, setSettings] =
+    useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [managed, setManaged] = useState<ManagedState>(null);
-  const [unlinking, setUnlinking] = useState(false);
-  const isLocked = managed != null;
+
+  const [openIndexes, setOpenIndexes] = useState<number[]>([]);
   const nextKeyRef = useRef(0);
   const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
     ...data,
@@ -106,13 +161,10 @@ export const AppSettingsDialog: FC = () => {
   useEffect(() => {
     if (!isEditingAppSettings) return;
     setSettings(emptySettings);
-    setManaged(null);
+    setOpenIndexes([]);
     setLoading(true);
     fetch("/settings/apps")
-      .then((data: ClientAppsResponse) => {
-        setSettings(withKeys(data));
-        setManaged(data.managed ?? null);
-      })
+      .then((data: ClientAppsSettings) => setSettings(withKeys(data)))
       .catch(() =>
         toast({
           title: t("appSettings.loadFailed"),
@@ -127,9 +179,10 @@ export const AppSettingsDialog: FC = () => {
   const updateApp = (index: number, patch: Partial<ClientApp>) => {
     setSettings((prev) => {
       const target = prev.apps[index];
-      const apps = prev.apps.map((app, i) => (i === index ? { ...app, ...patch } : app));
-      // При переименовании id переносим ссылки primary_by_platform, указывавшие
-      // на старый id, на новый — иначе они "теряются" и сохранение падает с 422.
+      const apps = prev.apps.map((app, i) =>
+        i === index ? { ...app, ...patch } : app
+      );
+
       if (patch.id !== undefined && target && patch.id !== target.id) {
         const oldId = target.id;
         const newId = patch.id;
@@ -160,6 +213,14 @@ export const AppSettingsDialog: FC = () => {
       [apps[index], apps[target]] = [apps[target], apps[index]];
       return { ...prev, apps };
     });
+
+    setOpenIndexes((prev) =>
+      prev.map((i) => {
+        if (i === index) return index + delta;
+        if (i === index + delta) return index;
+        return i;
+      })
+    );
   };
 
   const removeApp = (index: number) => {
@@ -174,12 +235,18 @@ export const AppSettingsDialog: FC = () => {
         primary_by_platform: primary,
       };
     });
+    setOpenIndexes((prev) =>
+      prev.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
+    );
   };
 
   const resetToDefaults = () => {
     setLoading(true);
     fetch("/settings/apps/defaults")
-      .then((data: ClientAppsSettings) => setSettings(withKeys(data)))
+      .then((data: ClientAppsSettings) => {
+        setSettings(withKeys(data));
+        setOpenIndexes([]);
+      })
       .catch(() =>
         toast({
           title: t("appSettings.loadFailed"),
@@ -191,11 +258,23 @@ export const AppSettingsDialog: FC = () => {
       .finally(() => setLoading(false));
   };
 
+  const addApp = () => {
+    setSettings((prev) => ({
+      ...prev,
+      apps: [
+        ...prev.apps,
+        { ...newApp(prev.apps.length + 1), _key: nextKeyRef.current++ },
+      ],
+    }));
+    setOpenIndexes((prev) => [...prev, settings.apps.length]);
+  };
+
   const save = () => {
     setSaving(true);
     fetch("/settings/apps", { method: "PUT", body: toPayload(settings) })
       .then((data: ClientAppsSettings) => {
         setSettings(withKeys(data));
+        setOpenIndexes([]);
         toast({
           title: t("appSettings.saved"),
           status: "success",
@@ -208,32 +287,6 @@ export const AppSettingsDialog: FC = () => {
       .finally(() => setSaving(false));
   };
 
-  const handleUnlink = () => {
-    if (!window.confirm(t("appSettings.unlinkConfirm"))) return;
-    setUnlinking(true);
-    fetch("/managed/client_apps", { method: "DELETE" })
-      .then(() => fetch("/settings/apps"))
-      .then((data: ClientAppsResponse) => {
-        setSettings(withKeys(data));
-        setManaged(data.managed ?? null);
-        toast({
-          title: t("appSettings.unlinked"),
-          status: "success",
-          isClosable: true,
-          position: "top",
-        });
-      })
-      .catch(() =>
-        toast({
-          title: t("appSettings.loadFailed"),
-          status: "error",
-          isClosable: true,
-          position: "top",
-        })
-      )
-      .finally(() => setUnlinking(false));
-  };
-
   return (
     <Modal
       isOpen={isEditingAppSettings}
@@ -243,132 +296,24 @@ export const AppSettingsDialog: FC = () => {
     >
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>
-          <HStack spacing={3} align="center" flexWrap="wrap">
-            <Text>{t("appSettings.title")}</Text>
-            {isLocked && (
-              <>
-                <Badge colorScheme="orange">{t("appSettings.managedByAdmin")}</Badge>
-                <Text fontSize="sm" fontWeight="normal" color="gray.500">
-                  {t("appSettings.managedInfo", {
-                    source: managed?.source,
-                    at: managed?.applied_at,
-                  })}
-                </Text>
-              </>
-            )}
-          </HStack>
-        </ModalHeader>
+        <ModalHeader>{t("appSettings.title")}</ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
+        <ModalBody sx={thinScrollbarSx}>
           <VStack align="stretch" spacing={6}>
-            <VStack align="stretch" spacing={4}>
-              {settings.apps.map((app, index) => (
-                <VStack
-                  key={app._key}
-                  align="stretch"
-                  spacing={3}
-                  borderWidth="1px"
-                  borderRadius="md"
-                  p={4}
-                >
-                  <HStack justify="space-between" align="start" spacing={3}>
-                    <HStack spacing={3} flexWrap="wrap" align="end" flex="1" minW={0}>
-                      <FormControl flex="1 1 140px" minW="120px" maxW="180px">
-                        <FormLabel fontSize="sm">{t("appSettings.appId")}</FormLabel>
-                        <Input
-                          placeholder="happ"
-                          value={app.id}
-                          isDisabled={isLocked}
-                          onChange={(e) => updateApp(index, { id: e.target.value })}
-                        />
-                      </FormControl>
-                      <FormControl flex="1 1 200px" minW="140px" maxW="240px">
-                        <FormLabel fontSize="sm">{t("appSettings.appName")}</FormLabel>
-                        <Input
-                          placeholder="Happ"
-                          value={app.name}
-                          isDisabled={isLocked}
-                          onChange={(e) => updateApp(index, { name: e.target.value })}
-                        />
-                      </FormControl>
-                      <FormControl flex="1 1 140px" minW="120px" maxW="180px">
-                        <FormLabel fontSize="sm">{t("appSettings.scheme")}</FormLabel>
-                        <Input
-                          placeholder="happ"
-                          value={app.scheme}
-                          isDisabled={isLocked}
-                          onChange={(e) => updateApp(index, { scheme: e.target.value })}
-                        />
-                      </FormControl>
-                      <Checkbox
-                        flexShrink={0}
-                        pb={2}
-                        isChecked={app.enabled}
-                        isDisabled={isLocked}
-                        onChange={(e) => updateApp(index, { enabled: e.target.checked })}
-                      >
-                        {t("appSettings.enabled")}
-                      </Checkbox>
-                    </HStack>
-                    <HStack flexShrink={0} pt={8}>
-                      <Button size="sm" isDisabled={isLocked} onClick={() => moveApp(index, -1)}>↑</Button>
-                      <Button size="sm" isDisabled={isLocked} onClick={() => moveApp(index, 1)}>↓</Button>
-                      <Button
-                        size="sm"
-                        colorScheme="red"
-                        whiteSpace="nowrap"
-                        isDisabled={isLocked}
-                        onClick={() => removeApp(index)}
-                      >
-                        {t("delete")}
-                      </Button>
-                    </HStack>
-                  </HStack>
-                  <SimpleGrid columns={2} spacing={3}>
-                    {LINK_KEYS.map((key) => (
-                      <FormControl key={key}>
-                        <FormLabel fontSize="sm">{t(`appSettings.link.${key}`)}</FormLabel>
-                        <Input
-                          size="sm"
-                          placeholder="https://…"
-                          value={app.links[key] ?? ""}
-                          isDisabled={isLocked}
-                          onChange={(e) => updateLink(index, key, e.target.value)}
-                        />
-                      </FormControl>
-                    ))}
-                  </SimpleGrid>
-                </VStack>
-              ))}
-              <Button
-                alignSelf="flex-start"
-                size="sm"
-                isDisabled={isLocked}
-                onClick={() =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    apps: [
-                      ...prev.apps,
-                      { ...newApp(prev.apps.length + 1), _key: nextKeyRef.current++ },
-                    ],
-                  }))
-                }
-              >
-                {t("appSettings.addApp")}
-              </Button>
-            </VStack>
-
+            {/* Выбор приложений */}
             <VStack align="stretch" spacing={3}>
-              <Text fontWeight="semibold">{t("appSettings.primaryByPlatform")}</Text>
-              <SimpleGrid columns={3} spacing={3}>
+              <Text fontWeight="semibold">
+                {t("appSettings.primaryByPlatform")}
+              </Text>
+              <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={3}>
                 {PLATFORM_KEYS.map((platform: PlatformKey) => (
                   <FormControl key={platform}>
-                    <FormLabel fontSize="sm">{t(`appSettings.platform.${platform}`)}</FormLabel>
+                    <FormLabel fontSize="sm">
+                      {t(`appSettings.platform.${platform}`)}
+                    </FormLabel>
                     <Select
                       size="sm"
                       value={settings.primary_by_platform[platform] ?? ""}
-                      isDisabled={isLocked}
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
@@ -392,34 +337,244 @@ export const AppSettingsDialog: FC = () => {
                 ))}
               </SimpleGrid>
             </VStack>
+
+            {/* Список приложений */}
+            <VStack align="stretch" spacing={3}>
+              <Text fontWeight="semibold">{t("appSettings.appsList")}</Text>
+
+              {settings.apps.length === 0 ? (
+                <Text fontSize="sm" color="gray.500">
+                  {t("appSettings.noApps")}
+                </Text>
+              ) : (
+                <Accordion
+                  allowMultiple
+                  index={openIndexes}
+                  onChange={(indexes) => setOpenIndexes(indexes as number[])}
+                >
+                  {settings.apps.map((app, index) => (
+                    <AccordionItem
+                      key={app._key}
+                      borderWidth="1px"
+                      borderRadius="md"
+                      mb={2}
+                    >
+                      <Box
+                        _hover={{ bg: "gray.50" }}
+                        borderRadius="md"
+                        transition="background 0.15s"
+                      >
+                        <HStack spacing={0} align="center">
+                          <AccordionButton
+                            flex="1"
+                            minW={0}
+                            _hover={{ bg: "transparent" }}
+                          >
+                            <HStack
+                              flex="1"
+                              spacing={3}
+                              minW={0}
+                              textAlign="left"
+                            >
+                              <Checkbox
+                                isChecked={app.enabled}
+                                onChange={(e) =>
+                                  updateApp(index, {
+                                    enabled: e.target.checked,
+                                  })
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <Box minW={0}>
+                                <HStack spacing={2}>
+                                  <Text fontWeight="medium" noOfLines={1}>
+                                    {app.name ||
+                                      app.id ||
+                                      t("appSettings.appName")}
+                                  </Text>
+                                  {isAppIncomplete(app) && (
+                                    <Tooltip
+                                      label={t("appSettings.incomplete")}
+                                      fontSize="xs"
+                                      hasArrow
+                                    >
+                                      <Box
+                                        w="6px"
+                                        h="6px"
+                                        borderRadius="full"
+                                        bg="orange.400"
+                                        flexShrink={0}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                </HStack>
+                                <Text
+                                  fontSize="xs"
+                                  color="gray.500"
+                                  noOfLines={1}
+                                >
+                                  {app.id}
+                                </Text>
+                              </Box>
+                            </HStack>
+                            <AccordionIcon />
+                          </AccordionButton>
+                          <HStack flexShrink={0} px={2}>
+                            <Tooltip
+                              label={t("appSettings.moveUp")}
+                              fontSize="xs"
+                              hasArrow
+                            >
+                              <IconButton
+                                aria-label={t("appSettings.moveUp")}
+                                icon={<MoveUpIcon />}
+                                size="sm"
+                                variant="ghost"
+                                isDisabled={index === 0}
+                                onClick={() => moveApp(index, -1)}
+                              />
+                            </Tooltip>
+                            <Tooltip
+                              label={t("appSettings.moveDown")}
+                              fontSize="xs"
+                              hasArrow
+                            >
+                              <IconButton
+                                aria-label={t("appSettings.moveDown")}
+                                icon={<MoveDownIcon />}
+                                size="sm"
+                                variant="ghost"
+                                isDisabled={index === settings.apps.length - 1}
+                                onClick={() => moveApp(index, 1)}
+                              />
+                            </Tooltip>
+                            <Tooltip label={t("delete")} fontSize="xs" hasArrow>
+                              <IconButton
+                                aria-label={t("delete")}
+                                icon={<DeleteIcon />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="red"
+                                onClick={() => removeApp(index)}
+                              />
+                            </Tooltip>
+                          </HStack>
+                        </HStack>
+                      </Box>
+                      <AccordionPanel pb={4}>
+                        <VStack align="stretch" spacing={3}>
+                          <Text
+                            fontSize="xs"
+                            color="gray.500"
+                            textTransform="uppercase"
+                            fontWeight="semibold"
+                            letterSpacing="wide"
+                          >
+                            {t("appSettings.general")}
+                          </Text>
+                          <HStack spacing={3} flexWrap="wrap" align="end">
+                            <FormControl
+                              flex="1 1 140px"
+                              minW="120px"
+                              isInvalid={!app.id.trim()}
+                              isRequired
+                            >
+                              <FormLabel fontSize="sm">
+                                {t("appSettings.appId")}
+                              </FormLabel>
+                              <Input
+                                placeholder="happ"
+                                value={app.id}
+                                onChange={(e) =>
+                                  updateApp(index, { id: e.target.value })
+                                }
+                              />
+                            </FormControl>
+                            <FormControl
+                              flex="1 1 200px"
+                              minW="140px"
+                              isInvalid={!app.name.trim()}
+                              isRequired
+                            >
+                              <FormLabel fontSize="sm">
+                                {t("appSettings.appName")}
+                              </FormLabel>
+                              <Input
+                                placeholder="Happ"
+                                value={app.name}
+                                onChange={(e) =>
+                                  updateApp(index, { name: e.target.value })
+                                }
+                              />
+                            </FormControl>
+                            <FormControl
+                              flex="1 1 140px"
+                              minW="120px"
+                              isInvalid={!app.scheme.trim()}
+                              isRequired
+                            >
+                              <FormLabel fontSize="sm">
+                                {t("appSettings.scheme")}
+                              </FormLabel>
+                              <Input
+                                placeholder="happ"
+                                value={app.scheme}
+                                onChange={(e) =>
+                                  updateApp(index, { scheme: e.target.value })
+                                }
+                              />
+                            </FormControl>
+                          </HStack>
+                          <Text
+                            fontSize="xs"
+                            color="gray.500"
+                            textTransform="uppercase"
+                            fontWeight="semibold"
+                            letterSpacing="wide"
+                          >
+                            {t("appSettings.links")}
+                          </Text>
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                            {LINK_KEYS.map((key) => (
+                              <FormControl key={key}>
+                                <FormLabel fontSize="sm">
+                                  {t(`appSettings.link.${key}`)}
+                                </FormLabel>
+                                <Input
+                                  size="sm"
+                                  placeholder="https://…"
+                                  value={app.links[key] ?? ""}
+                                  onChange={(e) =>
+                                    updateLink(index, key, e.target.value)
+                                  }
+                                />
+                              </FormControl>
+                            ))}
+                          </SimpleGrid>
+                        </VStack>
+                      </AccordionPanel>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
+
+              <Button alignSelf="flex-start" size="sm" onClick={addApp}>
+                {t("appSettings.addApp")}
+              </Button>
+            </VStack>
           </VStack>
         </ModalBody>
+
         <ModalFooter>
           <HStack>
-            {isLocked && (
-              <Button
-                colorScheme="red"
-                variant="outline"
-                onClick={handleUnlink}
-                isLoading={unlinking}
-              >
-                {t("appSettings.unlink")}
-              </Button>
-            )}
             <Button
               variant="outline"
               onClick={resetToDefaults}
               isLoading={loading}
-              isDisabled={isLocked}
             >
               {t("appSettings.resetDefaults")}
             </Button>
-            <Button
-              colorScheme="primary"
-              onClick={save}
-              isLoading={saving}
-              isDisabled={isLocked}
-            >
+            <Button colorScheme="primary" onClick={save} isLoading={saving}>
               {t("core.save")}
             </Button>
           </HStack>
