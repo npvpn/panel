@@ -128,8 +128,7 @@ export const AppSettingsDialog: FC = () => {
     useState<ClientAppsSettingsWithKeys>(emptySettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Контролируемое состояние открытых панелей аккордеона — нужно, чтобы
-  // при добавлении нового приложения сразу открыть его карточку.
+
   const [openIndexes, setOpenIndexes] = useState<number[]>([]);
   const nextKeyRef = useRef(0);
   const withKeys = (data: ClientAppsSettings): ClientAppsSettingsWithKeys => ({
