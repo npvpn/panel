@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import cast
 
 from sqlalchemy import (
     JSON,
@@ -240,6 +241,17 @@ class User(Base):
     @property
     def bot_username(self):
         return self.bot.username if self.bot else None
+
+    @property
+    def subscription_url(self) -> str:
+        """Absolute or path-only subscription link from bot domain / env prefix."""
+        from app.subscription.bot_settings import resolve_bot_settings
+        from app.subscription.subscription_url import build_subscription_url
+
+        return build_subscription_url(
+            cast(str | None, self.subscription_token),
+            bot_settings=resolve_bot_settings(self),
+        )
 
 
 class UserDevice(Base):

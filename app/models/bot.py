@@ -42,6 +42,7 @@ DEFAULT_BOT_SETTINGS: dict[str, Any] = {
     "sub_routing_v2raytun": SUB_ROUTING_V2RAYTUN,
     "sub_client_note": SUB_CLIENT_NOTE,
     "sub_profile_url": SUB_PROFILE_URL,
+    "sub_subscription_domain": "",
     "bot_url": BOT_URL,
     "web_url": "",
     "sub_revoked_announce_text": SUB_REVOKED_ANNOUNCE_TEXT,
@@ -103,6 +104,7 @@ class BotSettingsPayload(BaseModel):
     sub_routing_v2raytun: str = ""
     sub_client_note: str = ""
     sub_profile_url: str = ""
+    sub_subscription_domain: str = ""
     bot_url: str = ""
     web_url: str = ""
     sub_revoked_announce_text: str = ""
@@ -136,6 +138,13 @@ class BotSettingsPayload(BaseModel):
     def validate_server_text(cls, value: Any):
         return _normalize_server_text(value)
 
+    @field_validator("sub_subscription_domain", mode="before")
+    @classmethod
+    def validate_subscription_domain(cls, value: Any):
+        from app.subscription.subscription_url import normalize_subscription_domain
+
+        return normalize_subscription_domain(value)
+
     @field_validator(
         "sub_v2ray_json_template",
         "sub_routing_json_default",
@@ -160,6 +169,7 @@ def apply_bot_settings_fallback(raw_settings: dict[str, Any] | None) -> dict[str
         "sub_device_limit_announce_text",
         "sub_unsupported_client_announce_text",
         "sub_bs_limit_announce_text",
+        "sub_subscription_domain",
     }
     server_text_fallback_keys = {
         "sub_revoked_server_text",

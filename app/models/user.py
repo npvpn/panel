@@ -8,7 +8,7 @@ from app import xray
 from app.models.admin import Admin
 from app.models.proxy import ProxySettings, ProxyTypes
 from app.subscription.share import generate_v2ray_links
-from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
+from app.subscription.subscription_url import build_subscription_url
 
 USERNAME_REGEXP = re.compile(r"^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
 
@@ -318,9 +318,9 @@ class UserResponse(User):
     @model_validator(mode="after")
     def validate_subscription_url(self):
         if not self.subscription_url and self.subscription_token:
-            url_prefix = (XRAY_SUBSCRIPTION_URL_PREFIX).strip("/")
-            path = f"/{XRAY_SUBSCRIPTION_PATH}/{self.subscription_token}"
-            self.subscription_url = f"{url_prefix}{path}" if url_prefix else path
+            # ORM User.subscription_url property already applies bot domain;
+            # this path covers non-ORM construction (env prefix fallback only).
+            self.subscription_url = build_subscription_url(self.subscription_token)
         return self
 
     @field_validator("proxies", mode="before")
