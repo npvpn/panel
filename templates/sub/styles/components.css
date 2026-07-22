@@ -38,7 +38,7 @@
     align-items: center;
     justify-content: center;
     padding: 16px 24px;
-    border-radius: var(--small-border);
+    border-radius: 40px;
     font-weight: 800;
     font-size: 16px;
     line-height: 150%;
@@ -50,21 +50,21 @@
 }
 
 .btn-tertiary {
-    background-color: transparent;
+    background-color: var(--red);
     font-family: var(--third-family);
     height: 56px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 16px 24px;
-    border-radius: var(--small-border);
+    border-radius: 40px;
     font-weight: 800;
     font-size: 16px;
     line-height: 150%;
     letter-spacing: -0.02em;
     white-space: nowrap;
     transition: all 0.2s ease;
-    color: #ef3124;
+    color: var(--white);
 }
 
 /* SPACING */
@@ -366,7 +366,7 @@
     background: var(--light-gray);
     font-family: var(--font-family);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 20px;
     color: var(--text-primary);
     transition: all 0.2s ease;
@@ -404,6 +404,7 @@
     align-items: center;
     justify-content: center;
     background-color: #f6f6f6;
+    border-radius: 100px;
 }
 
 .modal-overlay {
@@ -437,6 +438,7 @@
     font-size: 24px;
     font-weight: 600;
     color: var(--text-primary);
+    font-family: var(--third-family);
 }
 
 .modal-close {
@@ -449,7 +451,7 @@
 .modal-device {
     margin-top: 20px;
     background: var(--surface-2);
-    border-radius: 16px;
+    border-radius: 100px;
     padding: 12px 20px;
 }
 
@@ -470,7 +472,7 @@
 .modal-actions {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     margin-top: 20px;
 }
 
@@ -545,21 +547,34 @@
 
 .button-wrapper {
     position: fixed;
-    bottom: 60px;
+    bottom: 80px; /* поднимаем выше над плавающей навигацией */
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     width: 100%;
-    max-width: 310px;
-    margin: 40px auto 0;
+    max-width: 342px;
     display: flex;
     flex-direction: column;
-
-    a {
-        background-color: var(--white);
-        padding: 12px 20px;
-        width: 100%;
-    }
+    border-radius: 40px;
+    background: white;
+    padding: 12px 16px;
+    margin: 0;
+    z-index: 99;
 }
+
+.button-wrapper a {
+    background-color: #ffffff;
+    padding: 12px 20px;
+    width: 100%;
+    border-radius: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    color: #141413;
+    text-decoration: none;
+}
+
 
 .button-wrapper_revoke{
     position: fixed;
@@ -647,6 +662,7 @@
     font-size: 16px;
     font-family: var(--third-family);
     font-weight: 700;
+    border-radius: 32px;
 }
 
 .tariff-info {
@@ -658,6 +674,7 @@
     max-width: 342px;
     margin: 0 auto;
     box-sizing: content-box;
+    padding-bottom: 160px;
 }
 
 .page-content_limited {
@@ -719,7 +736,65 @@
     padding: 12px;
 }
 
+.button-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.copy-button,
+.add-key-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 16px 20px;
+    border-radius: 40px;
+    font-weight: 600;
+    font-size: 16px;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.copy-button {
+    background-color: #f6f6f6;
+    color: #141413;
+    font-weight: 700;
+    gap: 8px; /* gap только у кнопки копирования */
+}
+
+.copy-button:hover {
+    background-color: #e8e8e8;
+}
+
+.add-key-button {
+    background-color: #141413;
+    color: #ffffff;
+    gap: 0; /* нет gap у кнопки добавления */
+}
+
+.add-key-button:hover {
+    background-color: #1a1a1a;
+}
+
+
 @media (min-width: 1024px) {
+      .button-row {
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .copy-button,
+    .add-key-button {
+        width: auto;
+        flex-shrink: 0;
+        padding: 16px 24px;
+    }
+
     .empty-devices {
         left: calc(50% + 110px);
     }
@@ -831,5 +906,9 @@
 
     .limited-btn {
         font-size: 16px;
+    }
+    
+    .config-btn {
+        padding: 16px 20px;
     }
 }

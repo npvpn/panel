@@ -319,12 +319,25 @@
                 </template>
     
                 <template x-if="selectedOs === 'TV'">
-                  <p class="steps-text ">
-                    Сначала установите приложение «Happ Proxy» на телефон iPhone или Android.
-                    Настройте и убедитесь что VPN корректно работает на телефоне.
-                    После этого скачайте то же приложение на телевизор AndroidTV через Google Play,
-                    найдя его в поиске.
-                  </p>
+                  <div class="flex flex-col custom-gap">
+                    <p class="steps-text">
+                      Сначала установите приложение «Happ Proxy» на телефон iPhone или Android.
+                      Настройте и убедитесь что VPN корректно работает на телефоне.
+                      После этого скачайте то же приложение на телевизор AndroidTV через Google Play,
+                      найдя его в поиске.
+                    </p>
+
+                    <template x-if="primaryApp">
+                      <div class="flex gap-2">
+                        <a
+                          :href="primaryApp.install[0]?.url"
+                          target="_blank"
+                          class="config-btn clients-btn"
+                          x-text="`Скачать ${primaryApp.name}`"
+                        ></a>
+                      </div>
+                    </template>
+                  </div>
                 </template>
     
                 <template x-if="primaryApp && currentPlatform !== 'androidtv'">
@@ -335,14 +348,13 @@
                       </p>
                     </template>
                     <div class="flex gap-2">
-                      <template x-for="item in primaryApp.install" :key="item.region">
+                     <template x-for="item in primaryApp.install" :key="item.region">
                         <a
                           :href="item.url"
                           target="_blank"
                           :class="item.region === 'default'
                             ? 'config-btn clients-btn'
-                            : 'box-content w-[154px] py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px]'"
-                          :style="item.region === 'default' ? '' : 'border-radius: 8px;'"
+                            : 'config-btn box-content w-[154px] flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px] clients-btn'"
                         >
                           <span x-show="item.region === 'ru'">
                             <img
@@ -381,9 +393,9 @@
                           :href="app.install[0].url"
                           target="_blank"
                           :class="['ios','macos'].includes(currentPlatform)
-                            ? 'box-content py-2 px-3 flex items-center justify-center gap-2 bg-[#f6f6f6] transition-colors clients-btn'
-                            : 'config-btn clients-btn'"
-                          :style="['ios','macos'].includes(currentPlatform) ? 'border-radius: 8px; width: 120px;' : ''"
+                            ? 'config-btn clients-btn'
+                            : 'config-btn box-content w-[154px] flex items-center justify-center gap-2 bg-[#f6f6f6] font-semibold transition-colors text-[14px] clients-btn'"
+                          :style="['ios','macos'].includes(currentPlatform) ? 'border-radius: 100px; width: 120px;' : ''"
                           x-text="app.name"
                         ></a>
                       </template>
@@ -436,62 +448,40 @@ sudo apt install ./Happ.linux.x64.deb
                 </div>
     
                 <template x-if="!['QR','TV'].includes(selectedOs)">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <div class="flex flex-col">
-                          <button
-                              @click="copyToClipboard(user.subscription_url)"
-                              class="flex items-center justify-center gap-2 bg-[#f6f6f6] py-4 border-0 w-full h-fit"
-                              style="border-radius: 40px;"
-                          >
-                              <span
-                                  class="text-[16px] font-bold"
-                                  style="font-family: var(--third-family)"
-                                  x-text="copiedKey ? 'Скопировано!' : 'Копировать ключ'"
-                              ></span>
-                              <template x-if="!copiedKey">
-                                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
-                                      xmlns="http://www.w3.org/2000/svg">
-                                      <path d="M13.3335 2.5H3.3335V13.3333"
-                                          stroke="#141413" stroke-width="1.66667"
-                                          stroke-linecap="round" stroke-linejoin="round" />
-                                      <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z"
-                                          stroke="#141413" stroke-width="1.66667"
-                                          stroke-linecap="round" stroke-linejoin="round" />
-                                  </svg>
-                              </template>
-                          </button>
-                      </div>
+                  <div class="button-row">
+                      <button
+                          @click="copyToClipboard(user.subscription_url)"
+                          class="copy-button"
+                          style="font-family: var(--third-family)"
+                      >
+                          <span x-text="copiedKey ? 'Ключ скопирован!' : 'Копировать ключ'"></span>
+                          <template x-if="!copiedKey">
+                              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M13.3335 2.5H3.3335V13.3333" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
+                                  <path d="M6.6665 5.83331H16.6665V15.8333C16.6665 16.7538 15.9203 17.5 14.9998 17.5H8.33317C7.4127 17.5 6.6665 16.7538 6.6665 15.8333V5.83331Z" stroke="#141413" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round" />
+                              </svg>
+                          </template>
+                      </button>
 
                       <template x-if="primaryApp && String(selectedOs).toLowerCase() !== 'linux'">
-                        <div class="flex flex-col gap-2">
-                            <a
-                                :href="deeplink(primaryApp)"
-                                class="dark-btn w-full text-center"
-                            >
-                                Добавить ключ в&nbsp;<span x-text="primaryApp.name"></span>
-                            </a>
-                            <template x-for="app in alternativeApps" :key="app.id">
-                              <a
-                                  :href="deeplink(app)"
-                                  class="dark-btn w-full text-center"
-                              >
-                                  Добавить ключ в&nbsp;<span x-text="app.name"></span>
-                              </a>
-                            </template>
-                        </div>
+                          <a
+                              :href="deeplink(primaryApp)"
+                              class="add-key-button"
+                              style="font-family: var(--third-family)"
+                          >
+                              Добавить ключ в&nbsp;<span x-text="primaryApp.name"></span>
+                          </a>
                       </template>
                   </div>
               </template>
               </div>
             </div>
-            {% if web_url %}
               <div class="button-wrapper">
-                <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+                <a href="https://yougile.com/team/9a0e05abf438/#NPVPN-1686" target="_blank" rel="noopener noreferrer"
                     class="w-full flex items-center justify-center font-bold py-4 transition-colors text-lg" style="font-family: var(--third-family)">
                     Войти в личный кабинет
                 </a>
               </div>
-            {% endif %}
           </main>
     
           <main x-show="currentPage === 'tariff'" style="max-width: 680px;">
@@ -577,8 +567,8 @@ sudo apt install ./Happ.linux.x64.deb
                 </div>
               </template>
 
-                <button class="add-device btn-fourth" style="border-radius: 100px;" @click="currentPage = 'settings'" rel="noopener noreferrer">
-                  <div class="device_button" style="border-radius: 16px;">
+                <button class="btn-fourth add-device" style="border-radius: 100px;" @click="currentPage = 'settings'" rel="noopener noreferrer">
+                  <div class="device_button">
                       <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
                           <path d="M8.07107 1V8.07107M8.07107 8.07107V15.1421M8.07107 8.07107H1M8.07107 8.07107H15.1421" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                       </svg>
