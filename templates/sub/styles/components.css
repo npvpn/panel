@@ -339,7 +339,10 @@
     align-items: center;
     justify-content: center;
 
-    min-height: 40vh;
+    min-height: 60vh;
+    margin: 0 auto;
+
+    max-width: 400px;
     margin: 0 auto;
 }
 
@@ -764,7 +767,7 @@
     background-color: #f6f6f6;
     color: #141413;
     font-weight: 700;
-    gap: 8px; /* gap только у кнопки копирования */
+    gap: 8px; 
 }
 
 .copy-button:hover {
@@ -774,7 +777,7 @@
 .add-key-button {
     background-color: #141413;
     color: #ffffff;
-    gap: 0; /* нет gap у кнопки добавления */
+    gap: 0; 
 }
 
 .add-key-button:hover {
@@ -783,7 +786,15 @@
 
 
 @media (min-width: 1024px) {
-      .button-row {
+    .page-content {
+        margin-bottom: 80px;
+    }
+
+    .qr-wrapper {
+        transform: translateX(-110px); 
+    }
+
+    .button-row {
         flex-direction: row;
         gap: 8px;
     }
@@ -897,7 +908,6 @@
     .button-wrapper {
         position: fixed;
         bottom: 24px;
-        left: calc(50% + 110px);
         transform: translateX(-50%);
         width: 420px;
         z-index: 200;
@@ -911,4 +921,5 @@
     .config-btn {
         padding: 16px 20px;
     }
+    
 }
